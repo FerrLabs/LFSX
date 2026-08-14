@@ -58,6 +58,17 @@ async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> Resp
             Json(json!({ "message": "Not Found" })),
         )
             .into_response(),
+        "outsider" => (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "message": "Resource not accessible" })),
+        )
+            .into_response(),
+        "rate-limited" => (
+            StatusCode::FORBIDDEN,
+            [("x-ratelimit-remaining", "0")],
+            Json(json!({ "message": "API rate limit exceeded" })),
+        )
+            .into_response(),
         _ => (
             StatusCode::UNAUTHORIZED,
             Json(json!({ "message": "Bad credentials" })),
@@ -270,4 +281,38 @@ async fn a_read_only_token_cannot_collect_garbage() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_plain_forbidden_from_the_forge_stays_forbidden() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let response = put(
+        app(&root, &api_url, Duration::from_secs(60)),
+        Some("outsider"),
+        b"asset",
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_rate_limited_forge_is_an_outage_not_a_denial() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let response = put(
+        app(&root, &api_url, Duration::from_secs(60)),
+        Some("rate-limited"),
+        b"asset",
+    )
+    .await;
+
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_GATEWAY,
+        "a rate-limited forge must read as an outage the client retries, not as denied access"
+    );
 }
