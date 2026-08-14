@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-08-14
+
+### Features
+
+- feat(ci): publish the image for linux/arm64 as well (#25)
+
 ## [0.4.0] - 2026-08-14
 
 ### Features
