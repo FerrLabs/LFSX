@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.0] - 2026-08-14
+
+### Features
+
+- feat(server): implement the file locking API (#45)
+
 ## [0.8.0] - 2026-08-14
 
 ### Features
