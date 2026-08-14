@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-08-14
+
+### Features
+
+- feat(server): authenticate against the upstream Git repository (#20)
+
 ## [0.2.0] - 2026-08-14
 
 ### Features
