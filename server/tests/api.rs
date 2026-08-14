@@ -1,7 +1,7 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use lfsx_server::config::Config;
+use lfsx_server::config::{Auth, Config};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
@@ -11,6 +11,7 @@ fn app(root: &tempfile::TempDir) -> Router {
         storage_root: root.path().to_path_buf(),
         public_url: "https://lfs.example".into(),
         action_lifetime: 1800,
+        auth: Auth::Disabled,
     })
 }
 
