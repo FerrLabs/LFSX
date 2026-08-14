@@ -124,4 +124,13 @@ done
 head -c 40 "${work}/clone/assets/huge.bin" | grep -q 'git-lfs' && \
 	fail "the clone kept the pointer instead of the content"
 
+if [ "$(uname -s)" = "Linux" ]; then
+	echo "--- SIGTERM shuts the server down cleanly"
+	kill -TERM "$server_pid"
+	if ! wait "$server_pid"; then
+		fail "the server did not exit cleanly on SIGTERM"
+	fi
+	server_pid=""
+fi
+
 echo "e2e: ok"
