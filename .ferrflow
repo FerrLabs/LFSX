@@ -15,6 +15,12 @@
       "versionedFiles": [
         { "path": "server/Cargo.toml", "format": "toml" },
         { "path": "cli/Cargo.toml", "format": "toml" },
+        { "path": "cli/npm/package.json", "format": "json" },
+        { "path": "cli/npm/platforms/linux-x64/package.json", "format": "json" },
+        { "path": "cli/npm/platforms/linux-arm64/package.json", "format": "json" },
+        { "path": "cli/npm/platforms/darwin-x64/package.json", "format": "json" },
+        { "path": "cli/npm/platforms/darwin-arm64/package.json", "format": "json" },
+        { "path": "cli/npm/platforms/win32-x64/package.json", "format": "json" },
         { "path": "chart/Chart.yaml", "format": "chartyaml" },
         {
           "path": "chart/Chart.yaml",
