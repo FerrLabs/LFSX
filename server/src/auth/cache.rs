@@ -5,45 +5,80 @@ use std::time::{Duration, Instant};
 use sha2::{Digest, Sha256};
 
 use super::Permission;
+use crate::error::Error;
 use crate::namespace::Namespace;
 
 type Key = ([u8; 32], String);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decision {
+    Granted(Permission),
+    Unauthenticated,
+    Forbidden,
+}
+
+impl Decision {
+    pub fn of(outcome: &Result<Permission, Error>) -> Option<Self> {
+        match outcome {
+            Ok(permission) => Some(Self::Granted(*permission)),
+            Err(Error::Unauthenticated) => Some(Self::Unauthenticated),
+            Err(Error::Forbidden) => Some(Self::Forbidden),
+            Err(_) => None,
+        }
+    }
+}
+
+impl From<Decision> for Result<Permission, Error> {
+    fn from(decision: Decision) -> Self {
+        match decision {
+            Decision::Granted(permission) => Ok(permission),
+            Decision::Unauthenticated => Err(Error::Unauthenticated),
+            Decision::Forbidden => Err(Error::Forbidden),
+        }
+    }
+}
+
 struct Entry {
-    permission: Permission,
+    decision: Decision,
     expires_at: Instant,
 }
 
 pub struct Cache {
-    ttl: Duration,
+    granted_ttl: Duration,
+    rejected_ttl: Duration,
     entries: Mutex<HashMap<Key, Entry>>,
 }
 
 impl Cache {
-    pub fn new(ttl: Duration) -> Self {
+    pub fn new(granted_ttl: Duration, rejected_ttl: Duration) -> Self {
         Self {
-            ttl,
+            granted_ttl,
+            rejected_ttl,
             entries: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn get(&self, token: &str, ns: &Namespace) -> Option<Permission> {
+    pub fn get(&self, token: &str, ns: &Namespace) -> Option<Decision> {
         let entries = self.entries.lock().expect("permission cache");
         let entry = entries.get(&key(token, ns))?;
 
-        (entry.expires_at > Instant::now()).then_some(entry.permission)
+        (entry.expires_at > Instant::now()).then_some(entry.decision)
     }
 
-    pub fn insert(&self, token: &str, ns: &Namespace, permission: Permission) {
+    pub fn insert(&self, token: &str, ns: &Namespace, decision: Decision) {
         let now = Instant::now();
-        let mut entries = self.entries.lock().expect("permission cache");
+        let ttl = match decision {
+            Decision::Granted(_) => self.granted_ttl,
+            _ => self.rejected_ttl,
+        };
 
+        let mut entries = self.entries.lock().expect("permission cache");
         entries.retain(|_, entry| entry.expires_at > now);
         entries.insert(
             key(token, ns),
             Entry {
-                permission,
-                expires_at: now + self.ttl,
+                decision,
+                expires_at: now + ttl,
             },
         );
     }

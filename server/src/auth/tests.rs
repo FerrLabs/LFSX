@@ -58,11 +58,14 @@ fn unusable_credentials_yield_no_token() {
 
 #[test]
 fn a_cached_permission_is_scoped_to_its_token_and_repository() {
-    let cache = Cache::new(Duration::from_secs(60));
+    let cache = Cache::new(Duration::from_secs(60), Duration::from_secs(60));
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
-    cache.insert("writer", &ns, Permission::Write);
+    cache.insert("writer", &ns, Decision::Granted(Permission::Write));
 
-    assert_eq!(cache.get("writer", &ns), Some(Permission::Write));
+    assert_eq!(
+        cache.get("writer", &ns),
+        Some(Decision::Granted(Permission::Write))
+    );
     assert_eq!(cache.get("someone-else", &ns), None);
     assert_eq!(
         cache.get("writer", &Namespace::new("FerrLabs", "Other").unwrap()),
@@ -72,9 +75,9 @@ fn a_cached_permission_is_scoped_to_its_token_and_repository() {
 
 #[test]
 fn a_cached_permission_stops_being_served_once_it_expires() {
-    let cache = Cache::new(Duration::from_millis(20));
+    let cache = Cache::new(Duration::from_millis(20), Duration::from_millis(20));
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
-    cache.insert("writer", &ns, Permission::Write);
+    cache.insert("writer", &ns, Decision::Granted(Permission::Write));
 
     sleep(Duration::from_millis(40));
 
@@ -85,4 +88,46 @@ fn a_cached_permission_stops_being_served_once_it_expires() {
 fn only_write_permission_satisfies_a_write() {
     assert!(Permission::Write.require_write().is_ok());
     assert!(Permission::Read.require_write().is_err());
+}
+
+#[test]
+fn a_rejection_expires_sooner_than_a_grant() {
+    let cache = Cache::new(Duration::from_secs(60), Duration::from_millis(20));
+    let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
+    cache.insert("granted", &ns, Decision::Granted(Permission::Read));
+    cache.insert("refused", &ns, Decision::Forbidden);
+
+    sleep(Duration::from_millis(40));
+
+    assert_eq!(
+        cache.get("granted", &ns),
+        Some(Decision::Granted(Permission::Read)),
+        "a grant must outlive the shorter rejection window"
+    );
+    assert_eq!(
+        cache.get("refused", &ns),
+        None,
+        "a rejection must lapse quickly so newly granted access is picked up"
+    );
+}
+
+#[test]
+fn an_unreachable_forge_is_never_remembered() {
+    assert_eq!(
+        Decision::of(&Ok(Permission::Write)),
+        Some(Decision::Granted(Permission::Write))
+    );
+    assert_eq!(
+        Decision::of(&Err(Error::Forbidden)),
+        Some(Decision::Forbidden)
+    );
+    assert_eq!(
+        Decision::of(&Err(Error::Unauthenticated)),
+        Some(Decision::Unauthenticated)
+    );
+    assert_eq!(
+        Decision::of(&Err(Error::Forge)),
+        None,
+        "caching an outage would turn a transient failure into a lasting denial"
+    );
 }

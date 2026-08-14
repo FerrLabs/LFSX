@@ -13,7 +13,7 @@ use crate::config::Auth;
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::state::Shared;
-use cache::Cache;
+use cache::{Cache, Decision};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Permission {
@@ -42,14 +42,18 @@ impl Authorizer {
     pub fn new(auth: &Auth) -> Self {
         match auth {
             Auth::Disabled => Self::Disabled,
-            Auth::Github { api_url, cache_ttl } => Self::Github {
+            Auth::Github {
+                api_url,
+                cache_ttl,
+                rejection_ttl,
+            } => Self::Github {
                 client: reqwest::Client::builder()
                     .user_agent(concat!("lfsx/", env!("CARGO_PKG_VERSION")))
                     .timeout(std::time::Duration::from_secs(10))
                     .build()
                     .expect("http client"),
                 api_url: api_url.clone(),
-                cache: Cache::new(*cache_ttl),
+                cache: Cache::new(*cache_ttl, *rejection_ttl),
             },
         }
     }
@@ -65,14 +69,16 @@ impl Authorizer {
         };
 
         let token = credentials::token(headers).ok_or(Error::Unauthenticated)?;
-        if let Some(permission) = cache.get(&token, ns) {
-            return Ok(permission);
+        if let Some(decision) = cache.get(&token, ns) {
+            return decision.into();
         }
 
-        let permission = github::permission(client, api_url, &token, ns).await?;
-        cache.insert(&token, ns, permission);
+        let outcome = github::permission(client, api_url, &token, ns).await;
+        if let Some(decision) = Decision::of(&outcome) {
+            cache.insert(&token, ns, decision);
+        }
 
-        Ok(permission)
+        outcome
     }
 }
 

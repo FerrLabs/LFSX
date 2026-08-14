@@ -78,6 +78,15 @@ async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> Resp
 }
 
 fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Router {
+    app_with_rejection_ttl(root, api_url, cache_ttl, Duration::from_secs(10))
+}
+
+fn app_with_rejection_ttl(
+    root: &tempfile::TempDir,
+    api_url: &str,
+    cache_ttl: Duration,
+    rejection_ttl: Duration,
+) -> Router {
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: root.path().to_path_buf(),
@@ -87,6 +96,7 @@ fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Router {
         auth: Auth::Github {
             api_url: api_url.to_owned(),
             cache_ttl,
+            rejection_ttl,
         },
     })
 }
@@ -232,7 +242,7 @@ async fn a_write_token_can_upload() {
 async fn permissions_are_resolved_again_once_the_cache_entry_expires() {
     let root = tempfile::tempdir().unwrap();
     let (api_url, forge) = forge().await;
-    let app = app(&root, &api_url, Duration::from_millis(50));
+    let app = app(&root, &api_url, Duration::from_secs(1));
 
     assert_eq!(
         put(app.clone(), Some("writer"), b"first").await.status(),
@@ -252,7 +262,7 @@ async fn permissions_are_resolved_again_once_the_cache_entry_expires() {
         "the second upload must not have hit the forge"
     );
 
-    tokio::time::sleep(Duration::from_millis(80)).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
 
     assert_eq!(
         put(app, Some("writer"), b"third").await.status(),
@@ -314,5 +324,42 @@ async fn a_rate_limited_forge_is_an_outage_not_a_denial() {
         response.status(),
         StatusCode::BAD_GATEWAY,
         "a rate-limited forge must read as an outage the client retries, not as denied access"
+    );
+}
+
+#[tokio::test]
+async fn a_rejected_token_stops_reaching_the_forge_then_recovers() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+    let app = app_with_rejection_ttl(
+        &root,
+        &api_url,
+        Duration::from_secs(60),
+        Duration::from_secs(1),
+    );
+
+    for _ in 0..3 {
+        assert_eq!(
+            put(app.clone(), Some("stranger"), b"asset").await.status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    assert_eq!(
+        forge.calls.load(Ordering::SeqCst),
+        1,
+        "a token the forge already refused must not cost another API call on every retry"
+    );
+
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    assert_eq!(
+        put(app, Some("stranger"), b"asset").await.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        forge.calls.load(Ordering::SeqCst),
+        2,
+        "once the rejection lapses the forge is asked again, so newly granted access is picked up"
     );
 }

@@ -20,12 +20,14 @@ pub enum Auth {
     Github {
         api_url: String,
         cache_ttl: Duration,
+        rejection_ttl: Duration,
     },
     Disabled,
 }
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 const CACHE_TTL: Duration = Duration::from_secs(60);
+const REJECTION_TTL: Duration = Duration::from_secs(10);
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 impl Config {
@@ -49,11 +51,7 @@ impl Config {
             storage_root,
             public_url,
             action_lifetime: 1800,
-            gc_grace: std::env::var("LFSX_GC_GRACE")
-                .ok()
-                .and_then(|raw| raw.parse().ok())
-                .map(Duration::from_secs)
-                .unwrap_or(GC_GRACE),
+            gc_grace: seconds("LFSX_GC_GRACE").unwrap_or(GC_GRACE),
             auth: Auth::from_env(),
         }
     }
@@ -88,12 +86,21 @@ impl Auth {
             .trim_end_matches('/')
             .to_owned();
 
-        let cache_ttl = std::env::var("LFSX_AUTH_CACHE_TTL")
-            .ok()
-            .and_then(|raw| raw.parse().ok())
-            .map(Duration::from_secs)
-            .unwrap_or(CACHE_TTL);
+        let cache_ttl = seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL);
 
-        Self::Github { api_url, cache_ttl }
+        let rejection_ttl = seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL);
+
+        Self::Github {
+            api_url,
+            cache_ttl,
+            rejection_ttl,
+        }
     }
+}
+
+fn seconds(variable: &str) -> Option<Duration> {
+    std::env::var(variable)
+        .ok()
+        .and_then(|raw| raw.parse().ok())
+        .map(Duration::from_secs)
 }
