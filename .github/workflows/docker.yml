@@ -44,7 +44,7 @@ jobs:
   build:
     name: Build & Push LFSX
     needs: meta
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2883414f68b4029d28d8700d2a51d070f7528111 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@cb90cb51f2aec1e440b185e913079155d7e0020e # FerrLabs/.github#248
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
@@ -52,6 +52,7 @@ jobs:
       context: .
       dockerfile: Dockerfile
       platforms: linux/amd64,linux/arm64
+      sccache-gha: true
       extra-tags: ghcr.io/ferrlabs/lfsx:${{ needs.meta.outputs.major_minor }}
       smoke-test-cmd: |
         podman run -d --name lfsx-smoke -p 18080:8080 "$SMOKE_IMAGE"
