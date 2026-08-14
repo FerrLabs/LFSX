@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.3] - 2026-08-14
+
+### Refactoring
+
+- refactor(server): validate the namespace once and split the sweep out of the store (#35)
+
 ## [0.5.2] - 2026-08-14
 
 ### Bug Fixes
