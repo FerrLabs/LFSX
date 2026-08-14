@@ -48,3 +48,32 @@ jobs:
 
       - run: git lfs version
       - run: bash ci/e2e.sh
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+
+      - run: helm lint chart --set config.publicUrl=https://lfs.example.com
+
+      - name: The public URL cannot be left unset
+        run: |
+          if helm template lfsx chart >/dev/null 2>&1; then
+            echo "::error::rendering succeeded without config.publicUrl or an ingress host"
+            exit 1
+          fi
+
+      - name: Render the shapes people actually deploy
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart             --set config.publicUrl=https://lfs.example.com >/dev/null
+
+          helm template lfsx chart             --set ingress.enabled=true             --set ingress.className=nginx             --set ingress.host=lfs.example.com > nginx.yaml
+
+          grep -q 'proxy-body-size: "0"' nginx.yaml             || { echo "::error::nginx ingress lost its body size annotation, uploads over 1MB would fail"; exit 1; }
+          grep -q 'https://lfs.example.com' nginx.yaml             || { echo "::error::LFSX_PUBLIC_URL was not derived from the ingress host"; exit 1; }
+
+          helm template lfsx chart             --set config.publicUrl=http://lfsx.internal             --set auth.mode=disabled             --set persistence.existingClaim=objects >/dev/null

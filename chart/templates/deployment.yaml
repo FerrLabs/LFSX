@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lfsx.fullname" . }}
+  labels:
+    {{- include "lfsx.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "lfsx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lfsx.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "lfsx.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lfsx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: LFSX_BIND
+              value: "0.0.0.0:8080"
+            - name: LFSX_STORAGE_ROOT
+              value: /var/lib/lfsx
+            - name: LFSX_PUBLIC_URL
+              value: {{ include "lfsx.publicUrl" . | quote }}
+            - name: LFSX_AUTH
+              value: {{ .Values.auth.mode | quote }}
+            {{- if eq .Values.auth.mode "github" }}
+            - name: LFSX_GITHUB_API_URL
+              value: {{ .Values.auth.githubApiUrl | quote }}
+            - name: LFSX_AUTH_CACHE_TTL
+              value: {{ .Values.auth.cacheTtl | quote }}
+            - name: LFSX_AUTH_REJECTION_TTL
+              value: {{ .Values.auth.rejectionTtl | quote }}
+            {{- end }}
+            - name: LFSX_GC_GRACE
+              value: {{ .Values.gc.grace | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.config.logLevel | quote }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: objects
+              mountPath: /var/lib/lfsx
+      volumes:
+        - name: objects
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "lfsx.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

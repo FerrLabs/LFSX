@@ -1,0 +1,26 @@
+LFSX is reachable in the cluster at:
+
+  http://{{ include "lfsx.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+Point a repository at it with a committed .lfsconfig:
+
+  [lfs]
+      url = {{ include "lfsx.publicUrl" . }}/my-org/my-project
+
+{{ if eq .Values.auth.mode "disabled" }}
+WARNING: auth.mode is "disabled". Every request is accepted, whoever it comes from.
+Only run this on a network you trust.
+{{ else }}
+Clients authenticate with the token they would use to clone over HTTPS. Push rights on
+{{ .Values.auth.githubApiUrl }} grant upload, pull rights grant download.
+{{ end }}
+{{- if .Values.ingress.enabled }}
+{{- if not (eq .Values.ingress.className "nginx") }}
+Check your ingress controller does not buffer request bodies or cap their size: LFS
+transfers are large and must stream. On Traefik in particular, do not attach the
+buffering middleware to this route.
+{{- end }}
+{{- else }}
+No ingress was created. Transfers must reach LFSX at {{ include "lfsx.publicUrl" . }},
+which is what the batch response advertises to clients.
+{{- end }}

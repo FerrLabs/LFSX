@@ -13,7 +13,13 @@
       "path": ".",
       "changelog": "CHANGELOG.md",
       "versionedFiles": [
-        { "path": "server/Cargo.toml", "format": "toml" }
+        { "path": "server/Cargo.toml", "format": "toml" },
+        { "path": "chart/Chart.yaml", "format": "chartyaml" },
+        {
+          "path": "chart/Chart.yaml",
+          "format": "txt",
+          "selector": "(?m)^appVersion: \"([^\"]+)\""
+        }
       ]
     }
   ]

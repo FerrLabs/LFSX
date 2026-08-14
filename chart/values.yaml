@@ -1,0 +1,57 @@
+image:
+  repository: ghcr.io/ferrlabs/lfsx
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+config:
+  publicUrl: ""
+  logLevel: info
+
+auth:
+  mode: github
+  githubApiUrl: https://api.github.com
+  cacheTtl: 60
+  rejectionTtl: 10
+
+gc:
+  grace: 1209600
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  size: 100Gi
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
