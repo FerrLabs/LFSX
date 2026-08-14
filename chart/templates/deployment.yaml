@@ -47,8 +47,10 @@ spec:
               value: "0.0.0.0:8080"
             - name: LFSX_STORAGE_ROOT
               value: /var/lib/lfsx
+            {{- with (include "lfsx.publicUrl" .) }}
             - name: LFSX_PUBLIC_URL
-              value: {{ include "lfsx.publicUrl" . | quote }}
+              value: {{ . | quote }}
+            {{- end }}
             - name: LFSX_AUTH
               value: {{ .Values.auth.mode | quote }}
             {{- if eq .Values.auth.mode "github" }}

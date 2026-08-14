@@ -20,7 +20,10 @@ Check your ingress controller does not buffer request bodies or cap their size: 
 transfers are large and must stream. On Traefik in particular, do not attach the
 buffering middleware to this route.
 {{- end }}
-{{- else }}
-No ingress was created. Transfers must reach LFSX at {{ include "lfsx.publicUrl" . }},
-which is what the batch response advertises to clients.
+{{- end }}
+{{- if not (include "lfsx.publicUrl" .) }}
+
+No public URL is pinned, so transfers are advertised on whichever host the request arrived at.
+That is what you want when this server answers to more than one name; set config.publicUrl to
+pin a single one.
 {{- end }}

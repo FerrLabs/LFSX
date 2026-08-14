@@ -16,8 +16,12 @@ discover that in production.
 
 **`LFSX_PUBLIC_URL` comes from the ingress host** unless you set `config.publicUrl` yourself. It is
 echoed in the batch response and clients reconnect to it for every object, so a wrong value makes
-negotiation succeed and every transfer fail — a confusing failure worth making impossible. Install
-fails if neither is set.
+negotiation succeed and every transfer fail.
+
+With no ingress and no `config.publicUrl`, nothing is pinned and the server answers on whichever
+host each request arrived at. That is the right setting when the same service is reached under more
+than one name — a public host and an internal one — where any single fixed value would be wrong for
+half the clients.
 
 **With `ingress.className: nginx`**, the annotations that keep large uploads working are added for
 you: no body size cap, no request buffering, and timeouts raised to an hour. Without them nginx
@@ -34,7 +38,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 |---|---|---|
 | `image.repository` | `ghcr.io/ferrlabs/lfsx` | image to pull |
 | `image.tag` | chart `appVersion` | override to pin a different build |
-| `config.publicUrl` | derived from `ingress.host` | URL clients reach; required if no ingress |
+| `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
 | `config.logLevel` | `info` | `RUST_LOG` filter |
 | `auth.mode` | `github` | `disabled` accepts every request, for trusted networks only |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
