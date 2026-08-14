@@ -2,8 +2,8 @@ apiVersion: v2
 name: lfsx
 description: Self-hosted Git LFS server
 type: application
-version: 0.17.1
-appVersion: "0.17.1"
+version: 0.17.2
+appVersion: "0.17.2"
 home: https://github.com/FerrLabs/LFSX
 sources:
   - https://github.com/FerrLabs/LFSX

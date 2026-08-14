@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.2] - 2026-08-14
+
+### Bug Fixes
+
+- fix(docker): copy every workspace member into the image build (#68)
+
 ## [0.17.1] - 2026-08-14
 
 ### Bug Fixes
