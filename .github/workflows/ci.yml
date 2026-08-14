@@ -31,6 +31,7 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
@@ -52,6 +53,7 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-e2e-
 
       - run: git lfs version
       - run: bash ci/e2e.sh
