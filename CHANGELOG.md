@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.18.0] - 2026-08-14
+
+### Features
+
+- feat(server): honour Range on download (#73)
+
 ## [0.17.3] - 2026-08-14
 
 ### Bug Fixes
