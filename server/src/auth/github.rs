@@ -22,9 +22,9 @@ pub async fn permission(
     client: &reqwest::Client,
     api_url: &str,
     token: &str,
-    ns: &Namespace<'_>,
+    ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/repos/{}/{}", ns.org(), ns.repo());
+    let url = format!("{api_url}/repos/{ns}");
 
     let response = client
         .get(&url)

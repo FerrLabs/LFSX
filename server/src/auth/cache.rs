@@ -27,14 +27,14 @@ impl Cache {
         }
     }
 
-    pub fn get(&self, token: &str, ns: &Namespace<'_>) -> Option<Permission> {
+    pub fn get(&self, token: &str, ns: &Namespace) -> Option<Permission> {
         let entries = self.entries.lock().expect("permission cache");
         let entry = entries.get(&key(token, ns))?;
 
         (entry.expires_at > Instant::now()).then_some(entry.permission)
     }
 
-    pub fn insert(&self, token: &str, ns: &Namespace<'_>, permission: Permission) {
+    pub fn insert(&self, token: &str, ns: &Namespace, permission: Permission) {
         let now = Instant::now();
         let mut entries = self.entries.lock().expect("permission cache");
 
@@ -49,9 +49,6 @@ impl Cache {
     }
 }
 
-fn key(token: &str, ns: &Namespace<'_>) -> Key {
-    (
-        Sha256::digest(token.as_bytes()).into(),
-        format!("{}/{}", ns.org(), ns.repo()),
-    )
+fn key(token: &str, ns: &Namespace) -> Key {
+    (Sha256::digest(token.as_bytes()).into(), ns.to_string())
 }

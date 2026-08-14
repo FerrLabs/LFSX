@@ -58,22 +58,12 @@ impl Config {
         }
     }
 
-    pub fn object_url(&self, ns: &Namespace<'_>, oid: &str) -> String {
-        format!(
-            "{}/{}/{}/objects/{oid}",
-            self.public_url,
-            ns.org(),
-            ns.repo()
-        )
+    pub fn object_url(&self, ns: &Namespace, oid: &str) -> String {
+        format!("{}/{ns}/objects/{oid}", self.public_url)
     }
 
-    pub fn verify_url(&self, ns: &Namespace<'_>) -> String {
-        format!(
-            "{}/{}/{}/objects/verify",
-            self.public_url,
-            ns.org(),
-            ns.repo()
-        )
+    pub fn verify_url(&self, ns: &Namespace) -> String {
+        format!("{}/{ns}/objects/verify", self.public_url)
     }
 
     pub fn action(&self, href: String) -> Action {

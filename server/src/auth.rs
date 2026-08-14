@@ -54,11 +54,7 @@ impl Authorizer {
         }
     }
 
-    async fn permission(
-        &self,
-        headers: &HeaderMap,
-        ns: &Namespace<'_>,
-    ) -> Result<Permission, Error> {
+    async fn permission(&self, headers: &HeaderMap, ns: &Namespace) -> Result<Permission, Error> {
         let Self::Github {
             client,
             api_url,
@@ -86,14 +82,14 @@ pub async fn authorize(
     mut request: Request,
     next: Next,
 ) -> Result<Response, Error> {
-    let (org, repo) = match (params.get("org"), params.get("repo")) {
-        (Some(org), Some(repo)) => (org, repo),
-        _ => return Err(Error::MalformedNamespace),
+    let (Some(org), Some(repo)) = (params.get("org"), params.get("repo")) else {
+        return Err(Error::MalformedNamespace);
     };
-    let ns = Namespace::new(org, repo)?;
+    let ns = Namespace::new(org.as_str(), repo.as_str())?;
 
     let permission = state.authorizer.permission(request.headers(), &ns).await?;
     request.extensions_mut().insert(permission);
+    request.extensions_mut().insert(ns);
 
     Ok(next.run(request).await)
 }

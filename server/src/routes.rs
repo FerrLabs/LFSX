@@ -34,11 +34,10 @@ pub fn router(state: Shared) -> Router {
 
 async fn batch(
     State(state): State<Shared>,
-    Path((org, repo)): Path<(String, String)>,
+    Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
     Json(request): Json<BatchRequest>,
 ) -> Result<Json<BatchResponse>, Error> {
-    let ns = Namespace::new(&org, &repo)?;
     if request.operation == Operation::Upload {
         permission.require_write()?;
     }
@@ -57,7 +56,7 @@ async fn batch(
     }))
 }
 
-async fn resolve_download(state: &Shared, ns: &Namespace<'_>, id: ObjectId) -> ObjectSpec {
+async fn resolve_download(state: &Shared, ns: &Namespace, id: ObjectId) -> ObjectSpec {
     if !state.store.exists(ns, &id.oid).await {
         return ObjectSpec::missing(id);
     }
@@ -73,7 +72,7 @@ async fn resolve_download(state: &Shared, ns: &Namespace<'_>, id: ObjectId) -> O
     }
 }
 
-async fn resolve_upload(state: &Shared, ns: &Namespace<'_>, id: ObjectId) -> ObjectSpec {
+async fn resolve_upload(state: &Shared, ns: &Namespace, id: ObjectId) -> ObjectSpec {
     if state.store.exists(ns, &id.oid).await {
         return ObjectSpec {
             id,
@@ -97,8 +96,9 @@ async fn resolve_upload(state: &Shared, ns: &Namespace<'_>, id: ObjectId) -> Obj
 
 async fn upload(
     State(state): State<Shared>,
-    Path((org, repo, oid)): Path<(String, String, String)>,
+    Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    Path((.., oid)): Path<(String, String, String)>,
     headers: axum::http::HeaderMap,
     body: Body,
 ) -> Result<StatusCode, Error> {
@@ -108,8 +108,6 @@ async fn upload(
         .get(header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse().ok());
-
-    let ns = Namespace::new(&org, &repo)?;
 
     state
         .store
@@ -121,10 +119,9 @@ async fn upload(
 
 async fn download(
     State(state): State<Shared>,
-    Path((org, repo, oid)): Path<(String, String, String)>,
+    Extension(ns): Extension<Namespace>,
+    Path((.., oid)): Path<(String, String, String)>,
 ) -> Result<Response, Error> {
-    let ns = Namespace::new(&org, &repo)?;
-
     let (file, size) = state.store.open(&ns, &oid).await?;
     let body = Body::from_stream(ReaderStream::new(file));
 
@@ -141,34 +138,13 @@ async fn download(
         .into_response())
 }
 
-async fn retain(
-    State(state): State<Shared>,
-    Path((org, repo)): Path<(String, String)>,
-    Extension(permission): Extension<Permission>,
-    Json(request): Json<RetainRequest>,
-) -> Result<Json<SweepReport>, Error> {
-    permission.require_write()?;
-
-    let ns = Namespace::new(&org, &repo)?;
-    let retained = request.oids.into_iter().collect();
-
-    let report = state
-        .store
-        .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
-        .await?;
-
-    Ok(Json(report))
-}
-
 async fn verify(
     State(state): State<Shared>,
-    Path((org, repo)): Path<(String, String)>,
+    Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
     Json(id): Json<ObjectId>,
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
-
-    let ns = Namespace::new(&org, &repo)?;
 
     state
         .store
@@ -176,4 +152,21 @@ async fn verify(
         .await
         .then_some(StatusCode::OK)
         .ok_or(Error::NotFound)
+}
+
+async fn retain(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+    Json(request): Json<RetainRequest>,
+) -> Result<Json<SweepReport>, Error> {
+    permission.require_write()?;
+
+    let retained = request.oids.into_iter().collect();
+    let report = state
+        .store
+        .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
+        .await?;
+
+    Ok(Json(report))
 }

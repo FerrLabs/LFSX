@@ -28,6 +28,6 @@ fn traversal_segments_are_rejected() {
 
 #[test]
 fn absurdly_long_names_are_rejected() {
-    assert!(Namespace::new("FerrLabs", &"a".repeat(101)).is_err());
-    assert!(Namespace::new("FerrLabs", &"a".repeat(100)).is_ok());
+    assert!(Namespace::new("FerrLabs", "a".repeat(101)).is_err());
+    assert!(Namespace::new("FerrLabs", "a".repeat(100)).is_ok());
 }
