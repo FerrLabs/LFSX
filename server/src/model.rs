@@ -118,3 +118,10 @@ pub struct VerifyLocksResponse {
     pub theirs: Vec<Lock>,
     pub next_cursor: &'static str,
 }
+
+#[derive(Debug, Serialize)]
+pub struct StatsResponse {
+    pub objects: u64,
+    pub bytes: u64,
+    pub locks: usize,
+}

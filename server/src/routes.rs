@@ -8,11 +8,12 @@ use futures_util::StreamExt;
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Actor, Permission};
+use crate::dashboard::{self, Overview};
 use crate::error::Error;
 use crate::metrics;
 use crate::model::{
     Actions, BatchRequest, BatchResponse, CreateLockRequest, ListLocksQuery, ListLocksResponse,
-    LockResponse, ObjectId, ObjectSpec, Operation, RetainRequest, UnlockRequest,
+    LockResponse, ObjectId, ObjectSpec, Operation, RetainRequest, StatsResponse, UnlockRequest,
     VerifyLocksResponse,
 };
 use crate::namespace::Namespace;
@@ -24,6 +25,8 @@ pub fn router(state: Shared) -> Router {
         .route("/{org}/{repo}/objects/batch", post(batch))
         .route("/{org}/{repo}/objects/verify", post(verify))
         .route("/{org}/{repo}/objects/retain", post(retain))
+        .route("/{org}/{repo}/objects/stats", get(stats))
+        .route("/{org}/{repo}", get(overview))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
         .route("/{org}/{repo}/locks", post(create_lock).get(list_locks))
         .route("/{org}/{repo}/locks/verify", post(verify_locks))
@@ -298,4 +301,34 @@ async fn unlock(
     state.locks.remove(&ns, &id).await?;
 
     Ok(Json(LockResponse { lock }))
+}
+
+async fn stats(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+) -> Result<Json<StatsResponse>, Error> {
+    let (objects, bytes) = state.store.usage_of(&ns).await;
+
+    Ok(Json(StatsResponse {
+        objects,
+        bytes,
+        locks: state.locks.list(&ns).await?.len(),
+    }))
+}
+
+async fn overview(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+) -> Result<Response, Error> {
+    let (objects, bytes) = state.store.usage_of(&ns).await;
+    let page = dashboard::render(&Overview {
+        namespace: ns.clone(),
+        objects,
+        bytes,
+        locks: state.locks.list(&ns).await?,
+        writable: permission.require_write().is_ok(),
+    });
+
+    Ok(([(header::CONTENT_TYPE, "text/html; charset=utf-8")], page).into_response())
 }

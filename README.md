@@ -150,6 +150,17 @@ and every transfer then fails.
 networks, it is logged loudly at startup, and it is never the right setting for anything reachable
 from the internet.
 
+## Looking at a repository
+
+Open `https://lfs.example.com/my-org/my-project` in a browser. It shows how many objects the
+repository holds, how much disk they take, and what is locked and by whom — the questions that
+otherwise need a shell.
+
+There is no login screen and no session. The page sits behind the same permission check as every
+transfer, so the browser asks for credentials itself and you give it the same token git uses. Read
+access is enough to see it; nothing on the page changes anything, deletion stays an explicit API
+call. `/{org}/{repo}/objects/stats` serves the same numbers as JSON.
+
 ## Observability
 
 `/metrics` serves the Prometheus text format, unauthenticated like the probes — an orchestrator
@@ -199,6 +210,8 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `PUT` | `/{org}/{repo}/objects/{oid}` | store an object |
 | `GET` | `/{org}/{repo}/objects/{oid}` | retrieve an object |
 | `POST` | `/{org}/{repo}/objects/verify` | post-upload verification |
+| `GET` | `/{org}/{repo}` | a page showing what the repository holds |
+| `GET` | `/{org}/{repo}/objects/stats` | the same numbers as JSON |
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
 | `POST` | `/{org}/{repo}/locks` | take a lock on a path |
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
