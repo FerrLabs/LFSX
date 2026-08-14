@@ -32,7 +32,7 @@ publish_if_new() {
 
 for archive in "${!ARCHIVES[@]}"; do
   platform="${ARCHIVES[$archive]}"
-  echo "${archive} -> lfsx-${platform}"
+  echo "${archive} -> @ferrlabs/lfsx-${platform}"
 
   gh release download "v${VERSION}" -p "$archive" -D "$WORK_DIR"
 
@@ -53,7 +53,7 @@ for archive in "${!ARCHIVES[@]}"; do
   (
     cd "$package"
     npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
-    publish_if_new "lfsx-${platform}"
+    publish_if_new "@ferrlabs/lfsx-${platform}"
   )
 done
 
@@ -72,6 +72,6 @@ node -e "
   fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 " "$VERSION"
 
-publish_if_new lfsx
+publish_if_new @ferrlabs/lfsx
 
-echo "published lfsx@${VERSION} and its platform packages"
+echo "published @ferrlabs/lfsx@${VERSION} and its platform packages"
