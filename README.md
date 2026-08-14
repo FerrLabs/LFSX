@@ -135,8 +135,9 @@ All configuration is by environment variable.
 | `LFSX_BIND` | `0.0.0.0:8080` | listen address |
 | `LFSX_STORAGE_ROOT` | `/var/lib/lfsx` | root of the object store |
 | `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links |
-| `LFSX_AUTH` | `github` | permission source, or `disabled` to accept every request |
+| `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
+| `LFSX_GITLAB_API_URL` | `https://gitlab.com/api/v4` | API root, point it at your self-managed GitLab |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
@@ -356,12 +357,16 @@ The client presents the token it would use to clone over HTTPS — a personal ac
 `GITHUB_TOKEN` a CI job already has — as the password of an HTTP Basic credential, or as a bearer
 token. LFSX resolves it against `GET /repos/{org}/{repo}` and maps the result:
 
-| Rights on the repository | Objects |
-|---|---|
-| admin | download, upload, and force a lock open |
-| push | download, upload, and take locks |
-| pull only | download |
-| none, or an unusable token | rejected |
+| GitHub | GitLab | Objects |
+|---|---|---|
+| admin | Maintainer, Owner | download, upload, and force a lock open |
+| push | Developer | download, upload, and take locks |
+| pull only | Reporter | download |
+| none, or an unusable token | Guest, or none | rejected |
+
+GitLab grants inherited from a group count the same as ones set on the project, which is how most
+organisations there are arranged. Developer is the level that may push, matching what GitLab itself
+requires to write to the repository.
 
 `/health` stays open. Everything under `/{org}/{repo}/objects/` requires a token, and each answer
 is cached for `LFSX_AUTH_CACHE_TTL` seconds so a push of two hundred objects costs one API call
@@ -392,9 +397,20 @@ In CI, the token the workflow already holds is enough — no secret to provision
     git lfs pull
 ```
 
-Only GitHub is supported today. GitLab and Gitea are tracked in
-[#2](https://github.com/FerrLabs/LFSX/issues/2), and the rest of the roadmap is in
-[the issues](https://github.com/FerrLabs/LFSX/issues).
+### Adding a forge
+
+Two providers exist, so the shape is settled rather than guessed. A provider is one module under
+`server/src/auth/` exposing two functions — `permission(client, api_url, token, namespace)` and
+`login(client, api_url, token)` — plus a variant on `config::Provider` carrying its default API
+root and environment variable, and two arms in `auth.rs`. Nothing else: the caching, the challenge
+handling and the rejection accounting are shared and provider-blind.
+
+The part worth care is the error mapping, because it is where the two existing providers already
+disagree. GitHub answers `403` when rate-limited, GitLab answers `429`; both mean "ask again
+later" and must map to `Error::Forge`, never to `Forbidden`. Getting that wrong tells a user with
+full rights that they have none.
+
+Gitea is the obvious third, tracked in [the issues](https://github.com/FerrLabs/LFSX/issues).
 
 ### Why authentication cannot live in the proxy
 

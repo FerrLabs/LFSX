@@ -1,6 +1,7 @@
 mod cache;
 mod credentials;
 mod github;
+mod gitlab;
 
 use std::collections::HashMap;
 
@@ -9,7 +10,7 @@ use axum::http::HeaderMap;
 use axum::middleware::Next;
 use axum::response::Response;
 
-use crate::config::Auth;
+use crate::config::{Auth, Provider};
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::state::Shared;
@@ -40,7 +41,8 @@ impl Permission {
 }
 
 pub enum Authorizer {
-    Github {
+    Forge {
+        provider: Provider,
         client: reqwest::Client,
         api_url: String,
         cache: Cache,
@@ -53,11 +55,13 @@ impl Authorizer {
     pub fn new(auth: &Auth) -> Self {
         match auth {
             Auth::Disabled => Self::Disabled,
-            Auth::Github {
+            Auth::Forge {
+                provider,
                 api_url,
                 cache_ttl,
                 rejection_ttl,
-            } => Self::Github {
+            } => Self::Forge {
+                provider: *provider,
                 client: reqwest::Client::builder()
                     .user_agent(concat!("lfsx/", env!("CARGO_PKG_VERSION")))
                     .timeout(std::time::Duration::from_secs(10))
@@ -71,7 +75,8 @@ impl Authorizer {
     }
 
     async fn permission(&self, headers: &HeaderMap, ns: &Namespace) -> Result<Permission, Error> {
-        let Self::Github {
+        let Self::Forge {
+            provider,
             client,
             api_url,
             cache,
@@ -86,7 +91,10 @@ impl Authorizer {
             return decision.into();
         }
 
-        let outcome = github::permission(client, api_url, &token, ns).await;
+        let outcome = match provider {
+            Provider::Github => github::permission(client, api_url, &token, ns).await,
+            Provider::Gitlab => gitlab::permission(client, api_url, &token, ns).await,
+        };
         if let Some(decision) = Decision::of(&outcome) {
             cache.insert(&token, ns, decision);
         }
@@ -97,7 +105,8 @@ impl Authorizer {
 
 impl Authorizer {
     pub async fn actor(&self, headers: &HeaderMap) -> Result<Actor, Error> {
-        let Self::Github {
+        let Self::Forge {
+            provider,
             client,
             api_url,
             identities,
@@ -112,7 +121,10 @@ impl Authorizer {
             return Ok(Actor(login));
         }
 
-        let login = github::login(client, api_url, &token).await?;
+        let login = match provider {
+            Provider::Github => github::login(client, api_url, &token).await?,
+            Provider::Gitlab => gitlab::login(client, api_url, &token).await?,
+        };
         identities.insert(&token, &login);
 
         Ok(Actor(login))

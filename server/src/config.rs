@@ -19,7 +19,8 @@ pub struct Config {
 
 #[derive(Debug, Clone)]
 pub enum Auth {
-    Github {
+    Forge {
+        provider: Provider,
         api_url: String,
         cache_ttl: Duration,
         rejection_ttl: Duration,
@@ -27,7 +28,28 @@ pub enum Auth {
     Disabled,
 }
 
-const GITHUB_API_URL: &str = "https://api.github.com";
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Provider {
+    Github,
+    Gitlab,
+}
+
+impl Provider {
+    fn default_api_url(self) -> &'static str {
+        match self {
+            Self::Github => "https://api.github.com",
+            Self::Gitlab => "https://gitlab.com/api/v4",
+        }
+    }
+
+    fn api_url_variable(self) -> &'static str {
+        match self {
+            Self::Github => "LFSX_GITHUB_API_URL",
+            Self::Gitlab => "LFSX_GITLAB_API_URL",
+        }
+    }
+}
+
 const CACHE_TTL: Duration = Duration::from_secs(60);
 const REJECTION_TTL: Duration = Duration::from_secs(10);
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
@@ -106,19 +128,21 @@ impl Auth {
             return Self::Disabled;
         }
 
-        let api_url = std::env::var("LFSX_GITHUB_API_URL")
-            .unwrap_or_else(|_| GITHUB_API_URL.to_owned())
+        let provider = match std::env::var("LFSX_AUTH").as_deref() {
+            Ok("gitlab") => Provider::Gitlab,
+            _ => Provider::Github,
+        };
+
+        let api_url = std::env::var(provider.api_url_variable())
+            .unwrap_or_else(|_| provider.default_api_url().to_owned())
             .trim_end_matches('/')
             .to_owned();
 
-        let cache_ttl = seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL);
-
-        let rejection_ttl = seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL);
-
-        Self::Github {
+        Self::Forge {
+            provider,
             api_url,
-            cache_ttl,
-            rejection_ttl,
+            cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
+            rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
         }
     }
 }

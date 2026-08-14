@@ -13,7 +13,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use lfsx_server::config::{Auth, Config};
+use lfsx_server::config::{Auth, Config, Provider};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
@@ -98,7 +98,8 @@ pub fn app_with_rejection_ttl(
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
-        auth: Auth::Github {
+        auth: Auth::Forge {
+            provider: Provider::Github,
             api_url: api_url.to_owned(),
             cache_ttl,
             rejection_ttl,
