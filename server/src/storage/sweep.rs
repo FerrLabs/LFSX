@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -118,13 +118,33 @@ impl LocalStore {
         measured
     }
 
+    pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
+        let key = ns.to_string();
+        let mut cached = self.per_namespace.lock().await;
+
+        if let Some((measured_at, objects, bytes)) = cached.get(&key)
+            && measured_at.elapsed() < USAGE_TTL
+        {
+            return (*objects, *bytes);
+        }
+
+        let measured = self.walk(self.root.join(ns.org()).join(ns.repo())).await;
+        cached.insert(key, (Instant::now(), measured.0, measured.1));
+
+        measured
+    }
+
     async fn measure(&self) -> (u64, u64) {
+        self.walk(self.root.clone()).await
+    }
+
+    async fn walk(&self, from: PathBuf) -> (u64, u64) {
         self.scans.fetch_add(1, Ordering::Relaxed);
 
         let mut objects = 0;
         let mut bytes = 0;
 
-        let mut directories = vec![self.root.clone()];
+        let mut directories = vec![from];
         while let Some(directory) = directories.pop() {
             let Ok(mut entries) = fs::read_dir(&directory).await else {
                 continue;

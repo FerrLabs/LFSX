@@ -1,5 +1,6 @@
 mod sweep;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -20,6 +21,7 @@ pub struct LocalStore {
     root: PathBuf,
     counter: AtomicU64,
     usage: Mutex<Option<(Instant, u64, u64)>>,
+    per_namespace: Mutex<HashMap<String, (Instant, u64, u64)>>,
     scans: AtomicU64,
 }
 
@@ -29,6 +31,7 @@ impl LocalStore {
             root: root.into(),
             counter: AtomicU64::new(0),
             usage: Mutex::new(None),
+            per_namespace: Mutex::new(HashMap::new()),
             scans: AtomicU64::new(0),
         }
     }
