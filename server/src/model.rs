@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::locks::Lock;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Operation {
@@ -77,4 +79,42 @@ impl ObjectSpec {
             }),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateLockRequest {
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListLocksQuery {
+    pub path: Option<String>,
+    pub id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct VerifyLocksRequest {}
+
+#[derive(Debug, Deserialize)]
+pub struct UnlockRequest {
+    #[serde(default)]
+    pub force: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LockResponse {
+    pub lock: Lock,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListLocksResponse {
+    pub locks: Vec<Lock>,
+    pub next_cursor: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VerifyLocksResponse {
+    pub ours: Vec<Lock>,
+    pub theirs: Vec<Lock>,
+    pub next_cursor: &'static str,
 }

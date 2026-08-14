@@ -141,6 +141,10 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `GET` | `/{org}/{repo}/objects/{oid}` | retrieve an object |
 | `POST` | `/{org}/{repo}/objects/verify` | post-upload verification |
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
+| `POST` | `/{org}/{repo}/locks` | take a lock on a path |
+| `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
+| `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
+| `POST` | `/{org}/{repo}/locks/{id}/unlock` | release a lock |
 | `GET` | `/health` | liveness: the process is up |
 | `GET` | `/ready` | readiness: the storage root is writable |
 
@@ -148,8 +152,28 @@ Objects already present are returned by `batch` with no actions, so the client s
 them. Missing objects on a download are reported per object with a `404` error rather than failing
 the whole batch.
 
-The locking API is not implemented: git-lfs probes it, finds it missing, and falls back to
-`lfs.locksverify false` on its own.
+## Locking
+
+Binary assets cannot be merged. Two artists editing the same `.psd` or the same Unity scene means
+one of them loses work, and locking is the only mechanism Git offers to stop that happening. It is
+the difference between LFS being usable for a game project and being a hazard.
+
+```bash
+git lfs lock Assets/Scenes/Arena.unity
+git lfs locks
+git lfs unlock Assets/Scenes/Arena.unity
+```
+
+A lock belongs to the identity behind the token, resolved from the forge, so `git lfs locks` names
+the person to go and talk to. Taking a lock someone else holds is refused with their name attached,
+rather than silently overwritten.
+
+Only the owner can release a lock. Anyone else needs `--force`, and force needs **admin** rights on
+the repository — the same person who could rewrite the branch anyway. A colleague on holiday with a
+scene locked is a real situation, and this is the escape hatch for it.
+
+Locks live next to the objects, in `$LFSX_STORAGE_ROOT/.locks/`, so they are covered by the same
+backup and disappear with the repository.
 
 ## Reclaiming space
 
@@ -246,7 +270,8 @@ token. LFSX resolves it against `GET /repos/{org}/{repo}` and maps the result:
 
 | Rights on the repository | Objects |
 |---|---|
-| push | download and upload |
+| admin | download, upload, and force a lock open |
+| push | download, upload, and take locks |
 | pull only | download |
 | none, or an unusable token | rejected |
 

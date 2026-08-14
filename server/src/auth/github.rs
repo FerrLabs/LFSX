@@ -16,6 +16,13 @@ struct Permissions {
     pull: bool,
     #[serde(default)]
     push: bool,
+    #[serde(default)]
+    admin: bool,
+}
+
+#[derive(Deserialize)]
+struct User {
+    login: String,
 }
 
 pub async fn permission(
@@ -58,10 +65,47 @@ pub async fn permission(
     })?;
 
     match repository.permissions {
+        Some(Permissions { admin: true, .. }) => Ok(Permission::Admin),
         Some(Permissions { push: true, .. }) => Ok(Permission::Write),
         Some(Permissions { pull: true, .. }) => Ok(Permission::Read),
         _ => Err(Error::Forbidden),
     }
+}
+
+pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Result<String, Error> {
+    let url = format!("{api_url}/user");
+
+    let response = client
+        .get(&url)
+        .bearer_auth(token)
+        .header("accept", "application/vnd.github+json")
+        .header("x-github-api-version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, %url, "forge request failed");
+            Error::Forge
+        })?;
+
+    match response.status() {
+        StatusCode::OK => {}
+        StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
+        StatusCode::FORBIDDEN if rate_limited(&response) => return Err(Error::Forge),
+        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
+        status => {
+            tracing::warn!(%status, %url, "unexpected forge response");
+            return Err(Error::Forge);
+        }
+    }
+
+    response
+        .json::<User>()
+        .await
+        .map(|user| user.login)
+        .map_err(|error| {
+            tracing::warn!(%error, %url, "forge response could not be parsed");
+            Error::Forge
+        })
 }
 
 fn rate_limited(response: &reqwest::Response) -> bool {

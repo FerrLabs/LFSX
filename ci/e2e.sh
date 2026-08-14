@@ -72,12 +72,12 @@ status=$(curl -s -o /dev/null -D "$headers" -w '%{http_code}' \
 grep -qi '^www-authenticate:' "$headers" || fail "no WWW-Authenticate on the 401"
 grep -qi '^lfs-authenticate:' "$headers" || fail "no LFS-Authenticate on the 401"
 
-echo "--- the locking probe is absent and must stay a clean 404"
+echo "--- the locking endpoint answers"
 status=$(curl -s -o /dev/null -w '%{http_code}' \
-	-X POST "${lfsx}/${namespace}/objects/locks/verify" \
+	-X POST "${lfsx}/${namespace}/locks/verify" \
 	-H "authorization: Bearer ${token}" \
 	-H 'content-type: application/vnd.git-lfs+json' -d '{}')
-[ "$status" = 404 ] || fail "locks/verify answered ${status}, expected 404"
+[ "$status" = 200 ] || fail "locks/verify answered ${status}, expected 200"
 
 echo "--- push a repository through the real client"
 git init --bare --quiet "${work}/origin.git"
@@ -132,5 +132,29 @@ if [ "$(uname -s)" = "Linux" ]; then
 	fi
 	server_pid=""
 fi
+
+echo "--- lock a scene the way an artist would"
+git lfs lock assets/small.bin >"${work}/lock.log" 2>&1 || {
+	cat "${work}/lock.log" >&2
+	fail "git lfs lock failed"
+}
+
+git lfs locks >"${work}/locks.log" 2>&1
+grep -q 'assets/small.bin' "${work}/locks.log" || {
+	cat "${work}/locks.log" >&2
+	fail "the lock is not listed by the client"
+}
+
+if git lfs lock assets/small.bin >"${work}/relock.log" 2>&1; then
+	fail "the client was allowed to take a lock that is already held"
+fi
+
+git lfs unlock assets/small.bin >"${work}/unlock.log" 2>&1 || {
+	cat "${work}/unlock.log" >&2
+	fail "git lfs unlock failed"
+}
+
+git lfs locks >"${work}/locks.log" 2>&1
+grep -q 'assets/small.bin' "${work}/locks.log" && fail "the lock outlived its unlock"
 
 echo "e2e: ok"
