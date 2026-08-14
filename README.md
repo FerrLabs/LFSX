@@ -51,6 +51,19 @@ docker run -d --name lfsx \
   ghcr.io/ferrlabs/lfsx:latest
 ```
 
+Or without a container runtime, from the binaries attached to each
+[release](https://github.com/FerrLabs/LFSX/releases) — statically linked, so they need nothing
+installed:
+
+```bash
+curl -fsSL https://github.com/FerrLabs/LFSX/releases/latest/download/lfsx-server-x86_64-unknown-linux-musl.tar.gz \
+  | tar xz
+LFSX_PUBLIC_URL=https://lfs.example.com ./lfsx-server
+```
+
+Replace `x86_64` with `aarch64` on a Raspberry Pi or an ARM server; `gnu` builds are there too if
+you prefer dynamic linking. Every archive ships a `.sha256` next to it.
+
 From crates.io, if you already have a Rust toolchain and would rather compile:
 
 ```bash
