@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] - 2026-08-14
+
+### Features
+
+- feat(auth): remember forge refusals so a bad token cannot hammer the API (#42)
+
 ## [0.6.0] - 2026-08-14
 
 ### Features
