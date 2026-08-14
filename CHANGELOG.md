@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.0] - 2026-08-14
+
+### Features
+
+- feat(server): serve a read-only page for each repository (#64)
+
 ## [0.14.0] - 2026-08-14
 
 ### Features

@@ -1,6 +1,6 @@
 {
   "name": "lfsx-darwin-x64",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "lfsx macOS x64 binary",
   "license": "MPL-2.0",
   "os": [
