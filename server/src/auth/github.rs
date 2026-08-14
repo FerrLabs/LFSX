@@ -41,6 +41,10 @@ pub async fn permission(
     match response.status() {
         StatusCode::OK => {}
         StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
+        StatusCode::FORBIDDEN if rate_limited(&response) => {
+            tracing::warn!(%url, "forge rate limit hit while resolving permissions");
+            return Err(Error::Forge);
+        }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
         status => {
             tracing::warn!(%status, %url, "unexpected forge response");
@@ -58,4 +62,12 @@ pub async fn permission(
         Some(Permissions { pull: true, .. }) => Ok(Permission::Read),
         _ => Err(Error::Forbidden),
     }
+}
+
+fn rate_limited(response: &reqwest::Response) -> bool {
+    let headers = response.headers();
+    headers.contains_key("retry-after")
+        || headers
+            .get("x-ratelimit-remaining")
+            .is_some_and(|remaining| remaining.as_bytes() == b"0")
 }
