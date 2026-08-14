@@ -8,14 +8,18 @@ use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Permission};
 use crate::error::Error;
-use crate::model::{Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation};
+use crate::model::{
+    Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation, RetainRequest,
+};
 use crate::namespace::Namespace;
 use crate::state::Shared;
+use crate::storage::SweepReport;
 
 pub fn router(state: Shared) -> Router {
     let objects = Router::new()
         .route("/{org}/{repo}/objects/batch", post(batch))
         .route("/{org}/{repo}/objects/verify", post(verify))
+        .route("/{org}/{repo}/objects/retain", post(retain))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -135,6 +139,25 @@ async fn download(
         body,
     )
         .into_response())
+}
+
+async fn retain(
+    State(state): State<Shared>,
+    Path((org, repo)): Path<(String, String)>,
+    Extension(permission): Extension<Permission>,
+    Json(request): Json<RetainRequest>,
+) -> Result<Json<SweepReport>, Error> {
+    permission.require_write()?;
+
+    let ns = Namespace::new(&org, &repo)?;
+    let retained = request.oids.into_iter().collect();
+
+    let report = state
+        .store
+        .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
+        .await?;
+
+    Ok(Json(report))
 }
 
 async fn verify(
