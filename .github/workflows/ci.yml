@@ -33,6 +33,20 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      - name: The image build sees every workspace member
+        run: |
+          set -euo pipefail
+          members=$(grep '^members = ' Cargo.toml | sed 's/.*= *\[//; s/\].*//' | tr -d '" ' | tr ',' ' ')
+          missing=0
+          for member in $members; do
+            if ! grep -q "^COPY ${member} " Dockerfile; then
+              echo "::error::${member} is a workspace member the Dockerfile never copies, so cargo cannot load the workspace"
+              missing=1
+            fi
+          done
+          echo "checked: ${members}"
+          exit "$missing"
+
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --locked
