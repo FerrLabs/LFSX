@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] - 2026-08-14
+
+### Features
+
+- feat(chart): add a Helm chart published to ghcr.io (#43)
+
 ## [0.7.0] - 2026-08-14
 
 ### Features
