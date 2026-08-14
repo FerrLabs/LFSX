@@ -44,8 +44,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- printf "http://%s" .Values.ingress.host -}}
 {{- end -}}
-{{- else -}}
-{{- fail "set config.publicUrl, or enable the ingress and set ingress.host: it is echoed in the batch response and every transfer reconnects to it, so a wrong value makes negotiation succeed and all transfers fail" -}}
 {{- end -}}
 {{- end -}}
 

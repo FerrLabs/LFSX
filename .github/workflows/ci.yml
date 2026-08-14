@@ -69,12 +69,15 @@ jobs:
 
       - run: helm lint chart --set config.publicUrl=https://lfs.example.com
 
-      - name: The public URL cannot be left unset
+      - name: An unpinned public URL leaves the variable out
         run: |
-          if helm template lfsx chart >/dev/null 2>&1; then
-            echo "::error::rendering succeeded without config.publicUrl or an ingress host"
+          set -euo pipefail
+          helm template lfsx chart > unpinned.yaml
+          if grep -q 'LFSX_PUBLIC_URL' unpinned.yaml; then
+            echo "::error::LFSX_PUBLIC_URL was set with nothing to pin it to"
             exit 1
           fi
+          echo "no public URL pinned, the server answers on the requested host"
 
       - name: Render the shapes people actually deploy
         run: |
