@@ -124,14 +124,6 @@ done
 head -c 40 "${work}/clone/assets/huge.bin" | grep -q 'git-lfs' && \
 	fail "the clone kept the pointer instead of the content"
 
-if [ "$(uname -s)" = "Linux" ]; then
-	echo "--- SIGTERM shuts the server down cleanly"
-	kill -TERM "$server_pid"
-	if ! wait "$server_pid"; then
-		fail "the server did not exit cleanly on SIGTERM"
-	fi
-	server_pid=""
-fi
 
 echo "--- lock a scene the way an artist would"
 git lfs lock assets/small.bin >"${work}/lock.log" 2>&1 || {
@@ -156,5 +148,14 @@ git lfs unlock assets/small.bin >"${work}/unlock.log" 2>&1 || {
 
 git lfs locks >"${work}/locks.log" 2>&1
 grep -q 'assets/small.bin' "${work}/locks.log" && fail "the lock outlived its unlock"
+
+if [ "$(uname -s)" = "Linux" ]; then
+	echo "--- SIGTERM shuts the server down cleanly"
+	kill -TERM "$server_pid"
+	if ! wait "$server_pid"; then
+		fail "the server did not exit cleanly on SIGTERM"
+	fi
+	server_pid=""
+fi
 
 echo "e2e: ok"
