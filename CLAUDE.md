@@ -37,10 +37,14 @@ responsibility per file, YAGNI. Single-line Conventional Commits.
 ## Releases
 
 FerrFlow owns the version. It reads the Conventional Commits on `main`, bumps
-`server/Cargo.toml` to the next CalVer (`YYYY.M.N`), refreshes `Cargo.lock`, writes
-`CHANGELOG.md`, tags and creates the GitHub release; publishing the release builds and pushes
-`ghcr.io/ferrlabs/lfsx`. Never bump the version or edit the changelog by hand, and keep PR titles
-conventional — the squash message is what drives the bump.
+`server/Cargo.toml`, refreshes `Cargo.lock`, writes `CHANGELOG.md`, tags and creates the GitHub
+release; publishing the release builds and pushes `ghcr.io/ferrlabs/lfsx`. Never bump the version
+or edit the changelog by hand, and keep PR titles conventional — the squash message is what drives
+the bump.
+
+Versioning is `zerover`: the major stays at `0`, a feature or a breaking change bumps the minor,
+a fix bumps the patch. Going to `1.0.0` is a deliberate decision, and it belongs with
+authentication (#1), not with whatever commit happens to carry a `!`.
 
 ## Tests
 

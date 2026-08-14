@@ -201,7 +201,8 @@ repository.
 
 ## Releases
 
-Versions are CalVer: `YYYY.M.N`, where `N` restarts at `1` every month. Releases are cut by
+Versions are SemVer, and the major stays at `0` until authentication ships — until then a `0.x`
+bump is free to change environment variables, the storage layout or the API. Releases are cut by
 [FerrFlow](https://ferrflow.com) from the Conventional Commit history of `main` — a merged `feat:`
 or `fix:` produces the tag, the [`CHANGELOG.md`](CHANGELOG.md) entry and the GitHub release, and
 the release builds and pushes the image.
@@ -210,8 +211,8 @@ Images live at `ghcr.io/ferrlabs/lfsx` under three tags:
 
 | Tag | Moves | For |
 |---|---|---|
-| `2026.8.1` | never | production, where an upgrade should be a deliberate change |
-| `2026.8` | on every release that month | picking up fixes without picking up features |
+| `0.2.0` | never | production, where an upgrade should be a deliberate change |
+| `0.2` | on every fix to that line | picking up fixes without picking up behaviour changes |
 | `latest` | on every release | trying it out |
 
 Every published image is signed with cosign, ships a CycloneDX SBOM, and is scanned for known
