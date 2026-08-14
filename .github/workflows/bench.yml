@@ -34,4 +34,6 @@ jobs:
         env:
           LARGE_MIB: '1024'
           SMALL_COUNT: '1000'
-        run: bash bench/throughput.sh | tee "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          bash bench/throughput.sh | tee "$GITHUB_STEP_SUMMARY"

@@ -10,12 +10,6 @@ SMALL_KIB=${SMALL_KIB:-64}
 PORT=${PORT:-8091}
 NAMESPACE=Bench/Throughput
 
-target=$(cargo metadata --format-version 1 --no-deps |
-	sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' | tr '\' '/')
-exe=""
-case "$(uname -s)" in
-	MINGW* | MSYS* | CYGWIN*) exe=".exe" ;;
-esac
 
 work=$(mktemp -d)
 server_pid=""
@@ -49,7 +43,7 @@ cargo build --release --bin lfsx-server >/dev/null 2>&1
 LFSX_BIND="127.0.0.1:${PORT}" \
 	LFSX_STORAGE_ROOT="${work}/objects" \
 	LFSX_AUTH=disabled \
-	"${target}/release/lfsx-server${exe}" >/dev/null 2>&1 &
+	cargo run --quiet --release --bin lfsx-server >/dev/null 2>&1 &
 server_pid=$!
 
 for _ in $(seq 50); do
