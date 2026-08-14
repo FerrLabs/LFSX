@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::Serialize;
 use tokio::fs;
@@ -97,4 +97,51 @@ fn age(metadata: &std::fs::Metadata) -> Duration {
         .ok()
         .and_then(|modified| SystemTime::now().duration_since(modified).ok())
         .unwrap_or_default()
+}
+
+const USAGE_TTL: Duration = Duration::from_secs(60);
+
+impl LocalStore {
+    pub async fn usage(&self) -> (u64, u64) {
+        if let Some((measured_at, objects, bytes)) = *self.usage.lock().expect("usage cache")
+            && measured_at.elapsed() < USAGE_TTL
+        {
+            return (objects, bytes);
+        }
+
+        let measured = self.measure().await;
+        *self.usage.lock().expect("usage cache") = Some((Instant::now(), measured.0, measured.1));
+
+        measured
+    }
+
+    async fn measure(&self) -> (u64, u64) {
+        let mut objects = 0;
+        let mut bytes = 0;
+
+        let mut directories = vec![self.root.clone()];
+        while let Some(directory) = directories.pop() {
+            let Ok(mut entries) = fs::read_dir(&directory).await else {
+                continue;
+            };
+
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with('.') {
+                    continue;
+                }
+
+                match entry.metadata().await {
+                    Ok(metadata) if metadata.is_dir() => directories.push(entry.path()),
+                    Ok(metadata) if LocalStore::validate_oid(&name).is_ok() => {
+                        objects += 1;
+                        bytes += metadata.len();
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        (objects, bytes)
+    }
 }

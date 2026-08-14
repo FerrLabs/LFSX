@@ -65,24 +65,48 @@ impl Error {
     }
 }
 
+impl Error {
+    fn cause(&self) -> &'static str {
+        match self {
+            Self::MalformedOid => "malformed_oid",
+            Self::MalformedNamespace => "malformed_namespace",
+            Self::MalformedLockPath => "malformed_lock_path",
+            Self::OidMismatch { .. } => "oid_mismatch",
+            Self::SizeMismatch { .. } => "size_mismatch",
+            Self::Unauthenticated => "unauthenticated",
+            Self::Forbidden => "forbidden",
+            Self::Forge => "forge_unreachable",
+            Self::LockHeld(_) => "lock_held",
+            Self::LockNotFound => "lock_not_found",
+            Self::NotFound => "not_found",
+            Self::Storage(_) => "storage",
+            Self::Serialisation(_) => "serialisation",
+        }
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let status = self.status();
+        let cause = crate::metrics::Cause(self.cause());
+
         if status.is_server_error() {
             tracing::error!(error = %self, "request failed");
         }
 
         if let Self::LockHeld(lock) = &self {
-            return (
+            let mut response = (
                 status,
                 Json(json!({ "lock": lock, "message": self.to_string() })),
             )
                 .into_response();
+            response.extensions_mut().insert(cause);
+            return response;
         }
 
         let body = Json(json!({ "message": self.to_string() }));
-        if status == StatusCode::UNAUTHORIZED {
-            return (
+        let mut response = if status == StatusCode::UNAUTHORIZED {
+            (
                 status,
                 [
                     (header::WWW_AUTHENTICATE, CHALLENGE),
@@ -93,9 +117,12 @@ impl IntoResponse for Error {
                 ],
                 body,
             )
-                .into_response();
-        }
+                .into_response()
+        } else {
+            (status, body).into_response()
+        };
 
-        (status, body).into_response()
+        response.extensions_mut().insert(cause);
+        response
     }
 }

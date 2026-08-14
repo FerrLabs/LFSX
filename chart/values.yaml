@@ -51,7 +51,10 @@ serviceAccount:
   name: ""
   annotations: {}
 
-podAnnotations: {}
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "8080"
 nodeSelector: {}
 tolerations: []
 affinity: {}

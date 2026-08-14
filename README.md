@@ -119,6 +119,27 @@ and every transfer then fails.
 networks, it is logged loudly at startup, and it is never the right setting for anything reachable
 from the internet.
 
+## Observability
+
+`/metrics` serves the Prometheus text format, unauthenticated like the probes — an orchestrator
+scraping it has no forge token, and refusing it would only mean the one moment you need numbers is
+the one moment you cannot get them.
+
+| Metric | Kind | Answers |
+|---|---|---|
+| `lfsx_requests_total{route,status}` | counter | what is being served, and what is failing |
+| `lfsx_request_duration_seconds{route}` | histogram | how long transfers take |
+| `lfsx_uploaded_bytes_total`, `lfsx_downloaded_bytes_total` | counter | throughput in and out |
+| `lfsx_object_size_bytes` | histogram | what people are actually storing |
+| `lfsx_rejections_total{cause}` | counter | why requests are refused, by cause rather than by status |
+| `lfsx_objects_stored`, `lfsx_store_bytes` | gauge | how full the disk is getting |
+
+Routes are labelled by their template, never by the path, so the object id can never turn into a
+label and the series count stays bounded whatever you store.
+
+The two gauges are measured by walking the store, so they are computed at most once a minute and
+reused in between. Scraping every fifteen seconds costs nothing extra.
+
 ## Storage layout
 
 Objects are content-addressed and fanned out two levels to keep directories small:
@@ -145,6 +166,7 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
 | `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
 | `POST` | `/{org}/{repo}/locks/{id}/unlock` | release a lock |
+| `GET` | `/metrics` | Prometheus exposition |
 | `GET` | `/health` | liveness: the process is up |
 | `GET` | `/ready` | readiness: the storage root is writable |
 
