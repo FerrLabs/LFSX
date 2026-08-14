@@ -11,6 +11,7 @@ pub struct Config {
     pub storage_root: PathBuf,
     pub public_url: String,
     pub action_lifetime: u32,
+    pub gc_grace: Duration,
     pub auth: Auth,
 }
 
@@ -25,6 +26,7 @@ pub enum Auth {
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 const CACHE_TTL: Duration = Duration::from_secs(60);
+const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 impl Config {
     pub fn from_env() -> Self {
@@ -47,6 +49,11 @@ impl Config {
             storage_root,
             public_url,
             action_lifetime: 1800,
+            gc_grace: std::env::var("LFSX_GC_GRACE")
+                .ok()
+                .and_then(|raw| raw.parse().ok())
+                .map(Duration::from_secs)
+                .unwrap_or(GC_GRACE),
             auth: Auth::from_env(),
         }
     }

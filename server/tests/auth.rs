@@ -72,6 +72,7 @@ fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Router {
         storage_root: root.path().to_path_buf(),
         public_url: "https://lfs.example".into(),
         action_lifetime: 1800,
+        gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
         auth: Auth::Github {
             api_url: api_url.to_owned(),
             cache_ttl,
@@ -248,4 +249,25 @@ async fn permissions_are_resolved_again_once_the_cache_entry_expires() {
         "the revoked permission should be picked up once the entry expires"
     );
     assert_eq!(forge.calls.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn a_read_only_token_cannot_collect_garbage() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/LFSX/objects/retain")
+        .header("content-type", "application/json")
+        .header("authorization", credentials("reader"))
+        .body(Body::from(json!({ "oids": [] }).to_string()))
+        .unwrap();
+
+    let response = app(&root, &api_url, Duration::from_secs(60))
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }

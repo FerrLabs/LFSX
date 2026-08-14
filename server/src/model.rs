@@ -21,6 +21,13 @@ pub struct BatchRequest {
     pub objects: Vec<ObjectId>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RetainRequest {
+    pub oids: Vec<String>,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
 #[derive(Debug, Serialize)]
 pub struct BatchResponse {
     pub transfer: &'static str,

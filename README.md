@@ -101,6 +101,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH` | `github` | permission source, or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a resolved permission is reused before being checked again |
+| `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
 `LFSX_PUBLIC_URL` must match the URL the client actually reaches. It is echoed in the batch
@@ -132,6 +133,7 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `PUT` | `/{org}/{repo}/objects/{oid}` | store an object |
 | `GET` | `/{org}/{repo}/objects/{oid}` | retrieve an object |
 | `POST` | `/{org}/{repo}/objects/verify` | post-upload verification |
+| `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
 | `GET` | `/health` | liveness |
 
 Objects already present are returned by `batch` with no actions, so the client skips re-uploading
@@ -140,6 +142,40 @@ the whole batch.
 
 The locking API is not implemented: git-lfs probes it, finds it missing, and falls back to
 `lfs.locksverify false` on its own.
+
+## Reclaiming space
+
+Objects are written and never removed on their own. A repository that rewrites history, drops a
+branch or replaces a large asset leaves the old blobs behind, and the disk only grows.
+
+The server cannot decide what is still needed — it never sees your Git history. So you tell it.
+`retain` takes the set of object ids the repository still references and sweeps everything else:
+
+```bash
+git lfs ls-files --all --long \
+  | cut -d' ' -f1 \
+  | jq -Rs '{ oids: (split("\n") - [""]), dry_run: true }' \
+  | curl -sS -u "git:$GITHUB_TOKEN" -H 'content-type: application/json' \
+      --data @- https://lfs.example.com/my-org/my-project/objects/retain
+```
+
+`--all` walks every ref, so the set covers every commit still reachable — which is the point: run
+this from a full clone, not a shallow one, or you will retain a fraction of what you should.
+
+It answers with what it would free, and frees nothing until you drop `dry_run`:
+
+```json
+{ "swept": 42, "bytes": 3221225472, "within_grace": 3, "dry_run": true }
+```
+
+Two safeguards, because this deletes data. An object is uploaded *before* the commit referencing
+it is pushed, so anything touched within `LFSX_GC_GRACE` (two weeks by default, matching git's own
+`gc.pruneExpire`) is never taken — that is the `within_grace` count. And a transfer still in
+flight is skipped, since staging files are not objects yet.
+
+Both are worth understanding before you shorten the grace period: an empty `oids` set legitimately
+means *nothing is referenced any more*, and outside the grace window that sweeps the repository
+clean. Run it dry first. Collection needs push rights on the repository.
 
 ## Reverse proxy
 
