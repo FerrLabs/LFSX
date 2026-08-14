@@ -1,5 +1,5 @@
 {
-  "name": "lfsx",
+  "name": "@ferrlabs/lfsx",
   "version": "0.17.0",
   "description": "Command line companion for the LFSX Git LFS server",
   "type": "module",
@@ -26,10 +26,10 @@
     "url": "git+https://github.com/FerrLabs/LFSX.git"
   },
   "optionalDependencies": {
-    "lfsx-linux-x64": "0.13.0",
-    "lfsx-linux-arm64": "0.13.0",
-    "lfsx-darwin-x64": "0.13.0",
-    "lfsx-darwin-arm64": "0.13.0",
-    "lfsx-win32-x64": "0.13.0"
+    "@ferrlabs/lfsx-linux-x64": "0.17.0",
+    "@ferrlabs/lfsx-linux-arm64": "0.17.0",
+    "@ferrlabs/lfsx-darwin-x64": "0.17.0",
+    "@ferrlabs/lfsx-darwin-arm64": "0.17.0",
+    "@ferrlabs/lfsx-win32-x64": "0.17.0"
   }
 }

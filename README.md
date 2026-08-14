@@ -109,7 +109,7 @@ lfsx --url https://lfs.example.com doctor --repo my-org/my-project
 ```
 
 ```bash
-npm install -g lfsx        # or: cargo install lfsx
+npm install -g @ferrlabs/lfsx        # or: cargo install lfsx
 ```
 
 That checks the server is up, its storage is writable, your token is accepted, and that the URL it

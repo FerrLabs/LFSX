@@ -3,7 +3,7 @@
 Command line companion for a self-hosted [LFSX](https://github.com/FerrLabs/LFSX) Git LFS server.
 
 ```bash
-npm install -g lfsx        # or: cargo install lfsx
+npm install -g @ferrlabs/lfsx        # or: cargo install lfsx
 
 lfsx --url https://lfs.example.com doctor --repo my-org/my-project
 lfsx --url https://lfs.example.com gc --repo my-org/my-project --dry-run

@@ -10,11 +10,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 const PLATFORMS = {
-  "linux-x64": "lfsx-linux-x64",
-  "linux-arm64": "lfsx-linux-arm64",
-  "darwin-x64": "lfsx-darwin-x64",
-  "darwin-arm64": "lfsx-darwin-arm64",
-  "win32-x64": "lfsx-win32-x64",
+  "linux-x64": "@ferrlabs/lfsx-linux-x64",
+  "linux-arm64": "@ferrlabs/lfsx-linux-arm64",
+  "darwin-x64": "@ferrlabs/lfsx-darwin-x64",
+  "darwin-arm64": "@ferrlabs/lfsx-darwin-arm64",
+  "win32-x64": "@ferrlabs/lfsx-win32-x64",
 };
 
 function binaryPath() {
