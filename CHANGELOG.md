@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.2] - 2026-08-14
+
+### Bug Fixes
+
+- fix(auth): treat a rate-limited forge as an outage, not a denial (#34)
+
 ## [0.5.1] - 2026-08-14
 
 ### Bug Fixes
