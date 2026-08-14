@@ -51,6 +51,12 @@ docker run -d --name lfsx \
   ghcr.io/ferrlabs/lfsx:latest
 ```
 
+From crates.io, if you already have a Rust toolchain and would rather compile:
+
+```bash
+cargo install lfsx-server
+```
+
 Or from source, without the permission check, for a local trusted network:
 
 ```bash

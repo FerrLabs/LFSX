@@ -7,6 +7,12 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage = "https://github.com/FerrLabs/LFSX"
+documentation = "https://github.com/FerrLabs/LFSX#readme"
+readme = "README.md"
+keywords = ["git", "git-lfs", "lfs", "server", "self-hosted"]
+categories = ["command-line-utilities", "development-tools", "web-programming::http-server"]
+exclude = ["tests/", "examples/"]
 
 [dependencies]
 axum.workspace = true
