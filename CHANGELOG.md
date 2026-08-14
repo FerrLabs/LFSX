@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.21.0] - 2026-08-14
+
+### Features
+
+- feat(ci): cache compiled artifacts during the image build (#76)
+
 ## [0.20.0] - 2026-08-14
 
 ### Features
