@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.19.0] - 2026-08-14
+
+### Features
+
+- feat(auth): support GitLab as a forge provider (#71)
+
 ## [0.18.0] - 2026-08-14
 
 ### Features
