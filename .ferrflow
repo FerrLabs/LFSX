@@ -4,7 +4,7 @@
     "versioning": "zerover",
     "tagTemplate": "v{version}",
     "hooks": {
-      "postBump": "cargo update -p lfsx-server"
+      "postBump": "cargo update -p lfsx-server -p lfsx"
     }
   },
   "package": [
@@ -14,6 +14,7 @@
       "changelog": "CHANGELOG.md",
       "versionedFiles": [
         { "path": "server/Cargo.toml", "format": "toml" },
+        { "path": "cli/Cargo.toml", "format": "toml" },
         { "path": "chart/Chart.yaml", "format": "chartyaml" },
         {
           "path": "chart/Chart.yaml",

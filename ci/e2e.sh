@@ -40,7 +40,7 @@ wait_for() {
 	fail "$1 never came up"
 }
 
-cargo build --release --bin lfsx-server --example stub-forge
+cargo build --release --bin lfsx-server --bin lfsx --example stub-forge
 
 "${target}/release/examples/stub-forge${exe}" "$forge_port" "$token" &
 forge_pid=$!
@@ -148,6 +148,37 @@ git lfs unlock assets/small.bin >"${work}/unlock.log" 2>&1 || {
 
 git lfs locks >"${work}/locks.log" 2>&1
 grep -q 'assets/small.bin' "${work}/locks.log" && fail "the lock outlived its unlock"
+
+echo "--- the cli diagnoses the deployment"
+lfsx="${target}/release/lfsx${exe}"
+LFSX_TOKEN="$token" "$lfsx" --url "http://127.0.0.1:${lfsx_port}" doctor --repo "$namespace" 	>"${work}/doctor.log" 2>&1 || {
+	cat "${work}/doctor.log" >&2
+	fail "doctor reported a problem against a healthy server"
+}
+grep -q "transfers are advertised at" "${work}/doctor.log" || {
+	cat "${work}/doctor.log" >&2
+	fail "doctor did not check the advertised transfer URL"
+}
+
+echo "--- doctor catches a public URL that does not match"
+if LFSX_TOKEN="$token" "$lfsx" --url "http://localhost:${lfsx_port}" doctor --repo "$namespace" 	>"${work}/mismatch.log" 2>&1; then
+	cat "${work}/mismatch.log" >&2
+	fail "doctor passed while the advertised URL differed from the one reached"
+fi
+grep -q "every transfer will fail" "${work}/mismatch.log" || {
+	cat "${work}/mismatch.log" >&2
+	fail "doctor failed without explaining the mismatch"
+}
+
+echo "--- the cli reports what collection would free"
+LFSX_TOKEN="$token" "$lfsx" --url "http://127.0.0.1:${lfsx_port}" gc --repo "$namespace" --dry-run 	>"${work}/gc.log" 2>&1 || {
+	cat "${work}/gc.log" >&2
+	fail "gc --dry-run failed"
+}
+grep -q "would free 0 objects" "${work}/gc.log" || {
+	cat "${work}/gc.log" >&2
+	fail "gc offered to sweep objects the repository still references"
+}
 
 if [ "$(uname -s)" = "Linux" ]; then
 	echo "--- SIGTERM shuts the server down cleanly"

@@ -1,0 +1,20 @@
+[package]
+name = "lfsx"
+version = "0.10.0"
+description = "Command line companion for the LFSX Git LFS server: diagnose a deployment and reclaim space"
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage = "https://github.com/FerrLabs/LFSX"
+readme = "README.md"
+keywords = ["git", "git-lfs", "lfs", "cli", "self-hosted"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+clap.workspace = true
+anyhow.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+serde.workspace = true
+serde_json.workspace = true

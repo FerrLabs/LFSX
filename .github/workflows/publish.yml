@@ -36,3 +36,4 @@ jobs:
           fi
 
           cargo publish -p lfsx-server
+          cargo publish -p lfsx
