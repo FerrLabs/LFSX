@@ -2,6 +2,9 @@ mod sweep;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
+
+use tokio::sync::Mutex;
 
 use futures_util::{Stream, StreamExt};
 use sha2::{Digest, Sha256};
@@ -16,6 +19,8 @@ pub use sweep::SweepReport;
 pub struct LocalStore {
     root: PathBuf,
     counter: AtomicU64,
+    usage: Mutex<Option<(Instant, u64, u64)>>,
+    scans: AtomicU64,
 }
 
 impl LocalStore {
@@ -23,6 +28,8 @@ impl LocalStore {
         Self {
             root: root.into(),
             counter: AtomicU64::new(0),
+            usage: Mutex::new(None),
+            scans: AtomicU64::new(0),
         }
     }
 
@@ -42,6 +49,10 @@ impl LocalStore {
             .join(&oid[0..2])
             .join(&oid[2..4])
             .join(oid)
+    }
+
+    pub fn scans(&self) -> u64 {
+        self.scans.load(Ordering::Relaxed)
     }
 
     pub async fn writable(&self) -> Result<(), Error> {
@@ -74,7 +85,7 @@ impl LocalStore {
         oid: &str,
         expected_size: Option<u64>,
         mut chunks: S,
-    ) -> Result<(), Error>
+    ) -> Result<u64, Error>
     where
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
@@ -91,7 +102,8 @@ impl LocalStore {
         match outcome {
             Ok((digest, written)) => {
                 self.finish(&staged, &path, oid, expected_size, &digest, written)
-                    .await
+                    .await?;
+                Ok(written)
             }
             Err(error) => {
                 let _ = fs::remove_file(&staged).await;

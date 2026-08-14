@@ -54,6 +54,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `ingress.tls.secretName` | `<release>-lfsx-tls` | certificate secret |
 | `resources` | 50m / 64Mi requested | streaming means memory stays flat whatever the object size |
 | `serviceAccount.create` | `true` | token automount is off either way |
+| `podAnnotations` | Prometheus scrape hints | set to `{}` if your cluster discovers targets some other way |
 
 ## Storage
 

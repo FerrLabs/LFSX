@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod locks;
+pub mod metrics;
 pub mod model;
 pub mod namespace;
 pub mod routes;
@@ -15,6 +16,7 @@ use axum::Router;
 use crate::auth::Authorizer;
 use crate::config::Config;
 use crate::locks::LockStore;
+use crate::metrics::Metrics;
 use crate::state::AppState;
 use crate::storage::LocalStore;
 
@@ -28,5 +30,6 @@ pub fn app(config: Config) -> Router {
         locks,
         config,
         authorizer,
+        metrics: Metrics::new(),
     }))
 }

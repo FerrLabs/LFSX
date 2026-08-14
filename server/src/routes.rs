@@ -4,10 +4,12 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router, middleware};
+use futures_util::StreamExt;
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Actor, Permission};
 use crate::error::Error;
+use crate::metrics;
 use crate::model::{
     Actions, BatchRequest, BatchResponse, CreateLockRequest, ListLocksQuery, ListLocksResponse,
     LockResponse, ObjectId, ObjectSpec, Operation, RetainRequest, UnlockRequest,
@@ -34,8 +36,22 @@ pub fn router(state: Shared) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/ready", get(ready))
+        .route("/metrics", get(scrape))
         .merge(objects)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            metrics::record,
+        ))
         .with_state(state)
+}
+
+async fn scrape(State(state): State<Shared>) -> Response {
+    let (objects, bytes) = state.store.usage().await;
+    state.metrics.objects_stored.set(objects as i64);
+    state.metrics.store_bytes.set(bytes as i64);
+    state.metrics.store_scans.set(state.store.scans() as i64);
+
+    state.metrics.render().into_response()
 }
 
 async fn ready(State(state): State<Shared>) -> Response {
@@ -129,10 +145,13 @@ async fn upload(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse().ok());
 
-    state
+    let written = state
         .store
         .write(&ns, &oid, size, body.into_data_stream())
         .await?;
+
+    state.metrics.uploaded_bytes.inc_by(written);
+    state.metrics.object_size.observe(written as f64);
 
     Ok(StatusCode::OK)
 }
@@ -143,7 +162,13 @@ async fn download(
     Path((.., oid)): Path<(String, String, String)>,
 ) -> Result<Response, Error> {
     let (file, size) = state.store.open(&ns, &oid).await?;
-    let body = Body::from_stream(ReaderStream::new(file));
+
+    let counted = state.clone();
+    let body = Body::from_stream(ReaderStream::new(file).inspect(move |chunk| {
+        if let Ok(bytes) = chunk {
+            counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
+        }
+    }));
 
     Ok((
         [
