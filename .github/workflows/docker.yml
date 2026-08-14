@@ -24,6 +24,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       major_minor: ${{ steps.meta.outputs.major_minor }}
+      ref: ${{ steps.meta.outputs.ref }}
     steps:
       - id: meta
         run: |
@@ -37,6 +38,7 @@ jobs:
           {
             echo "version=${VERSION}"
             echo "major_minor=$(echo "${VERSION}" | cut -d. -f1-2)"
+            echo "ref=refs/tags/v${VERSION}"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -46,6 +48,7 @@ jobs:
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
+      ref: ${{ needs.meta.outputs.ref }}
       context: .
       dockerfile: Dockerfile
       platforms: linux/amd64,linux/arm64
