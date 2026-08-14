@@ -1,42 +1,40 @@
 # LFSX
 
-Serveur Git LFS auto-hébergé, Rust + axum. Workspace Cargo, un seul crate : `server/`
-(binaire `lfsx-server`).
+Self-hosted Git LFS server, Rust + axum. Cargo workspace with a single crate, `server/`
+(binary `lfsx-server`).
 
-## Découpage
+## Layout
 
 ```
 server/src/
-  model.rs     # types du protocole batch (requête, réponse, actions, erreurs)
-  storage.rs   # LocalStore : chemins, écriture en flux + vérification, lecture
-  routes.rs    # handlers axum et câblage du routeur
-  config.rs    # variables d'environnement et construction des URL publiques
-  error.rs     # erreurs du domaine et mapping vers les codes HTTP
+  model.rs     # batch protocol types (request, response, actions, errors)
+  storage.rs   # LocalStore: paths, streaming write + verification, reads
+  routes.rs    # axum handlers and router wiring
+  config.rs    # environment variables and public URL construction
+  error.rs     # domain errors and their HTTP mapping
   lib.rs       # app(config) -> Router
   main.rs      # bootstrap
 server/tests/api.rs
 ```
 
-## Invariants à ne pas casser
+## Invariants that must not break
 
-- **Ne jamais émettre `authenticated` dans la réponse batch.** Annoncer
-  `"authenticated": true` sans fournir d'en-tête fait envoyer les transferts sans identifiants,
-  et le client boucle sur des 401. C'est le défaut qui rend rudolfs inutilisable derrière un
-  reverse proxy authentifiant. Un test verrouille ce comportement.
-- **Le SHA256 est recalculé en flux à chaque dépôt** et comparé à l'oid annoncé. Un contenu qui
-  ne correspond pas est rejeté sans rien laisser sur le disque.
-- **Écriture atomique** : fichier temporaire puis `rename`, jamais d'écriture directe à
-  l'emplacement final.
-- **Rien ne doit être chargé en mémoire** : upload et download passent en flux, les objets font
-  couramment plusieurs gigaoctets.
+- **Never emit `authenticated` in the batch response.** Advertising `"authenticated": true`
+  without supplying a header makes the client send transfers with no credentials, and it loops
+  on 401. This is the flaw that makes rudolfs unusable behind an authenticating reverse proxy.
+  A test pins this down.
+- **SHA-256 is recomputed while streaming** on every upload and compared against the declared
+  oid. Content that does not match is rejected and nothing is left on disk.
+- **Atomic writes**: staging file then `rename`, never a direct write to the final location.
+- **Nothing is loaded into memory**: uploads and downloads stream, objects routinely run to
+  several gigabytes.
 
 ## Conventions
 
-Voir le CLAUDE.md du workspace parent. En résumé : pas de commentaires explicatifs, code
-idiomatique Rust, SRP par fichier, YAGNI. Commits en Conventional Commits sur une ligne.
+See the parent workspace CLAUDE.md. In short: no explanatory comments, idiomatic Rust, one
+responsibility per file, YAGNI. Single-line Conventional Commits.
 
 ## Tests
 
-`cargo test`. Les tests d'intégration montent le routeur sur un `tempdir` et passent par
-`tower::ServiceExt::oneshot`. Tester le comportement et les chemins d'erreur, pas la présence
-des routes.
+`cargo test`. Integration tests mount the router on a `tempdir` and drive it through
+`tower::ServiceExt::oneshot`. Test behaviour and error paths, not the presence of routes.

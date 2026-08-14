@@ -49,7 +49,7 @@ async fn batch(app: Router, body: serde_json::Value) -> (StatusCode, serde_json:
 #[tokio::test]
 async fn stored_object_comes_back_byte_for_byte() {
     let root = tempfile::tempdir().unwrap();
-    let payload = b"des assets bien lourds".repeat(1000);
+    let payload = b"some genuinely heavy assets".repeat(1000);
     let oid = oid_of(&payload);
 
     assert_eq!(put(app(&root), &oid, &payload).await, StatusCode::OK);
@@ -70,19 +70,19 @@ async fn stored_object_comes_back_byte_for_byte() {
 #[tokio::test]
 async fn content_that_does_not_hash_to_the_declared_oid_is_rejected() {
     let root = tempfile::tempdir().unwrap();
-    let lie = oid_of(b"ce que le client pretend envoyer");
+    let lie = oid_of(b"what the client claims to send");
 
-    let status = put(app(&root), &lie, b"ce qu'il envoie vraiment").await;
+    let status = put(app(&root), &lie, b"what it actually sends").await;
 
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     let stored = walkdir(root.path());
-    assert!(stored.is_empty(), "un objet corrompu a ete conserve");
+    assert!(stored.is_empty(), "a corrupt object was kept");
 }
 
 #[tokio::test]
 async fn a_truncated_upload_is_rejected_and_leaves_nothing_behind() {
     let root = tempfile::tempdir().unwrap();
-    let payload = b"charge complete".to_vec();
+    let payload = b"the complete payload".to_vec();
     let oid = oid_of(&payload);
 
     let request = Request::builder()
@@ -113,7 +113,7 @@ async fn downloading_an_unknown_object_reports_it_per_object() {
         serde_json::json!({
             "operation": "download",
             "transfers": ["basic"],
-            "objects": [{ "oid": oid_of(b"jamais pousse"), "size": 13 }]
+            "objects": [{ "oid": oid_of(b"never pushed"), "size": 12 }]
         }),
     )
     .await;
@@ -126,7 +126,7 @@ async fn downloading_an_unknown_object_reports_it_per_object() {
 #[tokio::test]
 async fn an_object_already_stored_is_not_asked_for_again() {
     let root = tempfile::tempdir().unwrap();
-    let payload = b"deja la".to_vec();
+    let payload = b"already here".to_vec();
     let oid = oid_of(&payload);
     put(app(&root), &oid, &payload).await;
 
@@ -142,7 +142,7 @@ async fn an_object_already_stored_is_not_asked_for_again() {
 
     assert!(
         body["objects"][0]["actions"].is_null(),
-        "le client reteleverserait un objet deja stocke"
+        "the client would re-upload an object already stored"
     );
     assert!(body["objects"][0]["error"].is_null());
 }
@@ -150,7 +150,7 @@ async fn an_object_already_stored_is_not_asked_for_again() {
 #[tokio::test]
 async fn batch_never_claims_the_transfer_is_pre_authenticated() {
     let root = tempfile::tempdir().unwrap();
-    let payload = b"charge".to_vec();
+    let payload = b"payload".to_vec();
     let oid = oid_of(&payload);
     put(app(&root), &oid, &payload).await;
 
@@ -166,8 +166,8 @@ async fn batch_never_claims_the_transfer_is_pre_authenticated() {
 
     assert!(
         body["objects"][0]["authenticated"].is_null(),
-        "annoncer authenticated sans fournir d'en-tete fait envoyer les transferts \
-         sans identifiants, et le client boucle sur des 401"
+        "advertising authenticated without supplying a header makes the client send \
+         transfers with no credentials, and it loops on 401"
     );
 }
 
