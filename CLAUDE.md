@@ -9,7 +9,7 @@ Self-hosted Git LFS server, Rust + axum. Cargo workspace with a single crate, `s
 server/src/
   model.rs            # batch protocol types (request, response, actions, errors)
   namespace.rs        # validated {org}/{repo} pair, the only way to address storage
-  storage.rs          # LocalStore: paths, streaming write + verification, reads, sweep
+  storage.rs          # LocalStore: paths, streaming write + verification, reads
   routes.rs           # axum handlers and router wiring
   auth.rs             # Permission, Authorizer, the middleware over the object routes
   auth/credentials.rs # Basic and Bearer parsing
@@ -36,10 +36,6 @@ server/tests/auth.rs   # middleware against a stub forge
 - **Permissions come from the forge, never from LFSX.** The token is resolved against the upstream
   repository and mapped to read or write. Do not add accounts, shared secrets or a local user
   table. `LFSX_AUTH=disabled` is for local development only and must stay opt-in.
-- **Collection never decides for itself what is unreferenced.** `retain` sweeps what the caller
-  did not list, and only outside `LFSX_GC_GRACE` — an object is uploaded before the commit that
-  references it is pushed, so a sweep without that window deletes objects mid-push. Staging files
-  are skipped: `sweep` only considers names that are valid oids.
 - **Path segments are validated before they reach the filesystem**: `Namespace::new` is the only
   way to build one, and `LocalStore::validate_oid` guards the object id. Both keep a crafted
   request inside the storage root.
