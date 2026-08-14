@@ -1,0 +1,35 @@
+{
+  "name": "lfsx",
+  "version": "0.13.0",
+  "description": "Command line companion for the LFSX Git LFS server",
+  "type": "module",
+  "bin": {
+    "lfsx": "./bin/lfsx.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "git",
+    "git-lfs",
+    "lfs",
+    "cli",
+    "self-hosted"
+  ],
+  "license": "MPL-2.0",
+  "homepage": "https://github.com/FerrLabs/LFSX",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FerrLabs/LFSX.git"
+  },
+  "optionalDependencies": {
+    "lfsx-linux-x64": "0.13.0",
+    "lfsx-linux-arm64": "0.13.0",
+    "lfsx-darwin-x64": "0.13.0",
+    "lfsx-darwin-arm64": "0.13.0",
+    "lfsx-win32-x64": "0.13.0"
+  }
+}

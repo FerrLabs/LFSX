@@ -108,6 +108,10 @@ git push
 lfsx --url https://lfs.example.com doctor --repo my-org/my-project
 ```
 
+```bash
+npm install -g lfsx        # or: cargo install lfsx
+```
+
 That checks the server is up, its storage is writable, your token is accepted, and that the URL it
 advertises for transfers is the one you reached it on — the mismatch that lets negotiation succeed
 while every transfer fails. Install it alongside the server, or use the probes directly:
