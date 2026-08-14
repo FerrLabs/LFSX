@@ -59,7 +59,7 @@ large_oid=$(sha256sum "${work}/large.bin" | cut -d' ' -f1)
 
 echo "upload"
 started=$(now_ms)
-curl -fsS -X PUT --data-binary "@${work}/large.bin" \
+curl -fsS -T "${work}/large.bin" \
 	"http://127.0.0.1:${PORT}/${NAMESPACE}/objects/${large_oid}" >/dev/null
 upload_secs=$(seconds_since "$started")
 peak_kib=$(resident_kib "$server_pid")
@@ -82,13 +82,18 @@ for i in $(seq "$SMALL_COUNT"); do
 	head -c $((SMALL_KIB * 1024)) /dev/urandom >"${work}/small/${i}.bin"
 done
 
-echo "small objects"
-started=$(now_ms)
+# One curl process for the whole batch. Spawning it per object measured
+# process creation rather than the server: locally that alone was 90 ms an
+# object, which would have been published as if it were per-request cost.
 for i in $(seq "$SMALL_COUNT"); do
 	oid=$(sha256sum "${work}/small/${i}.bin" | cut -d' ' -f1)
-	curl -fsS -X PUT --data-binary "@${work}/small/${i}.bin" \
-		"http://127.0.0.1:${PORT}/${NAMESPACE}/objects/${oid}" >/dev/null
+	printf 'upload-file = "%s"\nurl = "http://127.0.0.1:%s/%s/objects/%s"\n' \
+		"${work}/small/${i}.bin" "$PORT" "$NAMESPACE" "$oid" >>"${work}/batch.curl"
 done
+
+echo "small objects"
+started=$(now_ms)
+curl -fsS -K "${work}/batch.curl" >/dev/null
 small_secs=$(seconds_since "$started")
 
 if [ "$peak_kib" -gt 0 ]; then
