@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.1] - 2026-08-14
+
+### Bug Fixes
+
+- fix(ci): stop the server after the lock checks, not before (#49)
+
 ## [0.9.0] - 2026-08-14
 
 ### Features
