@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] - 2026-08-14
+
+### Features
+
+- feat(cli): add lfsx with doctor and gc (#59)
+
 ## [0.12.0] - 2026-08-14
 
 ### Features
