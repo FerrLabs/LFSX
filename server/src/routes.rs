@@ -75,17 +75,20 @@ async fn batch(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    headers: axum::http::HeaderMap,
     Json(request): Json<BatchRequest>,
 ) -> Result<Json<BatchResponse>, Error> {
     if request.operation == Operation::Upload {
         permission.require_write()?;
     }
 
+    let base = state.config.base_url(&headers);
+
     let mut objects = Vec::with_capacity(request.objects.len());
     for id in request.objects {
         objects.push(match request.operation {
-            Operation::Download => resolve_download(&state, &ns, id).await,
-            Operation::Upload => resolve_upload(&state, &ns, id).await,
+            Operation::Download => resolve_download(&state, &base, &ns, id).await,
+            Operation::Upload => resolve_upload(&state, &base, &ns, id).await,
         });
     }
 
@@ -95,12 +98,12 @@ async fn batch(
     }))
 }
 
-async fn resolve_download(state: &Shared, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
     if !state.store.exists(ns, &id.oid).await {
         return ObjectSpec::missing(id);
     }
 
-    let href = state.config.object_url(ns, &id.oid);
+    let href = state.config.object_url(base, ns, &id.oid);
     ObjectSpec {
         id,
         actions: Some(Actions {
@@ -111,7 +114,7 @@ async fn resolve_download(state: &Shared, ns: &Namespace, id: ObjectId) -> Objec
     }
 }
 
-async fn resolve_upload(state: &Shared, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
     if state.store.exists(ns, &id.oid).await {
         return ObjectSpec {
             id,
@@ -120,8 +123,8 @@ async fn resolve_upload(state: &Shared, ns: &Namespace, id: ObjectId) -> ObjectS
         };
     }
 
-    let upload = state.config.object_url(ns, &id.oid);
-    let verify = state.config.verify_url(ns);
+    let upload = state.config.object_url(base, ns, &id.oid);
+    let verify = state.config.verify_url(base, ns);
     ObjectSpec {
         id,
         actions: Some(Actions {

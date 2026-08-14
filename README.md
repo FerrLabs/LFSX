@@ -134,7 +134,7 @@ All configuration is by environment variable.
 |---|---|---|
 | `LFSX_BIND` | `0.0.0.0:8080` | listen address |
 | `LFSX_STORAGE_ROOT` | `/var/lib/lfsx` | root of the object store |
-| `LFSX_PUBLIC_URL` | `http://<bind>` | public URL used to build transfer links |
+| `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links |
 | `LFSX_AUTH` | `github` | permission source, or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
@@ -142,9 +142,14 @@ All configuration is by environment variable.
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
-`LFSX_PUBLIC_URL` must match the URL the client actually reaches. It is echoed in the batch
-response, and the client reconnects to it for every object — if it is wrong, negotiation succeeds
-and every transfer then fails.
+`LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
+object — if it is wrong, negotiation succeeds and every transfer then fails.
+
+Left unset, the server answers on whatever host the request arrived at, honouring
+`X-Forwarded-Proto` from the proxy in front. That is what you want when the same server is reached
+under more than one name — a public host and an internal one, say — since a single fixed value
+would be wrong for half the clients. Set it when you want to pin one name regardless of how the
+request arrived; an explicit value always wins over the request.
 
 `LFSX_AUTH=disabled` turns the server into an open one. It exists for local development and closed
 networks, it is logged loudly at startup, and it is never the right setting for anything reachable

@@ -15,7 +15,7 @@ fn app_with_grace(root: &tempfile::TempDir, gc_grace: std::time::Duration) -> Ro
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: root.path().to_path_buf(),
-        public_url: "https://lfs.example".into(),
+        public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace,
         auth: Auth::Disabled,
@@ -315,7 +315,7 @@ async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness(
     let app = lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: blocked.join("objects"),
-        public_url: "https://lfs.example".into(),
+        public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
         auth: Auth::Disabled,
@@ -352,4 +352,82 @@ fn walkdir(root: &std::path::Path) -> Vec<std::path::PathBuf> {
     }
 
     found
+}
+
+#[tokio::test]
+async fn transfers_are_advertised_on_the_host_the_client_asked_for() {
+    let root = tempfile::tempdir().unwrap();
+    let app = lfsx_server::app(Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: root.path().to_path_buf(),
+        public_url: None,
+        action_lifetime: 1800,
+        gc_grace: Duration::ZERO,
+        auth: Auth::Disabled,
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/batch")
+        .header("host", "lfs.home")
+        .header("x-forwarded-proto", "https")
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(
+            serde_json::json!({
+                "operation": "upload",
+                "objects": [{ "oid": oid_of(b"asset"), "size": 5 }],
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+
+    let href = body["objects"][0]["actions"]["upload"]["href"]
+        .as_str()
+        .unwrap();
+    assert!(
+        href.starts_with("https://lfs.home/"),
+        "a server reachable under two names must answer on the one the client used, got {href}"
+    );
+}
+
+#[tokio::test]
+async fn a_configured_public_url_wins_over_the_request() {
+    let root = tempfile::tempdir().unwrap();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/batch")
+        .header("host", "sneaky.example")
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(
+            serde_json::json!({
+                "operation": "upload",
+                "objects": [{ "oid": oid_of(b"asset"), "size": 5 }],
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app(&root).oneshot(request).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+
+    assert!(
+        body["objects"][0]["actions"]["upload"]["href"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://lfs.example/"),
+        "an explicit LFSX_PUBLIC_URL must not be overridable by a request header"
+    );
 }
