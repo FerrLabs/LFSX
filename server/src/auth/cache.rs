@@ -85,5 +85,38 @@ impl Cache {
 }
 
 fn key(token: &str, ns: &Namespace) -> Key {
-    (Sha256::digest(token.as_bytes()).into(), ns.to_string())
+    (fingerprint(token), ns.to_string())
+}
+
+pub struct IdentityCache {
+    ttl: Duration,
+    entries: Mutex<HashMap<[u8; 32], (String, Instant)>>,
+}
+
+impl IdentityCache {
+    pub fn new(ttl: Duration) -> Self {
+        Self {
+            ttl,
+            entries: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn get(&self, token: &str) -> Option<String> {
+        let entries = self.entries.lock().expect("identity cache");
+        let (login, expires_at) = entries.get(&fingerprint(token))?;
+
+        (*expires_at > Instant::now()).then(|| login.clone())
+    }
+
+    pub fn insert(&self, token: &str, login: &str) {
+        let now = Instant::now();
+        let mut entries = self.entries.lock().expect("identity cache");
+
+        entries.retain(|_, (_, expires_at)| *expires_at > now);
+        entries.insert(fingerprint(token), (login.to_owned(), now + self.ttl));
+    }
+}
+
+fn fingerprint(token: &str) -> [u8; 32] {
+    Sha256::digest(token.as_bytes()).into()
 }

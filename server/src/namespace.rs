@@ -33,8 +33,7 @@ impl std::fmt::Display for Namespace {
 fn is_well_formed(segment: &str) -> bool {
     !segment.is_empty()
         && segment.len() <= 100
-        && segment != "."
-        && segment != ".."
+        && !segment.starts_with('.')
         && segment
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))

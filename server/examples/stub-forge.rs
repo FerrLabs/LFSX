@@ -19,6 +19,7 @@ async fn main() {
 
     let router = Router::new()
         .route("/repos/{org}/{repo}", get(repository))
+        .route("/user", get(user))
         .with_state(Arc::new(token));
 
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port)))
@@ -28,15 +29,31 @@ async fn main() {
     axum::serve(listener, router).await.expect("serve");
 }
 
-async fn repository(State(expected): State<Arc<String>>, headers: HeaderMap) -> Response {
-    let presented = headers
+async fn user(State(expected): State<Arc<String>>, headers: HeaderMap) -> Response {
+    match presented(&headers) {
+        Some(token) if token == expected.as_str() => {
+            Json(json!({ "login": "e2e" })).into_response()
+        }
+        _ => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "message": "Bad credentials" })),
+        )
+            .into_response(),
+    }
+}
+
+fn presented(headers: &HeaderMap) -> Option<&str> {
+    headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "));
+        .and_then(|value| value.strip_prefix("Bearer "))
+}
 
-    match presented {
+async fn repository(State(expected): State<Arc<String>>, headers: HeaderMap) -> Response {
+    match presented(&headers) {
         Some(token) if token == expected.as_str() => {
-            Json(json!({ "permissions": { "pull": true, "push": true } })).into_response()
+            Json(json!({ "permissions": { "pull": true, "push": true, "admin": true } }))
+                .into_response()
         }
         _ => (
             StatusCode::UNAUTHORIZED,

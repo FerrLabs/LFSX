@@ -13,17 +13,27 @@ use crate::config::Auth;
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::state::Shared;
-use cache::{Cache, Decision};
+use cache::{Cache, Decision, IdentityCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Permission {
     Read,
     Write,
+    Admin,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Actor(pub String);
 
 impl Permission {
     pub fn require_write(self) -> Result<(), Error> {
-        matches!(self, Self::Write)
+        matches!(self, Self::Write | Self::Admin)
+            .then_some(())
+            .ok_or(Error::Forbidden)
+    }
+
+    pub fn require_admin(self) -> Result<(), Error> {
+        matches!(self, Self::Admin)
             .then_some(())
             .ok_or(Error::Forbidden)
     }
@@ -34,6 +44,7 @@ pub enum Authorizer {
         client: reqwest::Client,
         api_url: String,
         cache: Cache,
+        identities: IdentityCache,
     },
     Disabled,
 }
@@ -54,6 +65,7 @@ impl Authorizer {
                     .expect("http client"),
                 api_url: api_url.clone(),
                 cache: Cache::new(*cache_ttl, *rejection_ttl),
+                identities: IdentityCache::new(*cache_ttl),
             },
         }
     }
@@ -63,9 +75,10 @@ impl Authorizer {
             client,
             api_url,
             cache,
+            ..
         } = self
         else {
-            return Ok(Permission::Write);
+            return Ok(Permission::Admin);
         };
 
         let token = credentials::token(headers).ok_or(Error::Unauthenticated)?;
@@ -79,6 +92,30 @@ impl Authorizer {
         }
 
         outcome
+    }
+}
+
+impl Authorizer {
+    pub async fn actor(&self, headers: &HeaderMap) -> Result<Actor, Error> {
+        let Self::Github {
+            client,
+            api_url,
+            identities,
+            ..
+        } = self
+        else {
+            return Ok(Actor("anonymous".to_owned()));
+        };
+
+        let token = credentials::token(headers).ok_or(Error::Unauthenticated)?;
+        if let Some(login) = identities.get(&token) {
+            return Ok(Actor(login));
+        }
+
+        let login = github::login(client, api_url, &token).await?;
+        identities.insert(&token, &login);
+
+        Ok(Actor(login))
     }
 }
 

@@ -26,11 +26,23 @@ pub enum Error {
     #[error("the forge could not be reached to check permissions")]
     Forge,
 
+    #[error("lock path must not be empty")]
+    MalformedLockPath,
+
+    #[error("the file is already locked")]
+    LockHeld(Box<crate::locks::Lock>),
+
+    #[error("lock not found")]
+    LockNotFound,
+
     #[error("object not found")]
     NotFound,
 
     #[error("storage failure: {0}")]
     Storage(#[from] std::io::Error),
+
+    #[error("could not serialise: {0}")]
+    Serialisation(#[from] serde_json::Error),
 }
 
 const CHALLENGE: HeaderValue = HeaderValue::from_static("Basic realm=\"Git LFS\"");
@@ -39,14 +51,16 @@ impl Error {
     fn status(&self) -> StatusCode {
         match self {
             Self::MalformedOid
+            | Self::MalformedLockPath
             | Self::MalformedNamespace
             | Self::OidMismatch { .. }
             | Self::SizeMismatch { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::LockHeld(_) => StatusCode::CONFLICT,
+            Self::NotFound | Self::LockNotFound => StatusCode::NOT_FOUND,
             Self::Forge => StatusCode::BAD_GATEWAY,
-            Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Storage(_) | Self::Serialisation(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -56,6 +70,14 @@ impl IntoResponse for Error {
         let status = self.status();
         if status.is_server_error() {
             tracing::error!(error = %self, "request failed");
+        }
+
+        if let Self::LockHeld(lock) = &self {
+            return (
+                status,
+                Json(json!({ "lock": lock, "message": self.to_string() })),
+            )
+                .into_response();
         }
 
         let body = Json(json!({ "message": self.to_string() }));

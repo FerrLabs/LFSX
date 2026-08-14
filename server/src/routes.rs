@@ -1,15 +1,17 @@
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router, middleware};
 use tokio_util::io::ReaderStream;
 
-use crate::auth::{self, Permission};
+use crate::auth::{self, Actor, Permission};
 use crate::error::Error;
 use crate::model::{
-    Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation, RetainRequest,
+    Actions, BatchRequest, BatchResponse, CreateLockRequest, ListLocksQuery, ListLocksResponse,
+    LockResponse, ObjectId, ObjectSpec, Operation, RetainRequest, UnlockRequest,
+    VerifyLocksResponse,
 };
 use crate::namespace::Namespace;
 use crate::state::Shared;
@@ -21,6 +23,9 @@ pub fn router(state: Shared) -> Router {
         .route("/{org}/{repo}/objects/verify", post(verify))
         .route("/{org}/{repo}/objects/retain", post(retain))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
+        .route("/{org}/{repo}/locks", post(create_lock).get(list_locks))
+        .route("/{org}/{repo}/locks/verify", post(verify_locks))
+        .route("/{org}/{repo}/locks/{id}/unlock", post(unlock))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::authorize,
@@ -184,4 +189,88 @@ async fn retain(
         .await?;
 
     Ok(Json(report))
+}
+
+async fn create_lock(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+    headers: axum::http::HeaderMap,
+    Json(request): Json<CreateLockRequest>,
+) -> Result<(StatusCode, Json<LockResponse>), Error> {
+    permission.require_write()?;
+
+    let Actor(owner) = state.authorizer.actor(&headers).await?;
+    let lock = state.locks.create(&ns, &request.path, &owner).await?;
+
+    Ok((StatusCode::CREATED, Json(LockResponse { lock })))
+}
+
+async fn list_locks(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Query(query): Query<ListLocksQuery>,
+) -> Result<Json<ListLocksResponse>, Error> {
+    let locks = state
+        .locks
+        .list(&ns)
+        .await?
+        .into_iter()
+        .filter(|lock| query.path.as_ref().is_none_or(|path| *path == lock.path))
+        .filter(|lock| query.id.as_ref().is_none_or(|id| *id == lock.id))
+        .collect();
+
+    Ok(Json(ListLocksResponse {
+        locks,
+        next_cursor: "",
+    }))
+}
+
+async fn verify_locks(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<VerifyLocksResponse>, Error> {
+    let Actor(caller) = state.authorizer.actor(&headers).await?;
+    let (ours, theirs) = state
+        .locks
+        .list(&ns)
+        .await?
+        .into_iter()
+        .partition(|lock| lock.owner.name == caller);
+
+    Ok(Json(VerifyLocksResponse {
+        ours,
+        theirs,
+        next_cursor: "",
+    }))
+}
+
+async fn unlock(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+    Path((.., id)): Path<(String, String, String)>,
+    headers: axum::http::HeaderMap,
+    Json(request): Json<UnlockRequest>,
+) -> Result<Json<LockResponse>, Error> {
+    permission.require_write()?;
+
+    let lock = state
+        .locks
+        .get(&ns, &id)
+        .await?
+        .ok_or(Error::LockNotFound)?;
+    let Actor(caller) = state.authorizer.actor(&headers).await?;
+
+    if lock.owner.name != caller {
+        if !request.force {
+            return Err(Error::Forbidden);
+        }
+        permission.require_admin()?;
+    }
+
+    state.locks.remove(&ns, &id).await?;
+
+    Ok(Json(LockResponse { lock }))
 }
