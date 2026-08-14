@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.3] - 2026-08-14
+
+### Bug Fixes
+
+- fix(ci): build the tagged source when an image is rebuilt by hand (#70)
+
 ## [0.17.2] - 2026-08-14
 
 ### Bug Fixes
