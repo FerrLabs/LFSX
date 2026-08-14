@@ -229,11 +229,27 @@ halfway is not recorded as a full download.
 Objects are content-addressed and fanned out two levels to keep directories small:
 
 ```
-$LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>
+$LFSX_STORAGE_ROOT/.content/<oid[0:2]>/<oid[2:4]>/<oid>   the bytes, once
+$LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per repository
 ```
 
+**The bytes are stored once.** Two projects sharing the same Synty or Quixel pack cost the disk
+once, however many repositories push it — and for a studio that is most of the disk. Each
+repository holds a hard link, so the filesystem keeps the reference count and the content survives
+until the last repository lets go of it.
+
+Sharing the bytes does not share them over the API. Every route resolves through the repository's
+own path, so a repository cannot read, list or even learn the existence of an object it never
+pushed — including by guessing a digest. `retain` frees space only when the object it drops was the
+last reference; the report says zero bytes otherwise, rather than promising space another
+repository is still using.
+
+Objects already stored per repository, from before this, keep working untouched: they are ordinary
+files with a single link, and nothing needs migrating.
+
 Backing up the server is backing up that directory. Objects are immutable, so an incremental
-file-level backup never rewrites what it already copied.
+file-level backup never rewrites what it already copied — but use a tool that preserves hard links
+(`rsync -H`, `tar`), or the copy will expand every shared object back into a separate file.
 
 ## API
 

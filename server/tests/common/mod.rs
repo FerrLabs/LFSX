@@ -86,6 +86,22 @@ pub fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Rout
     app_with_rejection_ttl(root, api_url, cache_ttl, Duration::from_secs(10))
 }
 
+pub fn app_collecting_immediately(root: &tempfile::TempDir, api_url: &str) -> Router {
+    lfsx_server::app(Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: root.path().to_path_buf(),
+        public_url: Some("https://lfs.example".into()),
+        action_lifetime: 1800,
+        gc_grace: Duration::ZERO,
+        auth: Auth::Forge {
+            provider: Provider::Github,
+            api_url: api_url.to_owned(),
+            cache_ttl: Duration::from_secs(60),
+            rejection_ttl: Duration::from_secs(60),
+        },
+    })
+}
+
 pub fn app_with_rejection_ttl(
     root: &tempfile::TempDir,
     api_url: &str,

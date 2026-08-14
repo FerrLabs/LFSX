@@ -41,7 +41,7 @@ impl LocalStore {
             };
 
             while let Some(fanout) = fanouts.next_entry().await? {
-                self.sweep_directory(&fanout.path(), retained, grace, &mut report)
+                self.sweep_directory(&fanout.path(), ns, retained, grace, &mut report)
                     .await?;
             }
 
@@ -53,9 +53,44 @@ impl LocalStore {
         Ok(report)
     }
 
+    // Is this object still linked from a repository other than the one being
+    // swept? Reads the tree rather than the link count, because nlink is not
+    // portable and the number of repositories is small.
+    async fn referenced_elsewhere(&self, oid: &str, sweeping: &Namespace) -> bool {
+        let Ok(mut orgs) = fs::read_dir(&self.root).await else {
+            return false;
+        };
+
+        while let Ok(Some(org)) = orgs.next_entry().await {
+            let org_name = org.file_name().to_string_lossy().into_owned();
+            if org_name.starts_with('.') {
+                continue;
+            }
+
+            let Ok(mut repos) = fs::read_dir(org.path()).await else {
+                continue;
+            };
+
+            while let Ok(Some(repo)) = repos.next_entry().await {
+                let repo_name = repo.file_name().to_string_lossy().into_owned();
+                if org_name == sweeping.org() && repo_name == sweeping.repo() {
+                    continue;
+                }
+
+                let candidate = repo.path().join(&oid[0..2]).join(&oid[2..4]).join(oid);
+                if fs::metadata(candidate).await.is_ok() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     async fn sweep_directory(
         &self,
         directory: &Path,
+        ns: &Namespace,
         retained: &HashSet<String>,
         grace: Duration,
         report: &mut SweepReport,
@@ -77,10 +112,29 @@ impl LocalStore {
             }
 
             report.swept += 1;
-            report.bytes += metadata.len();
 
-            if !report.dry_run {
-                fs::remove_file(entry.path()).await?;
+            if report.dry_run {
+                // A dry run must not count bytes another repository still holds,
+                // or it promises space it cannot free.
+                if !self.referenced_elsewhere(&name, ns).await {
+                    report.bytes += metadata.len();
+                }
+                continue;
+            }
+
+            fs::remove_file(entry.path()).await?;
+
+            // The bytes live once under .content, linked from each repository
+            // that holds them. Dropping this repository's link frees nothing
+            // until the last one goes, so only then is it counted as freed.
+            if !self.referenced_elsewhere(&name, ns).await {
+                let content = self.content_path(&name);
+                if let Ok(content_metadata) = fs::metadata(&content).await {
+                    report.bytes += content_metadata.len();
+                    let _ = fs::remove_file(&content).await;
+                } else {
+                    report.bytes += metadata.len();
+                }
             }
         }
 
