@@ -44,6 +44,18 @@ impl LocalStore {
             .join(oid)
     }
 
+    pub async fn writable(&self) -> Result<(), Error> {
+        fs::create_dir_all(&self.root).await?;
+
+        let ticket = self.counter.fetch_add(1, Ordering::Relaxed);
+        let probe = self.root.join(format!(".readiness.{ticket}"));
+
+        fs::write(&probe, b"").await?;
+        fs::remove_file(&probe).await?;
+
+        Ok(())
+    }
+
     pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
         Self::validate_oid(oid).is_ok() && fs::metadata(self.object_path(ns, oid)).await.is_ok()
     }

@@ -292,6 +292,47 @@ async fn a_transfer_in_flight_is_not_swept_from_under_the_client() {
     assert!(staged.exists(), "a staging file was collected mid-upload");
 }
 
+async fn get(app: Router, path: &str) -> StatusCode {
+    let request = Request::builder().uri(path).body(Body::empty()).unwrap();
+
+    app.oneshot(request).await.unwrap().status()
+}
+
+#[tokio::test]
+async fn readiness_and_liveness_are_both_green_on_a_working_store() {
+    let root = tempfile::tempdir().unwrap();
+
+    assert_eq!(get(app(&root), "/health").await, StatusCode::OK);
+    assert_eq!(get(app(&root), "/ready").await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness() {
+    let root = tempfile::tempdir().unwrap();
+    let blocked = root.path().join("occupied");
+    std::fs::write(&blocked, b"a file where the storage root should be").unwrap();
+
+    let app = lfsx_server::app(Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: blocked.join("objects"),
+        public_url: "https://lfs.example".into(),
+        action_lifetime: 1800,
+        gc_grace: Duration::ZERO,
+        auth: Auth::Disabled,
+    });
+
+    assert_eq!(
+        get(app.clone(), "/ready").await,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "a broken mount must take the instance out of rotation"
+    );
+    assert_eq!(
+        get(app, "/health").await,
+        StatusCode::OK,
+        "the process is alive, restarting it would not help"
+    );
+}
+
 fn walkdir(root: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut found = Vec::new();
     let mut stack = vec![root.to_path_buf()];

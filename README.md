@@ -87,7 +87,13 @@ git push
 
 ```bash
 curl -sf https://lfs.example.com/health && echo " up"
+curl -sf https://lfs.example.com/ready  && echo " serving"
 ```
+
+`/health` says the process is alive, which is what a restart would fix. `/ready` writes and removes
+a probe file under the storage root, so a volume that is missing, full or mounted read-only takes
+the instance out of rotation instead of accepting traffic it cannot serve. Point `livenessProbe` at
+the first and `readinessProbe` at the second. Neither needs credentials.
 
 ## Configuration
 
@@ -134,7 +140,8 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `GET` | `/{org}/{repo}/objects/{oid}` | retrieve an object |
 | `POST` | `/{org}/{repo}/objects/verify` | post-upload verification |
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
-| `GET` | `/health` | liveness |
+| `GET` | `/health` | liveness: the process is up |
+| `GET` | `/ready` | readiness: the storage root is writable |
 
 Objects already present are returned by `batch` with no actions, so the client skips re-uploading
 them. Missing objects on a download are reported per object with a `404` error rather than failing
