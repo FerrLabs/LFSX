@@ -1,9 +1,11 @@
 {
   "$schema": "https://ferrflow.com/schema/ferrflow.json",
   "workspace": {
-    "versioning": "calver-seq",
+    "versioning": "zerover",
     "tagTemplate": "v{version}",
-    "updateLockfiles": true
+    "hooks": {
+      "postBump": "cargo update -p lfsx-server"
+    }
   },
   "package": [
     {
