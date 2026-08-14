@@ -177,3 +177,42 @@ async fn the_last_project_to_let_go_frees_the_disk() {
         "once no project references it, the content itself has to go"
     );
 }
+
+#[tokio::test]
+async fn the_capacity_gauge_reports_the_disk_not_the_sum_of_projects() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let pack = b"a pack three games share".repeat(100);
+
+    for repo in ["Blastlands", "RogueLite", "IdlerSurvivor"] {
+        assert_eq!(put_into(app.clone(), repo, &pack).await, StatusCode::OK);
+    }
+
+    let request = Request::builder()
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    let exposition = String::from_utf8(
+        axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+
+    let reported: u64 = exposition
+        .lines()
+        .find(|line| line.starts_with("lfsx_store_bytes"))
+        .and_then(|line| line.rsplit(' ').next())
+        .and_then(|value| value.parse::<f64>().ok())
+        .map(|value| value as u64)
+        .expect("lfsx_store_bytes is missing");
+
+    assert_eq!(
+        reported,
+        pack.len() as u64,
+        "three projects share one copy, so the capacity metric must show one copy —          counting per-repository links would report the pre-deduplication total and          grow with every project that links the same pack"
+    );
+}

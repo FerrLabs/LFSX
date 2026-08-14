@@ -189,13 +189,29 @@ impl LocalStore {
         let parent = content.parent().expect("content paths have a parent");
         fs::create_dir_all(parent).await?;
 
-        if fs::metadata(&content).await.is_ok() {
-            let _ = fs::remove_file(staged).await;
-        } else {
+        if fs::metadata(&content).await.is_err() {
             fs::rename(staged, &content).await?;
         }
 
-        let from = content.clone();
+        match self.link(&content, final_path).await {
+            // The content was collected between finding it and linking to it:
+            // a concurrent retain on another repository dropped its last other
+            // reference. The staged copy is still here precisely for this, so
+            // put it back and link again rather than failing a push that did
+            // nothing wrong.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::rename(staged, &content).await?;
+                self.link(&content, final_path).await?;
+            }
+            outcome => outcome?,
+        }
+
+        let _ = fs::remove_file(staged).await;
+        Ok(())
+    }
+
+    async fn link(&self, content: &Path, final_path: &Path) -> Result<(), std::io::Error> {
+        let from = content.to_path_buf();
         let to = final_path.to_path_buf();
         let linked = tokio::task::spawn_blocking(move || std::fs::hard_link(&from, &to))
             .await
@@ -204,13 +220,11 @@ impl LocalStore {
         match linked {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-            // A filesystem without hard links, or one crossing a device boundary:
-            // fall back to a full copy so the transfer still succeeds. The disk
-            // pays for it, the client never notices.
-            Err(_) => {
-                fs::copy(&content, final_path).await?;
-                Ok(())
-            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(error),
+            // A filesystem without hard links, or one crossing a device
+            // boundary: fall back to a full copy so the transfer still
+            // succeeds. The disk pays for it, the client never notices.
+            Err(_) => fs::copy(content, final_path).await.map(|_| ()),
         }
     }
 }
