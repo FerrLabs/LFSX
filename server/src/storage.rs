@@ -7,11 +7,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use crate::error::Error;
-
-pub struct Namespace<'a> {
-    pub org: &'a str,
-    pub repo: &'a str,
-}
+use crate::namespace::Namespace;
 
 pub struct LocalStore {
     root: PathBuf,
@@ -37,8 +33,8 @@ impl LocalStore {
 
     fn object_path(&self, ns: &Namespace<'_>, oid: &str) -> PathBuf {
         self.root
-            .join(ns.org)
-            .join(ns.repo)
+            .join(ns.org())
+            .join(ns.repo())
             .join(&oid[0..2])
             .join(&oid[2..4])
             .join(oid)

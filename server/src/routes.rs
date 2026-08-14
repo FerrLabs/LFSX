@@ -1,43 +1,43 @@
-use std::sync::Arc;
-
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
-use axum::{Json, Router};
+use axum::{Extension, Json, Router, middleware};
 use tokio_util::io::ReaderStream;
 
-use crate::config::Config;
+use crate::auth::{self, Permission};
 use crate::error::Error;
 use crate::model::{Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation};
-use crate::storage::{LocalStore, Namespace};
-
-pub struct AppState {
-    pub store: LocalStore,
-    pub config: Config,
-}
-
-type Shared = Arc<AppState>;
+use crate::namespace::Namespace;
+use crate::state::Shared;
 
 pub fn router(state: Shared) -> Router {
-    Router::new()
-        .route("/health", get(|| async { "ok" }))
+    let objects = Router::new()
         .route("/{org}/{repo}/objects/batch", post(batch))
         .route("/{org}/{repo}/objects/verify", post(verify))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::authorize,
+        ));
+
+    Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .merge(objects)
         .with_state(state)
 }
 
 async fn batch(
     State(state): State<Shared>,
     Path((org, repo)): Path<(String, String)>,
+    Extension(permission): Extension<Permission>,
     Json(request): Json<BatchRequest>,
 ) -> Result<Json<BatchResponse>, Error> {
-    let ns = Namespace {
-        org: &org,
-        repo: &repo,
-    };
+    let ns = Namespace::new(&org, &repo)?;
+    if request.operation == Operation::Upload {
+        permission.require_write()?;
+    }
 
     let mut objects = Vec::with_capacity(request.objects.len());
     for id in request.objects {
@@ -94,18 +94,18 @@ async fn resolve_upload(state: &Shared, ns: &Namespace<'_>, id: ObjectId) -> Obj
 async fn upload(
     State(state): State<Shared>,
     Path((org, repo, oid)): Path<(String, String, String)>,
+    Extension(permission): Extension<Permission>,
     headers: axum::http::HeaderMap,
     body: Body,
 ) -> Result<StatusCode, Error> {
+    permission.require_write()?;
+
     let size = headers
         .get(header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse().ok());
 
-    let ns = Namespace {
-        org: &org,
-        repo: &repo,
-    };
+    let ns = Namespace::new(&org, &repo)?;
 
     state
         .store
@@ -119,10 +119,7 @@ async fn download(
     State(state): State<Shared>,
     Path((org, repo, oid)): Path<(String, String, String)>,
 ) -> Result<Response, Error> {
-    let ns = Namespace {
-        org: &org,
-        repo: &repo,
-    };
+    let ns = Namespace::new(&org, &repo)?;
 
     let (file, size) = state.store.open(&ns, &oid).await?;
     let body = Body::from_stream(ReaderStream::new(file));
@@ -143,12 +140,12 @@ async fn download(
 async fn verify(
     State(state): State<Shared>,
     Path((org, repo)): Path<(String, String)>,
+    Extension(permission): Extension<Permission>,
     Json(id): Json<ObjectId>,
 ) -> Result<StatusCode, Error> {
-    let ns = Namespace {
-        org: &org,
-        repo: &repo,
-    };
+    permission.require_write()?;
+
+    let ns = Namespace::new(&org, &repo)?;
 
     state
         .store

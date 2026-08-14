@@ -1,18 +1,28 @@
+pub mod auth;
 pub mod config;
 pub mod error;
 pub mod model;
+pub mod namespace;
 pub mod routes;
+pub mod state;
 pub mod storage;
 
 use std::sync::Arc;
 
 use axum::Router;
 
+use crate::auth::Authorizer;
 use crate::config::Config;
-use crate::routes::AppState;
+use crate::state::AppState;
 use crate::storage::LocalStore;
 
 pub fn app(config: Config) -> Router {
     let store = LocalStore::new(config.storage_root.clone());
-    routes::router(Arc::new(AppState { store, config }))
+    let authorizer = Authorizer::new(&config.auth);
+
+    routes::router(Arc::new(AppState {
+        store,
+        config,
+        authorizer,
+    }))
 }
