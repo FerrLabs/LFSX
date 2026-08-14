@@ -44,7 +44,7 @@ jobs:
   build:
     name: Build & Push LFSX
     needs: meta
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@cb90cb51f2aec1e440b185e913079155d7e0020e # FerrLabs/.github#248
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@33cba2f024a028c848981e63112c5f82de04e05c # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
