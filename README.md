@@ -199,6 +199,24 @@ the server checks that token's rights on the repository, and derives read or wri
 them. No separate accounts, no shared password, and access is revoked by removing someone from the
 repository.
 
+## Releases
+
+Versions are CalVer: `YYYY.M.N`, where `N` restarts at `1` every month. Releases are cut by
+[FerrFlow](https://ferrflow.com) from the Conventional Commit history of `main` — a merged `feat:`
+or `fix:` produces the tag, the [`CHANGELOG.md`](CHANGELOG.md) entry and the GitHub release, and
+the release builds and pushes the image.
+
+Images live at `ghcr.io/ferrlabs/lfsx` under three tags:
+
+| Tag | Moves | For |
+|---|---|---|
+| `2026.8.1` | never | production, where an upgrade should be a deliberate change |
+| `2026.8` | on every release that month | picking up fixes without picking up features |
+| `latest` | on every release | trying it out |
+
+Every published image is signed with cosign, ships a CycloneDX SBOM, and is scanned for known
+vulnerabilities before it is pushed.
+
 ## Development
 
 ```bash

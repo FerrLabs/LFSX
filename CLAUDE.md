@@ -34,6 +34,14 @@ server/tests/api.rs
 See the parent workspace CLAUDE.md. In short: no explanatory comments, idiomatic Rust, one
 responsibility per file, YAGNI. Single-line Conventional Commits.
 
+## Releases
+
+FerrFlow owns the version. It reads the Conventional Commits on `main`, bumps
+`server/Cargo.toml` to the next CalVer (`YYYY.M.N`), refreshes `Cargo.lock`, writes
+`CHANGELOG.md`, tags and creates the GitHub release; publishing the release builds and pushes
+`ghcr.io/ferrlabs/lfsx`. Never bump the version or edit the changelog by hand, and keep PR titles
+conventional — the squash message is what drives the bump.
+
 ## Tests
 
 `cargo test`. Integration tests mount the router on a `tempdir` and drive it through
