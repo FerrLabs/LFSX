@@ -1,3 +1,5 @@
+use axum::http::{HeaderMap, header};
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -9,7 +11,7 @@ use crate::namespace::Namespace;
 pub struct Config {
     pub bind: SocketAddr,
     pub storage_root: PathBuf,
-    pub public_url: String,
+    pub public_url: Option<String>,
     pub action_lifetime: u32,
     pub gc_grace: Duration,
     pub auth: Auth,
@@ -42,9 +44,9 @@ impl Config {
             .unwrap_or_else(|_| PathBuf::from("/var/lib/lfsx"));
 
         let public_url = std::env::var("LFSX_PUBLIC_URL")
-            .unwrap_or_else(|_| format!("http://{bind}"))
-            .trim_end_matches('/')
-            .to_owned();
+            .ok()
+            .filter(|url| !url.is_empty())
+            .map(|url| url.trim_end_matches('/').to_owned());
 
         Self {
             bind,
@@ -56,12 +58,35 @@ impl Config {
         }
     }
 
-    pub fn object_url(&self, ns: &Namespace, oid: &str) -> String {
-        format!("{}/{ns}/objects/{oid}", self.public_url)
+    pub fn base_url(&self, headers: &HeaderMap) -> String {
+        if let Some(configured) = &self.public_url {
+            return configured.clone();
+        }
+
+        let scheme = headers
+            .get("x-forwarded-proto")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(',').next())
+            .map(str::trim)
+            .filter(|scheme| !scheme.is_empty())
+            .unwrap_or("http");
+
+        let authority = headers
+            .get(header::HOST)
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|host| !host.is_empty())
+            .unwrap_or("localhost");
+
+        format!("{scheme}://{authority}")
     }
 
-    pub fn verify_url(&self, ns: &Namespace) -> String {
-        format!("{}/{ns}/objects/verify", self.public_url)
+    pub fn object_url(&self, base: &str, ns: &Namespace, oid: &str) -> String {
+        format!("{base}/{ns}/objects/{oid}")
+    }
+
+    pub fn verify_url(&self, base: &str, ns: &Namespace) -> String {
+        format!("{base}/{ns}/objects/verify")
     }
 
     pub fn action(&self, href: String) -> Action {
