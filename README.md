@@ -106,7 +106,8 @@ All configuration is by environment variable.
 | `LFSX_PUBLIC_URL` | `http://<bind>` | public URL used to build transfer links |
 | `LFSX_AUTH` | `github` | permission source, or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
-| `LFSX_AUTH_CACHE_TTL` | `60` | seconds a resolved permission is reused before being checked again |
+| `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
+| `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
@@ -240,6 +241,13 @@ token. LFSX resolves it against `GET /repos/{org}/{repo}` and maps the result:
 is cached for `LFSX_AUTH_CACHE_TTL` seconds so a push of two hundred objects costs one API call
 rather than two hundred. That cache is also the delay before a revocation takes effect — shorten
 it if that matters more than the round trips.
+
+Refusals are remembered too, for the shorter `LFSX_AUTH_REJECTION_TTL`. Without that, a CI job
+retrying with a revoked token spends one API call per attempt, forever, against the same budget
+the server needs for real lookups — and an unauthenticated caller could drive that load on
+purpose. The window is short on purpose: it is how long you keep being refused after being granted
+access. A forge that cannot be reached is never cached, so an outage stays an outage rather than
+becoming a lasting denial.
 
 Git already sends the token if it is in the credential store for that host:
 
