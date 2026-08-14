@@ -1,0 +1,74 @@
+name: Binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach binaries to'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1
+        with:
+          bin: lfsx-server
+          target: ${{ matrix.target }}
+          archive: lfsx-server-$target
+          checksum: sha256
+          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  verify:
+    name: The published binary runs
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and start it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'lfsx-server-x86_64-unknown-linux-musl.tar.gz' --dir .
+          tar xzf lfsx-server-x86_64-unknown-linux-musl.tar.gz
+
+          LFSX_BIND=127.0.0.1:8080 \
+            LFSX_STORAGE_ROOT="$(mktemp -d)" \
+            LFSX_AUTH=disabled \
+            ./lfsx-server &
+          server=$!
+
+          for _ in $(seq 30); do
+            if curl -fsS http://127.0.0.1:8080/health | grep -qx ok; then
+              kill "$server"
+              echo "the downloaded binary serves /health"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          kill "$server" 2>/dev/null || true
+          echo "::error::the published binary never answered /health"
+          exit 1
