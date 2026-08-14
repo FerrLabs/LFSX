@@ -1,6 +1,6 @@
 {
   "name": "@ferrlabs/lfsx-win32-x64",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "lfsx Windows x64 binary",
   "license": "MPL-2.0",
   "os": [

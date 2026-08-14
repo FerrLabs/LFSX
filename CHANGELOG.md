@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.1] - 2026-08-14
+
+### Bug Fixes
+
+- fix(cli): publish npm under the @ferrlabs scope (#67)
+
 ## [0.17.0] - 2026-08-14
 
 ### Features
