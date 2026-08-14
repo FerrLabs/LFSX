@@ -4,6 +4,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router, middleware};
+use futures_util::StreamExt;
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Actor, Permission};
@@ -48,6 +49,7 @@ async fn scrape(State(state): State<Shared>) -> Response {
     let (objects, bytes) = state.store.usage().await;
     state.metrics.objects_stored.set(objects as i64);
     state.metrics.store_bytes.set(bytes as i64);
+    state.metrics.store_scans.set(state.store.scans() as i64);
 
     state.metrics.render().into_response()
 }
@@ -160,8 +162,13 @@ async fn download(
     Path((.., oid)): Path<(String, String, String)>,
 ) -> Result<Response, Error> {
     let (file, size) = state.store.open(&ns, &oid).await?;
-    state.metrics.downloaded_bytes.inc_by(size);
-    let body = Body::from_stream(ReaderStream::new(file));
+
+    let counted = state.clone();
+    let body = Body::from_stream(ReaderStream::new(file).inspect(move |chunk| {
+        if let Ok(bytes) = chunk {
+            counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
+        }
+    }));
 
     Ok((
         [

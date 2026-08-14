@@ -22,6 +22,7 @@ pub struct Metrics {
     pub object_size: Histogram,
     pub objects_stored: IntGauge,
     pub store_bytes: IntGauge,
+    pub store_scans: IntGauge,
 }
 
 const SIZE_BUCKETS: &[f64] = &[
@@ -93,6 +94,14 @@ impl Metrics {
             .expect("metric"),
             store_bytes: register_int_gauge_with_registry!(
                 opts!("lfsx_store_bytes", "Bytes on disk at the last scrape"),
+                registry
+            )
+            .expect("metric"),
+            store_scans: register_int_gauge_with_registry!(
+                opts!(
+                    "lfsx_store_scans",
+                    "Full walks of the store performed to measure it"
+                ),
                 registry
             )
             .expect("metric"),

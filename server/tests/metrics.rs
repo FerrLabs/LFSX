@@ -117,3 +117,61 @@ async fn the_object_id_never_becomes_a_label() {
         "the route template is the label, not the path:\n{exposition}"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_burst_of_scrapes_walks_the_store_once() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    put(app.clone(), Some("writer"), b"an asset").await;
+
+    let burst: Vec<_> = (0..8)
+        .map(|_| {
+            let app = app.clone();
+            tokio::spawn(async move { scrape(app).await })
+        })
+        .collect();
+    for handle in burst {
+        handle.await.unwrap();
+    }
+
+    let exposition = scrape(app).await;
+    assert_eq!(
+        sample(&exposition, "lfsx_store_scans"),
+        1.0,
+        "concurrent scrapes must queue behind one walk, not each start their own:
+{exposition}"
+    );
+}
+
+#[tokio::test]
+async fn downloaded_bytes_count_what_was_actually_streamed() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let payload = b"bytes that have to leave the building".to_vec();
+    let oid = hex::encode(sha2::Sha256::digest(&payload));
+    put(app.clone(), Some("writer"), &payload).await;
+
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/LFSX/objects/{oid}"))
+        .header("authorization", common::credentials("writer"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+
+    assert_eq!(
+        sample(&scrape(app.clone()).await, "lfsx_downloaded_bytes_total"),
+        0.0,
+        "nothing has been read off the response yet"
+    );
+
+    axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        sample(&scrape(app).await, "lfsx_downloaded_bytes_total"),
+        payload.len() as f64
+    );
+}

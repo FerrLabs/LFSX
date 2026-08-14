@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime};
 
 use serde::Serialize;
@@ -103,19 +104,23 @@ const USAGE_TTL: Duration = Duration::from_secs(60);
 
 impl LocalStore {
     pub async fn usage(&self) -> (u64, u64) {
-        if let Some((measured_at, objects, bytes)) = *self.usage.lock().expect("usage cache")
+        let mut cached = self.usage.lock().await;
+
+        if let Some((measured_at, objects, bytes)) = *cached
             && measured_at.elapsed() < USAGE_TTL
         {
             return (objects, bytes);
         }
 
         let measured = self.measure().await;
-        *self.usage.lock().expect("usage cache") = Some((Instant::now(), measured.0, measured.1));
+        *cached = Some((Instant::now(), measured.0, measured.1));
 
         measured
     }
 
     async fn measure(&self) -> (u64, u64) {
+        self.scans.fetch_add(1, Ordering::Relaxed);
+
         let mut objects = 0;
         let mut bytes = 0;
 

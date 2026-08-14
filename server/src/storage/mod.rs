@@ -1,9 +1,10 @@
 mod sweep;
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
+
+use tokio::sync::Mutex;
 
 use futures_util::{Stream, StreamExt};
 use sha2::{Digest, Sha256};
@@ -19,6 +20,7 @@ pub struct LocalStore {
     root: PathBuf,
     counter: AtomicU64,
     usage: Mutex<Option<(Instant, u64, u64)>>,
+    scans: AtomicU64,
 }
 
 impl LocalStore {
@@ -27,6 +29,7 @@ impl LocalStore {
             root: root.into(),
             counter: AtomicU64::new(0),
             usage: Mutex::new(None),
+            scans: AtomicU64::new(0),
         }
     }
 
@@ -46,6 +49,10 @@ impl LocalStore {
             .join(&oid[0..2])
             .join(&oid[2..4])
             .join(oid)
+    }
+
+    pub fn scans(&self) -> u64 {
+        self.scans.load(Ordering::Relaxed)
     }
 
     pub async fn writable(&self) -> Result<(), Error> {
