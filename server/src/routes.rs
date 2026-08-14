@@ -28,8 +28,23 @@ pub fn router(state: Shared) -> Router {
 
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/ready", get(ready))
         .merge(objects)
         .with_state(state)
+}
+
+async fn ready(State(state): State<Shared>) -> Response {
+    match state.store.writable().await {
+        Ok(()) => "ready".into_response(),
+        Err(error) => {
+            tracing::error!(%error, "storage root is not writable");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "storage root is not writable",
+            )
+                .into_response()
+        }
+    }
 }
 
 async fn batch(
