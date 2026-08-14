@@ -1,24 +1,32 @@
 use crate::error::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Namespace<'a> {
-    org: &'a str,
-    repo: &'a str,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Namespace {
+    org: String,
+    repo: String,
 }
 
-impl<'a> Namespace<'a> {
-    pub fn new(org: &'a str, repo: &'a str) -> Result<Self, Error> {
-        (is_well_formed(org) && is_well_formed(repo))
+impl Namespace {
+    pub fn new(org: impl Into<String>, repo: impl Into<String>) -> Result<Self, Error> {
+        let (org, repo) = (org.into(), repo.into());
+
+        (is_well_formed(&org) && is_well_formed(&repo))
             .then_some(Self { org, repo })
             .ok_or(Error::MalformedNamespace)
     }
 
     pub fn org(&self) -> &str {
-        self.org
+        &self.org
     }
 
     pub fn repo(&self) -> &str {
-        self.repo
+        &self.repo
+    }
+}
+
+impl std::fmt::Display for Namespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.org, self.repo)
     }
 }
 
