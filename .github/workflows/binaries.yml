@@ -10,12 +10,14 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +44,8 @@ jobs:
     name: The published binary runs
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Download and start it
         env:
