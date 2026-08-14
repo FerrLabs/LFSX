@@ -5,6 +5,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router, middleware};
 use futures_util::StreamExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Actor, Permission};
@@ -17,6 +18,7 @@ use crate::model::{
     VerifyLocksResponse,
 };
 use crate::namespace::Namespace;
+use crate::range::Range;
 use crate::state::Shared;
 use crate::storage::SweepReport;
 
@@ -166,27 +168,61 @@ async fn download(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Path((.., oid)): Path<(String, String, String)>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, Error> {
-    let (file, size) = state.store.open(&ns, &oid).await?;
+    let (mut file, size) = state.store.open(&ns, &oid).await?;
 
+    let requested = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok());
+
+    let range = Range::parse(requested, size);
+    if range == Range::Unsatisfiable {
+        return Ok((
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            [(header::CONTENT_RANGE, format!("bytes */{size}"))],
+        )
+            .into_response());
+    }
+
+    if let Range::Slice { start, .. } = range {
+        file.seek(std::io::SeekFrom::Start(start)).await?;
+    }
+
+    let length = range.length(size);
     let counted = state.clone();
-    let body = Body::from_stream(ReaderStream::new(file).inspect(move |chunk| {
+    let body = Body::from_stream(ReaderStream::new(file.take(length)).inspect(move |chunk| {
         if let Ok(bytes) = chunk {
             counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
         }
     }));
 
-    Ok((
+    let mut response = (
         [
             (
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("application/octet-stream"),
             ),
-            (header::CONTENT_LENGTH, HeaderValue::from(size)),
+            (header::ACCEPT_RANGES, HeaderValue::from_static("bytes")),
+            (header::CONTENT_LENGTH, HeaderValue::from(length)),
         ],
         body,
     )
-        .into_response())
+        .into_response();
+
+    if let Range::Slice { start, end } = range {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_RANGE, content_range(start, end, size));
+        *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+    }
+
+    Ok(response)
+}
+
+fn content_range(start: u64, end: u64, size: u64) -> HeaderValue {
+    HeaderValue::from_str(&format!("bytes {start}-{end}/{size}"))
+        .unwrap_or_else(|_| HeaderValue::from_static("bytes */0"))
 }
 
 async fn verify(
