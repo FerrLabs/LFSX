@@ -109,11 +109,6 @@ jobs:
           ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-
       - name: Publish the wrapper and its platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

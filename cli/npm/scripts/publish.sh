@@ -17,6 +17,11 @@ REPO_ROOT="$(cd "${NPM_DIR}/../.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+	printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
+	export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
+fi
+
 publish_if_new() {
   if npm view "$1@${VERSION}" version >/dev/null 2>&1; then
     echo "  $1@${VERSION} is already on the registry, skipping"
