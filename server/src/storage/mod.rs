@@ -54,6 +54,14 @@ impl LocalStore {
             .join(oid)
     }
 
+    fn content_path(&self, oid: &str) -> PathBuf {
+        self.root
+            .join(".content")
+            .join(&oid[0..2])
+            .join(&oid[2..4])
+            .join(oid)
+    }
+
     pub fn scans(&self) -> u64 {
         self.scans.load(Ordering::Relaxed)
     }
@@ -167,7 +175,56 @@ impl LocalStore {
             });
         }
 
-        fs::rename(staged, final_path).await?;
+        self.link_or_move(staged, final_path, oid).await
+    }
+
+    // One copy of the bytes under .content, and a hard link per repository that
+    // holds them. Two projects sharing an asset pack cost the disk once, and the
+    // link count is the reference count — the filesystem does the bookkeeping, so
+    // nothing can leak a repository's contents to another and nothing needs a
+    // migration: objects already sitting at their repository path keep working as
+    // ordinary files with one link.
+    async fn link_or_move(&self, staged: &Path, final_path: &Path, oid: &str) -> Result<(), Error> {
+        let content = self.content_path(oid);
+        let parent = content.parent().expect("content paths have a parent");
+        fs::create_dir_all(parent).await?;
+
+        if fs::metadata(&content).await.is_err() {
+            fs::rename(staged, &content).await?;
+        }
+
+        match self.link(&content, final_path).await {
+            // The content was collected between finding it and linking to it:
+            // a concurrent retain on another repository dropped its last other
+            // reference. The staged copy is still here precisely for this, so
+            // put it back and link again rather than failing a push that did
+            // nothing wrong.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::rename(staged, &content).await?;
+                self.link(&content, final_path).await?;
+            }
+            outcome => outcome?,
+        }
+
+        let _ = fs::remove_file(staged).await;
         Ok(())
+    }
+
+    async fn link(&self, content: &Path, final_path: &Path) -> Result<(), std::io::Error> {
+        let from = content.to_path_buf();
+        let to = final_path.to_path_buf();
+        let linked = tokio::task::spawn_blocking(move || std::fs::hard_link(&from, &to))
+            .await
+            .map_err(std::io::Error::other)?;
+
+        match linked {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(error),
+            // A filesystem without hard links, or one crossing a device
+            // boundary: fall back to a full copy so the transfer still
+            // succeeds. The disk pays for it, the client never notices.
+            Err(_) => fs::copy(content, final_path).await.map(|_| ()),
+        }
     }
 }

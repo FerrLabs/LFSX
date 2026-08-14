@@ -209,11 +209,16 @@ the one moment you cannot get them.
 | `lfsx_uploaded_bytes_total`, `lfsx_downloaded_bytes_total` | counter | throughput in and out |
 | `lfsx_object_size_bytes` | histogram | what people are actually storing |
 | `lfsx_rejections_total{cause}` | counter | why requests are refused, by cause rather than by status |
-| `lfsx_objects_stored`, `lfsx_store_bytes` | gauge | how full the disk is getting |
+| `lfsx_objects_stored`, `lfsx_store_bytes` | gauge | how full the disk is getting, counting shared objects once |
 | `lfsx_store_scans` | gauge | how often the expensive walk behind those two actually ran |
 
 Routes are labelled by their template, never by the path, so the object id can never turn into a
 label and the series count stays bounded whatever you store.
+
+Those two count what the disk holds, not what the repositories logically hold: an object shared by
+three projects is one set of bytes and is counted once. The per-repository page reports logical
+size instead, since "this project uses 3 GiB of assets" is the useful answer there even when some
+of it is shared.
 
 The two disk gauges are measured by walking the store, so they are computed at most once a minute
 and reused in between — and concurrent scrapes queue behind a single walk rather than each starting
@@ -229,11 +234,27 @@ halfway is not recorded as a full download.
 Objects are content-addressed and fanned out two levels to keep directories small:
 
 ```
-$LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>
+$LFSX_STORAGE_ROOT/.content/<oid[0:2]>/<oid[2:4]>/<oid>   the bytes, once
+$LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per repository
 ```
 
+**The bytes are stored once.** Two projects sharing the same Synty or Quixel pack cost the disk
+once, however many repositories push it — and for a studio that is most of the disk. Each
+repository holds a hard link, so the filesystem keeps the reference count and the content survives
+until the last repository lets go of it.
+
+Sharing the bytes does not share them over the API. Every route resolves through the repository's
+own path, so a repository cannot read, list or even learn the existence of an object it never
+pushed — including by guessing a digest. `retain` frees space only when the object it drops was the
+last reference; the report says zero bytes otherwise, rather than promising space another
+repository is still using.
+
+Objects already stored per repository, from before this, keep working untouched: they are ordinary
+files with a single link, and nothing needs migrating.
+
 Backing up the server is backing up that directory. Objects are immutable, so an incremental
-file-level backup never rewrites what it already copied.
+file-level backup never rewrites what it already copied — but use a tool that preserves hard links
+(`rsync -H`, `tar`), or the copy will expand every shared object back into a separate file.
 
 ## API
 
