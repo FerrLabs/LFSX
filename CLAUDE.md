@@ -63,3 +63,9 @@ authentication (#1), not with whatever commit happens to carry a `!`.
 
 `cargo test`. Integration tests mount the router on a `tempdir` and drive it through
 `tower::ServiceExt::oneshot`. Test behaviour and error paths, not the presence of routes.
+
+`ci/e2e.sh` is the other half: it starts the real binary and `server/examples/stub-forge.rs`,
+then pushes and clones through the actual `git lfs` client. It runs in CI and locally, on an
+isolated `GIT_CONFIG_GLOBAL` so it cannot touch your own git configuration. Anything that depends
+on how the client behaves — challenge handling, smudge, the locking probe — belongs there rather
+than in an `oneshot` test, because a handcrafted request will not reproduce it.
