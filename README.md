@@ -105,6 +105,14 @@ git push
 ### Verify it works
 
 ```bash
+lfsx --url https://lfs.example.com doctor --repo my-org/my-project
+```
+
+That checks the server is up, its storage is writable, your token is accepted, and that the URL it
+advertises for transfers is the one you reached it on — the mismatch that lets negotiation succeed
+while every transfer fails. Install it alongside the server, or use the probes directly:
+
+```bash
 curl -sf https://lfs.example.com/health && echo " up"
 curl -sf https://lfs.example.com/ready  && echo " serving"
 ```
@@ -229,7 +237,17 @@ Objects are written and never removed on their own. A repository that rewrites h
 branch or replaces a large asset leaves the old blobs behind, and the disk only grows.
 
 The server cannot decide what is still needed — it never sees your Git history. So you tell it.
-`retain` takes the set of object ids the repository still references and sweeps everything else:
+The [`lfsx`](cli/) command does it from a clone:
+
+```bash
+lfsx --url https://lfs.example.com gc --repo my-org/my-project --dry-run
+```
+
+It refuses to run from a shallow clone, which would retain a fraction of what it should and sweep
+the rest. Same command without `--dry-run` to actually free the space.
+
+Under it is one endpoint, if you would rather call it yourself. `retain` takes the set of object
+ids the repository still references and sweeps everything else:
 
 ```bash
 git lfs ls-files --all --long \
