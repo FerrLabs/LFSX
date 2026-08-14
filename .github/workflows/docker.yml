@@ -48,7 +48,7 @@ jobs:
       tag: ${{ needs.meta.outputs.version }}
       context: .
       dockerfile: Dockerfile
-      platforms: linux/amd64
+      platforms: linux/amd64,linux/arm64
       extra-tags: ghcr.io/ferrlabs/lfsx:${{ needs.meta.outputs.major_minor }}
       smoke-test-cmd: |
         podman run -d --name lfsx-smoke -p 18080:8080 "$SMOKE_IMAGE"
