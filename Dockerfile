@@ -6,6 +6,7 @@ WORKDIR /src
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY server ./server
+COPY cli ./cli
 
 RUN case "${TARGETARCH}" in \
         amd64) target=x86_64-unknown-linux-gnu ;; \
