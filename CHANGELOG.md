@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.0] - 2026-08-14
+
+### Features
+
+- feat(ci): publish lfsx-server to crates.io on release (#56)
+
 ## [0.10.0] - 2026-08-14
 
 ### Features
