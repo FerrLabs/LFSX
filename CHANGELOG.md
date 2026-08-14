@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.1] - 2026-08-14
+
+### Bug Fixes
+
+- fix(server): shut down gracefully on SIGTERM as well as Ctrl-C (#33)
+
 ## [0.5.0] - 2026-08-14
 
 ### Features
