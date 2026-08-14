@@ -270,6 +270,14 @@ Integration tests mount the router on a temporary directory and drive it through
 `tower::ServiceExt::oneshot`, so they exercise real routing, real streaming and the real
 filesystem without binding a port.
 
+```bash
+bash ci/e2e.sh                          # push and clone through a real git lfs client
+```
+
+That one starts the binary and a stub forge, pushes a 64 MiB asset with the actual client, clones
+it back and compares the bytes. It runs on an isolated `GIT_CONFIG_GLOBAL`, so it cannot touch
+your own git configuration.
+
 ## License
 
 [MPL-2.0](LICENSE).
