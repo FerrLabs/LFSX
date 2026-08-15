@@ -93,6 +93,20 @@ impl ObjectSpec {
             actions: None,
         }
     }
+
+    pub fn over_quota(id: ObjectId, used: u64, limit: u64) -> Self {
+        Self {
+            id,
+            actions: None,
+            error: Some(ObjectError {
+                code: 507,
+                message: format!(
+                    "this repository holds {used} bytes of its {limit} byte budget — collect what \
+                     it no longer references, or ask for more room"
+                ),
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

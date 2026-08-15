@@ -125,6 +125,10 @@ impl LocalStore {
         let parent = path.parent().expect("object paths always have a parent");
         fs::create_dir_all(parent).await?;
 
+        // A retried transfer of an object this repository already holds costs it
+        // no room, so it must not count against the budget a second time.
+        let fresh = fs::metadata(&path).await.is_err();
+
         let staged = self.staging_path(parent, oid);
         let outcome = self.stream_to(&staged, &mut chunks).await;
 
@@ -132,6 +136,11 @@ impl LocalStore {
             Ok((digest, written)) => {
                 self.finish(&staged, &path, oid, expected_size, &digest, written)
                     .await?;
+
+                if fresh {
+                    self.stored(ns, written).await;
+                }
+
                 Ok(written)
             }
             Err(error) => {

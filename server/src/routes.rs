@@ -129,12 +129,22 @@ async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId
         return ObjectSpec::too_large(id, limit);
     }
 
+    // An object the repository already holds costs it no room, so it is never
+    // refused for want of budget.
     if state.store.exists(ns, &id.oid).await {
         return ObjectSpec {
             id,
             actions: None,
             error: None,
         };
+    }
+
+    if let Some(limit) = state.config.repo_quota {
+        let (_, used) = state.store.usage_of(ns).await;
+
+        if used + id.size > limit {
+            return ObjectSpec::over_quota(id, used, limit);
+        }
     }
 
     let upload = state.config.object_url(base, ns, &id.oid);
@@ -164,6 +174,16 @@ async fn upload(
         .get(header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse().ok());
+
+    // Negotiation already refused what does not fit, but a client is free to
+    // skip it and PUT straight here.
+    if let Some(limit) = state.config.repo_quota {
+        let (_, used) = state.store.usage_of(&ns).await;
+
+        if used + size.unwrap_or_default() > limit {
+            return Err(Error::OverQuota { used, limit });
+        }
+    }
 
     let written = state
         .store

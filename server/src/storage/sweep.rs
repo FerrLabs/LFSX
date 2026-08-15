@@ -55,6 +55,10 @@ impl LocalStore {
             }
         }
 
+        if !dry_run {
+            self.forget(ns).await;
+        }
+
         Ok(report)
     }
 
@@ -193,6 +197,23 @@ impl LocalStore {
         cached.insert(key, (Instant::now(), measured.0, measured.1));
 
         measured
+    }
+
+    // A quota is checked on every negotiation, so the figure behind it can
+    // afford neither a walk each time nor a minute of staleness: stale in one
+    // direction lets a repository push past its budget, and in the other it
+    // refuses space the client has just freed. A stored object adds to the
+    // cached figure, and a collection drops it so the next reader measures what
+    // is really left rather than trusting arithmetic across hard links.
+    pub async fn stored(&self, ns: &Namespace, bytes: u64) {
+        if let Some((_, objects, held)) = self.per_namespace.lock().await.get_mut(&ns.to_string()) {
+            *objects += 1;
+            *held += bytes;
+        }
+    }
+
+    pub async fn forget(&self, ns: &Namespace) {
+        self.per_namespace.lock().await.remove(&ns.to_string());
     }
 
     // What the disk actually holds, which is not the sum of what the

@@ -20,6 +20,9 @@ pub enum Error {
     #[error("object exceeds the {limit} byte limit this server accepts")]
     TooLarge { limit: u64 },
 
+    #[error("this repository holds {used} bytes of its {limit} byte budget")]
+    OverQuota { used: u64, limit: u64 },
+
     #[error("credentials are required for this repository")]
     Unauthenticated,
 
@@ -59,6 +62,7 @@ impl Error {
             | Self::OidMismatch { .. }
             | Self::SizeMismatch { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::LockHeld(_) => StatusCode::CONFLICT,
@@ -78,6 +82,7 @@ impl Error {
             Self::OidMismatch { .. } => "oid_mismatch",
             Self::SizeMismatch { .. } => "size_mismatch",
             Self::TooLarge { .. } => "too_large",
+            Self::OverQuota { .. } => "over_quota",
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::Forge => "forge_unreachable",

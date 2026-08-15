@@ -23,6 +23,7 @@ gc:
 
 limits:
   maxObjectSize: ""
+  repoQuota: ""
 
 persistence:
   enabled: true
