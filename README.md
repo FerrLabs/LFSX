@@ -300,6 +300,7 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
 | `POST` | `/{org}/{repo}/objects/dedupe` | fold objects stored before the shared store into it |
 | `POST` | `/{org}/{repo}/objects/compress` | fold objects stored before compression into it |
+| `POST` | `/{org}/{repo}/objects/audit` | read every object back and check it against its own digest |
 | `POST` | `/{org}/{repo}/locks` | take a lock on a path |
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
 | `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
@@ -495,7 +496,8 @@ this repository is relinked to it, so run it everywhere. Until a repository has 
 keeps the older bytes alive through its own link, and the store holds both forms.
 
 What it costs: CPU on both ends of every transfer, and an integrity check that can no longer be a
-`sha256sum` — see [`docs/operations.md`](docs/operations.md). `stats`, the dashboard and
+`sha256sum` — `lfsx verify --repo <org/repo>` is what replaces it, reading every object back the way
+a download does. See [`docs/operations.md`](docs/operations.md). `stats`, the dashboard and
 `LFSX_REPO_QUOTA` all count bytes on disk, so a repository's figure drops when compression is on;
 that is the number an operator budgets a volume against.
 

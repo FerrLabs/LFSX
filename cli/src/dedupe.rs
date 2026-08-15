@@ -11,6 +11,10 @@ pub fn compress(server: &Server, repository: &str, dry_run: bool) -> Result<Valu
     call(server, repository, "compress", dry_run)
 }
 
+pub fn verify(server: &Server, repository: &str) -> Result<Value> {
+    call(server, repository, "audit", false)
+}
+
 fn call(server: &Server, repository: &str, action: &str, dry_run: bool) -> Result<Value> {
     let (org, repo) = split_namespace(repository)?;
 

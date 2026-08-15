@@ -52,6 +52,10 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    Verify {
+        #[arg(long)]
+        repo: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -122,6 +126,26 @@ fn main() -> Result<()> {
                 after as f64 / 1_073_741_824.0,
                 100 - after.saturating_mul(100).checked_div(before).unwrap_or(100),
             );
+        }
+        Command::Verify { repo } => {
+            let report = dedupe::verify(&server, &repo)?;
+            let checked = report["checked"].as_u64().unwrap_or_default();
+            let bytes = report["bytes"].as_u64().unwrap_or_default();
+            let corrupt = report["corrupt"].as_array().cloned().unwrap_or_default();
+            let unreadable = report["unreadable"].as_array().cloned().unwrap_or_default();
+
+            println!(
+                "read {checked} objects, {:.2} GiB",
+                bytes as f64 / 1_073_741_824.0
+            );
+
+            for oid in corrupt.iter().chain(unreadable.iter()) {
+                println!("  {}", oid.as_str().unwrap_or_default());
+            }
+
+            if !corrupt.is_empty() || !unreadable.is_empty() {
+                std::process::exit(1);
+            }
         }
     }
 
