@@ -165,6 +165,24 @@ new link, never a gap.
 The saving shows up in `lfsx_store_bytes`, which counts what the disk holds, rather than in
 `stats`, which counts what each repository holds.
 
+## Folding an old store into compressed frames
+
+`LFSX_COMPRESSION=zstd` changes what arrives next; what is already stored keeps its own shape until
+told otherwise.
+
+```bash
+lfsx compress --repo FerrLabs/Blastlands --dry-run
+lfsx compress --repo FerrLabs/Blastlands
+```
+
+The dry run does the whole job and throws the result away, so its number is measured rather than
+estimated. Run it for every repository: objects shared between them live once under `.content`, and
+a repository that has not had its turn keeps the older bytes alive through its own link.
+
+The same conservatism as the deduplication migration — verified against its own digest before being
+rewritten, never removed before its replacement exists, idempotent, refusals counted and named. An
+object that would not get smaller is left alone rather than wrapped.
+
 ## Migrating to another server
 
 Two routes, and the choice is usually made for you by whether you can read the old server's disk.

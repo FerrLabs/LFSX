@@ -175,7 +175,7 @@ impl LocalStore {
 // two names, which is exactly what deduplication produces — so this is how a
 // second run knows there is nothing left to do.
 #[cfg(unix)]
-async fn shares_bytes_with(path: &Path, content: &Path) -> bool {
+pub(super) async fn shares_bytes_with(path: &Path, content: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
 
     let (Ok(one), Ok(other)) = (fs::metadata(path).await, fs::metadata(content).await) else {
@@ -189,7 +189,7 @@ async fn shares_bytes_with(path: &Path, content: &Path) -> bool {
 // run relinks. The result is the same, the work is repeated. The server ships
 // on Linux; this keeps the tests honest everywhere else.
 #[cfg(not(unix))]
-async fn shares_bytes_with(_path: &Path, _content: &Path) -> bool {
+pub(super) async fn shares_bytes_with(_path: &Path, _content: &Path) -> bool {
     false
 }
 

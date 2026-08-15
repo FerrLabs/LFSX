@@ -45,6 +45,13 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    Compress {
+        #[arg(long)]
+        repo: String,
+
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -94,6 +101,26 @@ fn main() -> Result<()> {
                 } else {
                     String::new()
                 }
+            );
+        }
+        Command::Compress { repo, dry_run } => {
+            let report = dedupe::compress(&server, &repo, dry_run)?;
+            let compressed = report["compressed"].as_u64().unwrap_or_default();
+            let already = report["already"].as_u64().unwrap_or_default();
+            let left = report["left_alone"].as_u64().unwrap_or_default();
+            let before = report["before"].as_u64().unwrap_or_default();
+            let after = report["after"].as_u64().unwrap_or_default();
+
+            println!(
+                "{} {compressed} objects: {:.2} GiB -> {:.2} GiB ({}% smaller), {already} already                  compressed, {left} left as they were",
+                if dry_run {
+                    "would compress"
+                } else {
+                    "compressed"
+                },
+                before as f64 / 1_073_741_824.0,
+                after as f64 / 1_073_741_824.0,
+                100 - after.saturating_mul(100).checked_div(before).unwrap_or(100),
             );
         }
     }

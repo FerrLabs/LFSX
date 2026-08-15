@@ -23,6 +23,9 @@ pub enum Error {
     #[error("this repository holds {used} bytes of its {limit} byte budget")]
     OverQuota { used: u64, limit: u64 },
 
+    #[error("this server does not compress objects — set LFSX_COMPRESSION first")]
+    CompressionDisabled,
+
     #[error("credentials are required for this repository")]
     Unauthenticated,
 
@@ -63,6 +66,7 @@ impl Error {
             | Self::SizeMismatch { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
+            Self::CompressionDisabled => StatusCode::CONFLICT,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::LockHeld(_) => StatusCode::CONFLICT,
@@ -83,6 +87,7 @@ impl Error {
             Self::SizeMismatch { .. } => "size_mismatch",
             Self::TooLarge { .. } => "too_large",
             Self::OverQuota { .. } => "over_quota",
+            Self::CompressionDisabled => "compression_disabled",
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::Forge => "forge_unreachable",

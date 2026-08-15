@@ -1,5 +1,6 @@
 mod codec;
 mod dedupe;
+mod rewrite;
 mod staging;
 mod sweep;
 
@@ -22,6 +23,8 @@ use crate::error::Error;
 use crate::namespace::Namespace;
 
 pub use dedupe::DedupeReport;
+use dedupe::shares_bytes_with;
+pub use rewrite::CompressReport;
 
 enum Sink {
     Raw(fs::File),

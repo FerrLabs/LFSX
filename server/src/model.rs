@@ -31,6 +31,12 @@ pub struct RetainRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CompressRequest {
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct DedupeRequest {
     #[serde(default)]
     pub dry_run: bool,
