@@ -356,6 +356,11 @@ it is pushed, so anything touched within `LFSX_GC_GRACE` (two weeks by default, 
 `gc.pruneExpire`) is never taken — that is the `within_grace` count. And a transfer still in
 flight is skipped, since staging files are not objects yet.
 
+Objects go, the fanout directories they lived in stay — an inode and a block per prefix, reused by
+the next object that hashes into it. Removing them raced every upload: a push creates its fanout
+directory, and until the staging file lands that directory is empty, so a collection running
+alongside could take it and fail a push on a directory made moments earlier for that push.
+
 An upload streams into a `.part` file next to its destination and is renamed on success. A process
 kill or a host crash mid-transfer leaves one behind, and nothing used to reclaim it. The server now
 sweeps them at boot — a crash is exactly what strands them — and hourly after that, logging the

@@ -19,6 +19,15 @@ pub struct SweepReport {
 }
 
 impl LocalStore {
+    // Objects go, the fanout directories they lived in stay. Removing an
+    // emptied directory raced every upload: a push creates its fanout, and for
+    // the moment between that and the staging file appearing the directory is
+    // empty, so a collection running alongside took it and the push failed on a
+    // directory that had just been made for it. Nothing here can hold a lock the
+    // filesystem would honour, so the fix is to stop competing — the shared
+    // .content tree has never pruned its directories either. What is left is an
+    // inode and a block per prefix, reused by the next object that hashes into
+    // it, against a push failing for a reason no operator could act on.
     pub async fn sweep(
         &self,
         ns: &Namespace,
@@ -43,10 +52,6 @@ impl LocalStore {
             while let Some(fanout) = fanouts.next_entry().await? {
                 self.sweep_directory(&fanout.path(), ns, retained, grace, &mut report)
                     .await?;
-            }
-
-            if !dry_run {
-                let _ = fs::remove_dir(prefix.path()).await;
             }
         }
 
@@ -142,10 +147,6 @@ impl LocalStore {
                     report.bytes += size;
                 }
             }
-        }
-
-        if !report.dry_run {
-            let _ = fs::remove_dir(directory).await;
         }
 
         Ok(())
