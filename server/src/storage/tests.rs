@@ -90,6 +90,7 @@ async fn an_upload_survives_a_collection_emptying_its_fanout() {
                 &ns,
                 &oid,
                 None,
+                None,
                 stream::iter([Ok::<_, std::io::Error>(Bytes::from(payload))]),
             )
             .await;
@@ -110,7 +111,7 @@ async fn a_body_that_outgrows_the_limit_is_cut_off_rather_than_written_to_comple
     let store = LocalStore::new(root.path()).with_max_object_size(Some(4 * CHUNK as u64));
     let (body, pulled) = body(4096);
 
-    let refused = store.write(&namespace(), OID, None, body).await;
+    let refused = store.write(&namespace(), OID, None, None, body).await;
 
     assert!(matches!(refused, Err(Error::TooLarge { limit: 4096 })));
     assert_eq!(
@@ -131,7 +132,7 @@ async fn a_declared_size_over_the_limit_never_touches_the_disk() {
     let store = LocalStore::new(root.path()).with_max_object_size(Some(1024));
     let (body, pulled) = body(1);
 
-    let refused = store.write(&namespace(), OID, Some(4096), body).await;
+    let refused = store.write(&namespace(), OID, Some(4096), None, body).await;
 
     assert!(matches!(refused, Err(Error::TooLarge { limit: 1024 })));
     assert_eq!(
@@ -154,6 +155,7 @@ async fn an_object_at_the_limit_is_accepted() {
             &namespace(),
             &oid,
             Some(CHUNK as u64),
+            None,
             stream::iter([Ok::<_, std::io::Error>(Bytes::from(payload))]),
         )
         .await;
@@ -177,6 +179,7 @@ async fn without_a_limit_a_large_object_still_goes_through() {
             &namespace(),
             &oid,
             Some(payload.len() as u64),
+            None,
             stream::iter([Ok::<_, std::io::Error>(Bytes::from(payload))]),
         )
         .await;

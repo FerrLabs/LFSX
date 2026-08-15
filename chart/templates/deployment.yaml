@@ -72,6 +72,10 @@ spec:
             - name: LFSX_MAX_OBJECT_SIZE
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.limits.repoQuota }}
+            - name: LFSX_REPO_QUOTA
+              value: {{ . | quote }}
+            {{- end }}
             - name: RUST_LOG
               value: {{ .Values.config.logLevel | quote }}
           ports:

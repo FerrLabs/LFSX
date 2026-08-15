@@ -395,8 +395,31 @@ chunk that crosses it and the staging file is dropped, rather than read to the e
 big it was.
 
 Lowering the limit later does not strand what is already stored: it governs what may arrive, not
-what a repository can still check out. Repositories that legitimately need more than everyone else
-are [#32](https://github.com/FerrLabs/LFSX/issues/32).
+what a repository can still check out.
+
+`LFSX_REPO_QUOTA` is the same idea one level up: a budget, in bytes, that any single `{org}/{repo}`
+may hold. Unset, there is none.
+
+```bash
+LFSX_REPO_QUOTA=53687091200   # 50 GiB per repository
+```
+
+A per-object ceiling does not stop a project committing its renders directory a gigabyte at a time,
+and on a server hosting a team the first symptom is unrelated repositories failing to push. The
+budget turns that into one repository being told, in its own client, that it is out of room.
+
+Negotiation refuses each object that would not fit, with a `507` the client prints, and the direct
+`PUT` is guarded too for clients that skip negotiation — including when they skip declaring a size,
+since the budget travels with the transfer and cuts it off at the byte that crosses the line. An
+object the repository already holds is never refused at either gate: re-sending it asks for no new
+room. Downloads never are either: a repository over budget still serves every object it holds,
+because refusing a checkout punishes the wrong person and fixes nothing.
+
+The figure is what the repository holds, the same one `stats` and the dashboard report — not what it
+costs the disk after deduplication. Two projects sharing a pack each count it against their own
+budget, which is the number an operator is actually handing out. Collection is the way back under:
+`retain` frees the room and the next push sees it immediately, without waiting for a cache to
+expire.
 
 ## Kubernetes
 
