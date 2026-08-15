@@ -82,6 +82,12 @@ once the store passes a few terabytes, where walking it costs more than copying 
        [ "$expected" = "$actual" ] || echo "corrupt: $1"' _ {}
    ```
 
+   **This holds only for a store written without `LFSX_COMPRESSION`.** With compression on, an
+   object is no longer the bytes it is named after, so every compressed file would be reported as
+   corrupt by the command above. Verifying a compressed store means decompressing it, which is a
+   server-side job rather than a shell one-liner — until it exists, the honest procedure for such a
+   store is to restore it and read objects back through the API.
+
    Silence means the store is intact. This reads every byte you hold, so it is I/O bound and worth
    an evening rather than a maintenance window — but it is the only check that distinguishes a
    restore that worked from one that merely finished. Objects pushed before deduplication existed

@@ -143,6 +143,8 @@ All configuration is by environment variable.
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
+| `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
+| `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
 `LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
@@ -437,11 +439,43 @@ object the repository already holds is never refused at either gate: re-sending 
 room. Downloads never are either: a repository over budget still serves every object it holds,
 because refusing a checkout punishes the wrong person and fixes nothing.
 
-The figure is what the repository holds, the same one `stats` and the dashboard report — not what it
-costs the disk after deduplication. Two projects sharing a pack each count it against their own
+The figure is what the repository holds on disk, the same one `stats` and the dashboard report — not
+what it costs after deduplication, and not what it weighed before compression. Two projects sharing a pack each count it against their own
 budget, which is the number an operator is actually handing out. Collection is the way back under:
 `retain` frees the room and the next push sees it immediately, without waiting for a cache to
 expire.
+
+## Compression
+
+`LFSX_COMPRESSION=zstd` stores objects compressed. Unset, nothing is compressed, which is the
+default because it is the one that cannot surprise anyone.
+
+```bash
+LFSX_COMPRESSION=zstd        # level 3
+LFSX_COMPRESSION=zstd:9      # slower, smaller
+```
+
+The received wisdom is that an LFS store is already compressed, and for PNG, MP3 and OGG that is
+true. It is badly wrong for meshes: measured on two real Unity projects, `.fbx` compresses **2.9×**
+and **6.7×**, `.tga` **10.4×**, while `.png` gives up 1%. On a store where meshes are the bulk —
+which is what a game project looks like — that came out at **71% smaller** overall.
+
+**The object keeps its name.** A file is still stored under the digest of its plaintext, because
+that name is what collection, deduplication and the shared store address it by. What changes is
+that the file says what it is in its first bytes, which means two things worth knowing: turning
+compression on rewrites nothing that is already stored, and turning it off again keeps serving
+everything written while it was on. A mixed store is the normal state of an upgraded one.
+
+**Ranges still work.** Objects are compressed in four-megabyte frames with an index, so serving the
+tail of a three-gigabyte asset decompresses the frames it touches rather than everything before
+them. A resumed transfer stays a resumed transfer.
+
+**Memory stays flat.** One frame is decompressed at a time, whatever the object weighs.
+
+What it costs: CPU on both ends of every transfer, and an integrity check that can no longer be a
+`sha256sum` — see [`docs/operations.md`](docs/operations.md). `stats`, the dashboard and
+`LFSX_REPO_QUOTA` all count bytes on disk, so a repository's figure drops when compression is on;
+that is the number an operator budgets a volume against.
 
 ## Kubernetes
 

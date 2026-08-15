@@ -17,6 +17,7 @@ pub struct Config {
     pub staging_max_age: Duration,
     pub max_object_size: Option<u64>,
     pub repo_quota: Option<u64>,
+    pub compression: Option<i32>,
     pub auth: Auth,
 }
 
@@ -83,6 +84,7 @@ impl Config {
             staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
+            compression: compression(),
             auth: Auth::from_env(),
         }
     }
@@ -157,6 +159,30 @@ impl Auth {
 // Unset means unlimited, which is what a server on its own volume wants. Zero
 // would refuse every push, so it is read as a typo rather than as a policy
 // nobody would choose deliberately.
+// zstd level 3 is the default because it is the one that costs nothing you can
+// measure: it compresses faster than a spinning disk writes, and the meshes and
+// uncompressed raster that make up most of an LFS store give most of their
+// ground at any level. Higher levels are there for a store that is short on
+// room rather than on time.
+fn compression() -> Option<i32> {
+    match std::env::var("LFSX_COMPRESSION").ok()?.trim() {
+        "" | "none" | "off" => None,
+        "zstd" => Some(3),
+        other => match other
+            .strip_prefix("zstd:")
+            .and_then(|level| level.parse().ok())
+        {
+            Some(level @ 1..=19) => Some(level),
+            _ => {
+                tracing::warn!(
+                    "LFSX_COMPRESSION={other} is not a codec this server knows — storing objects as they arrive"
+                );
+                None
+            }
+        },
+    }
+}
+
 fn bytes(variable: &str) -> Option<u64> {
     let configured = std::env::var(variable).ok()?.trim().parse().ok()?;
 
