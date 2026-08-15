@@ -82,24 +82,43 @@ pub async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> 
     }
 }
 
+pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
+    Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: root.path().to_path_buf(),
+        public_url: Some("https://lfs.example".into()),
+        action_lifetime: 1800,
+        gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
+        staging_max_age: Duration::from_secs(86400),
+        max_object_size: None,
+        auth: forge_auth(api_url, Duration::from_secs(60), Duration::from_secs(10)),
+    }
+}
+
+fn forge_auth(api_url: &str, cache_ttl: Duration, rejection_ttl: Duration) -> Auth {
+    Auth::Forge {
+        provider: Provider::Github,
+        api_url: api_url.to_owned(),
+        cache_ttl,
+        rejection_ttl,
+    }
+}
+
 pub fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Router {
     app_with_rejection_ttl(root, api_url, cache_ttl, Duration::from_secs(10))
 }
 
 pub fn app_collecting_immediately(root: &tempfile::TempDir, api_url: &str) -> Router {
     lfsx_server::app(Config {
-        bind: "127.0.0.1:0".parse().unwrap(),
-        storage_root: root.path().to_path_buf(),
-        public_url: Some("https://lfs.example".into()),
-        action_lifetime: 1800,
         gc_grace: Duration::ZERO,
-        staging_max_age: Duration::from_secs(86400),
-        auth: Auth::Forge {
-            provider: Provider::Github,
-            api_url: api_url.to_owned(),
-            cache_ttl: Duration::from_secs(60),
-            rejection_ttl: Duration::from_secs(60),
-        },
+        ..config(root, api_url)
+    })
+}
+
+pub fn app_capped(root: &tempfile::TempDir, api_url: &str, max_object_size: u64) -> Router {
+    lfsx_server::app(Config {
+        max_object_size: Some(max_object_size),
+        ..config(root, api_url)
     })
 }
 
@@ -110,18 +129,8 @@ pub fn app_with_rejection_ttl(
     rejection_ttl: Duration,
 ) -> Router {
     lfsx_server::app(Config {
-        bind: "127.0.0.1:0".parse().unwrap(),
-        storage_root: root.path().to_path_buf(),
-        public_url: Some("https://lfs.example".into()),
-        action_lifetime: 1800,
-        gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
-        staging_max_age: Duration::from_secs(86400),
-        auth: Auth::Forge {
-            provider: Provider::Github,
-            api_url: api_url.to_owned(),
-            cache_ttl,
-            rejection_ttl,
-        },
+        auth: forge_auth(api_url, cache_ttl, rejection_ttl),
+        ..config(root, api_url)
     })
 }
 

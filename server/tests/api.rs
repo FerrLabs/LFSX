@@ -19,6 +19,7 @@ fn app_with_grace(root: &tempfile::TempDir, gc_grace: std::time::Duration) -> Ro
         action_lifetime: 1800,
         gc_grace,
         staging_max_age: Duration::from_secs(86400),
+        max_object_size: None,
         auth: Auth::Disabled,
     })
 }
@@ -320,6 +321,7 @@ async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness(
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
         staging_max_age: Duration::from_secs(86400),
+        max_object_size: None,
         auth: Auth::Disabled,
     });
 
@@ -366,6 +368,7 @@ async fn transfers_are_advertised_on_the_host_the_client_asked_for() {
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
         staging_max_age: Duration::from_secs(86400),
+        max_object_size: None,
         auth: Auth::Disabled,
     });
 

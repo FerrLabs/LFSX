@@ -79,6 +79,20 @@ impl ObjectSpec {
             }),
         }
     }
+
+    pub fn too_large(id: ObjectId, limit: u64) -> Self {
+        Self {
+            error: Some(ObjectError {
+                code: 413,
+                message: format!(
+                    "object is {} bytes, over the {limit} byte limit this server accepts",
+                    id.size
+                ),
+            }),
+            id,
+            actions: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

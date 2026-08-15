@@ -21,6 +21,9 @@ auth:
 gc:
   grace: 1209600
 
+limits:
+  maxObjectSize: ""
+
 persistence:
   enabled: true
   existingClaim: ""

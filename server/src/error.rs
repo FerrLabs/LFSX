@@ -17,6 +17,9 @@ pub enum Error {
     #[error("content is {actual} bytes, but {declared} were declared")]
     SizeMismatch { declared: u64, actual: u64 },
 
+    #[error("object exceeds the {limit} byte limit this server accepts")]
+    TooLarge { limit: u64 },
+
     #[error("credentials are required for this repository")]
     Unauthenticated,
 
@@ -55,6 +58,7 @@ impl Error {
             | Self::MalformedNamespace
             | Self::OidMismatch { .. }
             | Self::SizeMismatch { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::LockHeld(_) => StatusCode::CONFLICT,
@@ -73,6 +77,7 @@ impl Error {
             Self::MalformedLockPath => "malformed_lock_path",
             Self::OidMismatch { .. } => "oid_mismatch",
             Self::SizeMismatch { .. } => "size_mismatch",
+            Self::TooLarge { .. } => "too_large",
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::Forge => "forge_unreachable",

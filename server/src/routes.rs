@@ -117,6 +117,18 @@ async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: Object
 }
 
 async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+    // The size is declared before a single byte moves, so an object over the
+    // ceiling is refused here rather than after the client has spent an hour
+    // uploading it. The error rides on the object, not the batch: the rest of
+    // the push goes ahead.
+    if let Some(limit) = state
+        .config
+        .max_object_size
+        .filter(|limit| id.size > *limit)
+    {
+        return ObjectSpec::too_large(id, limit);
+    }
+
     if state.store.exists(ns, &id.oid).await {
         return ObjectSpec {
             id,

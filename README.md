@@ -142,6 +142,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
+| `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
 `LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
@@ -363,6 +364,30 @@ doing nothing wrong. A day is generous for a multi-gigabyte push on a home upstr
 Both are worth understanding before you shorten the grace period: an empty `oids` set legitimately
 means *nothing is referenced any more*, and outside the grace window that sweeps the repository
 clean. Run it dry first. Collection needs push rights on the repository.
+
+## Size limits
+
+`LFSX_MAX_OBJECT_SIZE` caps a single object, in bytes. Unset, there is no ceiling, which is fine
+when the server has its volume to itself. Set it when it does not: an upload with no limit can fill
+the disk, and a full disk fails every other repository on the server, so one careless push becomes
+everyone's outage.
+
+```bash
+LFSX_MAX_OBJECT_SIZE=5368709120   # 5 GiB
+```
+
+The size is declared during batch negotiation, so an object over the ceiling is refused there —
+before a byte moves — with a per-object error the client prints by name. The rest of the push goes
+through; the limit refuses an object, not the commit it arrived with.
+
+The transfer is capped as well, because the declared size is a claim by the client and the ceiling
+has to hold against a body that ignores it. A stream that outgrows the limit is cut off at the
+chunk that crosses it and the staging file is dropped, rather than read to the end to find out how
+big it was.
+
+Lowering the limit later does not strand what is already stored: it governs what may arrive, not
+what a repository can still check out. Repositories that legitimately need more than everyone else
+are [#32](https://github.com/FerrLabs/LFSX/issues/32).
 
 ## Kubernetes
 
