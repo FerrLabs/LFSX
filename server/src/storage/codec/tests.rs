@@ -183,3 +183,50 @@ async fn a_plaintext_size_the_frames_could_not_hold_is_refused() {
 async fn the_frame_size_this_server_writes_is_still_accepted() {
     assert!(sniffs(&forged(FRAME as u32, 64, 1)).await);
 }
+
+// Bytes that give a compressor nothing to work with, which is what a PNG or an
+// OGG already is.
+fn incompressible(len: usize) -> Vec<u8> {
+    let mut state = 0x2545_F491_4F6C_DD1Du64;
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 24) as u8
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn an_object_that_will_not_compress_is_stored_as_it_arrived() {
+    let payload = incompressible(9 * 1024 * 1024);
+    let (root, path) = framed(&payload).await;
+
+    assert_eq!(
+        read(&path, 0, payload.len() as u64).await,
+        payload,
+        "storing a frame raw has to read back as the frame, or every already-compressed asset in \
+         the store comes out as noise"
+    );
+
+    let on_disk = std::fs::metadata(&path).unwrap().len();
+    assert!(
+        on_disk < payload.len() as u64 + 4096,
+        "and it must not cost more than not trying: {on_disk} for {}",
+        payload.len()
+    );
+    drop(root);
+}
+
+#[tokio::test]
+async fn a_range_inside_an_uncompressed_frame_still_lands() {
+    let payload = incompressible(6 * 1024 * 1024);
+    let (_root, path) = framed(&payload).await;
+    let start = FRAME + 5000;
+
+    assert_eq!(
+        read(&path, start, 1024).await,
+        payload[start as usize..start as usize + 1024]
+    );
+}

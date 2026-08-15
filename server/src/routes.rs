@@ -11,14 +11,14 @@ use crate::dashboard::{self, Overview};
 use crate::error::Error;
 use crate::metrics;
 use crate::model::{
-    Actions, BatchRequest, BatchResponse, CreateLockRequest, DedupeRequest, ListLocksQuery,
-    ListLocksResponse, LockResponse, ObjectId, ObjectSpec, Operation, RetainRequest, StatsResponse,
-    UnlockRequest, VerifyLocksResponse,
+    Actions, BatchRequest, BatchResponse, CompressRequest, CreateLockRequest, DedupeRequest,
+    ListLocksQuery, ListLocksResponse, LockResponse, ObjectId, ObjectSpec, Operation,
+    RetainRequest, StatsResponse, UnlockRequest, VerifyLocksResponse,
 };
 use crate::namespace::Namespace;
 use crate::range::Range;
 use crate::state::Shared;
-use crate::storage::{Budget, DedupeReport, SweepReport};
+use crate::storage::{Budget, CompressReport, DedupeReport, SweepReport};
 
 pub fn router(state: Shared) -> Router {
     let objects = Router::new()
@@ -26,6 +26,7 @@ pub fn router(state: Shared) -> Router {
         .route("/{org}/{repo}/objects/verify", post(verify))
         .route("/{org}/{repo}/objects/retain", post(retain))
         .route("/{org}/{repo}/objects/dedupe", post(dedupe))
+        .route("/{org}/{repo}/objects/compress", post(compress))
         .route("/{org}/{repo}/objects/stats", get(stats))
         .route("/{org}/{repo}", get(overview))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
@@ -311,6 +312,19 @@ async fn dedupe(
     permission.require_admin()?;
 
     let report = state.store.dedupe(&ns, request.dry_run).await?;
+
+    Ok(Json(report))
+}
+
+async fn compress(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+    Json(request): Json<CompressRequest>,
+) -> Result<Json<CompressReport>, Error> {
+    permission.require_admin()?;
+
+    let report = state.store.compress(&ns, request.dry_run).await?;
 
     Ok(Json(report))
 }

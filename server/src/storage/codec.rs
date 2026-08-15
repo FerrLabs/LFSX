@@ -16,6 +16,10 @@ use crate::error::Error;
 const MAGIC: &[u8; 4] = b"LFZ1";
 const HEADER: u64 = 32;
 
+// Top bit of an index entry: this frame is not compressed. A frame is at most
+// sixteen megabytes, so the bit is free.
+const STORED: u32 = 1 << 31;
+
 // Plaintext per frame. Each is compressed on its own, so serving a range means
 // decompressing the frames it touches rather than everything before it — which
 // is what keeps resuming a three-gigabyte download from costing three gigabytes
@@ -28,6 +32,7 @@ pub struct Framed {
     plaintext: u64,
     frame: u64,
     offsets: Vec<u64>,
+    stored: Vec<bool>,
 }
 
 pub struct Writer {
@@ -78,7 +83,7 @@ impl Writer {
             + self
                 .lengths
                 .iter()
-                .map(|length| *length as u64)
+                .map(|length| (*length & !STORED) as u64)
                 .sum::<u64>();
         self.file.seek(SeekFrom::Start(0)).await?;
         self.file
@@ -90,8 +95,20 @@ impl Writer {
         Ok(())
     }
 
+    // Half an LFS store is PNG, MP3 and other formats that are already
+    // compressed, and spending CPU to make those frames marginally larger is
+    // worse than not trying. A frame that does not give up ground is stored as
+    // it arrived, flagged in the index, and read straight back.
     async fn flush(&mut self, frame: &[u8]) -> Result<(), Error> {
         let compressed = zstd::bulk::compress(frame, self.level).map_err(std::io::Error::other)?;
+
+        if compressed.len() >= frame.len() - frame.len() / 20 {
+            self.file.write_all(frame).await?;
+            self.lengths.push(frame.len() as u32 | STORED);
+
+            return Ok(());
+        }
+
         self.file.write_all(&compressed).await?;
         self.lengths.push(compressed.len() as u32);
 
@@ -173,10 +190,13 @@ impl Framed {
         file.read_exact(&mut lengths).await?;
 
         let mut offsets = Vec::with_capacity(frames as usize + 1);
+        let mut stored = Vec::with_capacity(frames as usize);
         let mut at = HEADER;
         offsets.push(at);
         for length in lengths.chunks_exact(4) {
-            at += u32::from_le_bytes(length.try_into().expect("four bytes")) as u64;
+            let entry = u32::from_le_bytes(length.try_into().expect("four bytes"));
+            at += (entry & !STORED) as u64;
+            stored.push(entry & STORED != 0);
             offsets.push(at);
         }
 
@@ -190,6 +210,7 @@ impl Framed {
             plaintext,
             frame,
             offsets,
+            stored,
         }))
     }
 
@@ -217,8 +238,12 @@ impl Framed {
                 let mut compressed = vec![0u8; (bounds[1] - bounds[0]) as usize];
                 framed.file.read_exact(&mut compressed).await?;
 
-                let plain = zstd::bulk::decompress(&compressed, framed.frame as usize)
-                    .map_err(std::io::Error::other)?;
+                let plain = if framed.stored.get(index).copied().unwrap_or_default() {
+                    compressed
+                } else {
+                    zstd::bulk::decompress(&compressed, framed.frame as usize)
+                        .map_err(std::io::Error::other)?
+                };
 
                 let from = (at % framed.frame) as usize;
                 let take = wanted.min(plain.len().saturating_sub(from) as u64) as usize;

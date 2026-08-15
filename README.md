@@ -299,6 +299,7 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `GET` | `/{org}/{repo}/objects/stats` | the same numbers as JSON |
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
 | `POST` | `/{org}/{repo}/objects/dedupe` | fold objects stored before the shared store into it |
+| `POST` | `/{org}/{repo}/objects/compress` | fold objects stored before compression into it |
 | `POST` | `/{org}/{repo}/locks` | take a lock on a path |
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
 | `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
@@ -471,6 +472,27 @@ tail of a three-gigabyte asset decompresses the frames it touches rather than ev
 them. A resumed transfer stays a resumed transfer.
 
 **Memory stays flat.** One frame is decompressed at a time, whatever the object weighs.
+
+**Objects that will not compress are stored as they arrived.** A frame that gives up less than five
+percent of itself is written raw and flagged, and an object whose framed form would be no smaller is
+left exactly as it was. Half a game store is PNG and OGG; none of it pays for the attempt twice.
+
+Turning compression on only changes what arrives next. Folding in what is already stored is one call
+per repository, with the same shape as the deduplication migration:
+
+```bash
+lfsx compress --repo FerrLabs/Blastlands --dry-run
+lfsx compress --repo FerrLabs/Blastlands
+```
+
+The dry run compresses everything and writes nothing, so the figure it reports is the real saving
+rather than an estimate. Each object is verified against its own digest before being rewritten — the
+last moment that check is a simple one, since afterwards the file is no longer the bytes it is named
+after. Anything that fails is left alone and counted as `refused`.
+
+Objects shared between repositories stay shared: the copy under `.content` is what gets replaced and
+this repository is relinked to it, so run it everywhere. Until a repository has had its turn, it
+keeps the older bytes alive through its own link, and the store holds both forms.
 
 What it costs: CPU on both ends of every transfer, and an integrity check that can no longer be a
 `sha256sum` — see [`docs/operations.md`](docs/operations.md). `stats`, the dashboard and
