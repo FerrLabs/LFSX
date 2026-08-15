@@ -1,6 +1,6 @@
 apiVersion: v2
 name: lfsx
-description: Self-hosted Git LFS server
+description: Git LFS server storing each object once across repositories, compressed at rest
 type: application
 version: 0.28.0
 appVersion: "0.28.0"
@@ -10,7 +10,30 @@ sources:
 keywords:
   - git
   - git-lfs
+  - lfs-server
   - storage
+  - deduplication
+  - compression
+  - gamedev
 maintainers:
   - name: FerrLabs
     url: https://github.com/FerrLabs
+
+# Artifact Hub reads these to build the listing: the category it is filed
+# under, the licence, the links a reader wants before deploying anything, and
+# the image to run its security scan against. The image tag is bumped by the
+# release flow with everything else, because a listing that scans a version
+# nobody runs is worse than no listing.
+annotations:
+  artifacthub.io/category: storage
+  artifacthub.io/license: MPL-2.0
+  artifacthub.io/links: |
+    - name: Source
+      url: https://github.com/FerrLabs/LFSX
+    - name: Operations guide
+      url: https://github.com/FerrLabs/LFSX/blob/main/docs/operations.md
+    - name: Chart values
+      url: https://github.com/FerrLabs/LFSX/blob/main/chart/README.md
+  artifacthub.io/images: |
+    - name: lfsx
+      image: ghcr.io/ferrlabs/lfsx:0.28.0

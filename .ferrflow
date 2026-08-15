@@ -26,6 +26,11 @@
           "path": "chart/Chart.yaml",
           "format": "txt",
           "selector": "(?m)^appVersion: \"([^\"]+)\""
+        },
+        {
+          "path": "chart/Chart.yaml",
+          "format": "txt",
+          "selector": "(?m)^      image: ghcr\\.io/ferrlabs/lfsx:(.+)$"
         }
       ]
     }
