@@ -46,6 +46,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
+| `limits.maxObjectSize` | `""` | bytes a single object may reach; empty means no ceiling |
 | `persistence.enabled` | `true` | `false` uses an `emptyDir`, which loses every object on restart |
 | `persistence.existingClaim` | `""` | bring your own PVC |
 | `persistence.storageClass` | `""` | cluster default when empty |
@@ -65,3 +66,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 
 The claim holds every object, so size it for the repositories you expect and grow it there — LFSX
 keeps nothing anywhere else. Backing up the release is backing up that volume.
+
+`limits.maxObjectSize` is worth setting here even though the server ships with no ceiling: a claim
+has a fixed size, and a single upload that fills it takes down every repository on the release at
+once.

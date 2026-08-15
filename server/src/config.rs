@@ -15,6 +15,7 @@ pub struct Config {
     pub action_lifetime: u32,
     pub gc_grace: Duration,
     pub staging_max_age: Duration,
+    pub max_object_size: Option<u64>,
     pub auth: Auth,
 }
 
@@ -79,6 +80,7 @@ impl Config {
             action_lifetime: 1800,
             gc_grace: seconds("LFSX_GC_GRACE").unwrap_or(GC_GRACE),
             staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
+            max_object_size: max_object_size(),
             auth: Auth::from_env(),
         }
     }
@@ -148,6 +150,24 @@ impl Auth {
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
         }
     }
+}
+
+// Unset means unlimited, which is what a server on its own volume wants. Zero
+// would refuse every push, so it is read as a typo rather than as a policy
+// nobody would choose deliberately.
+fn max_object_size() -> Option<u64> {
+    let configured = std::env::var("LFSX_MAX_OBJECT_SIZE")
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
+
+    if configured == 0 {
+        tracing::warn!("LFSX_MAX_OBJECT_SIZE=0 would refuse every upload — ignoring it");
+        return None;
+    }
+
+    Some(configured)
 }
 
 fn seconds(variable: &str) -> Option<Duration> {

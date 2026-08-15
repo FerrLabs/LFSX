@@ -1,6 +1,9 @@
 mod staging;
 mod sweep;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,6 +28,7 @@ pub struct LocalStore {
     usage: Mutex<Option<(Instant, u64, u64)>>,
     per_namespace: Mutex<HashMap<String, (Instant, u64, u64)>>,
     scans: AtomicU64,
+    max_object_size: Option<u64>,
 }
 
 impl LocalStore {
@@ -35,7 +39,13 @@ impl LocalStore {
             usage: Mutex::new(None),
             per_namespace: Mutex::new(HashMap::new()),
             scans: AtomicU64::new(0),
+            max_object_size: None,
         }
+    }
+
+    pub fn with_max_object_size(mut self, limit: Option<u64>) -> Self {
+        self.max_object_size = limit;
+        self
     }
 
     pub fn validate_oid(oid: &str) -> Result<(), Error> {
@@ -105,6 +115,12 @@ impl LocalStore {
     {
         Self::validate_oid(oid)?;
 
+        if let Some(limit) = self.max_object_size
+            && expected_size.is_some_and(|declared| declared > limit)
+        {
+            return Err(Error::TooLarge { limit });
+        }
+
         let path = self.object_path(ns, oid);
         let parent = path.parent().expect("object paths always have a parent");
         fs::create_dir_all(parent).await?;
@@ -143,6 +159,15 @@ impl LocalStore {
             let chunk = chunk.map_err(std::io::Error::other)?;
             hasher.update(&chunk);
             written += chunk.len() as u64;
+
+            // The declared size is a claim by the client, so the ceiling has to
+            // hold against a body that ignores it. Stopping at the chunk that
+            // crosses the line is the point: reading to the end to find out how
+            // big it was would be the outage this limit exists to prevent.
+            if let Some(limit) = self.max_object_size.filter(|limit| written > *limit) {
+                return Err(Error::TooLarge { limit });
+            }
+
             file.write_all(&chunk).await?;
         }
 

@@ -68,6 +68,10 @@ spec:
             {{- end }}
             - name: LFSX_GC_GRACE
               value: {{ .Values.gc.grace | quote }}
+            {{- with .Values.limits.maxObjectSize }}
+            - name: LFSX_MAX_OBJECT_SIZE
+              value: {{ . | quote }}
+            {{- end }}
             - name: RUST_LOG
               value: {{ .Values.config.logLevel | quote }}
           ports:
