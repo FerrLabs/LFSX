@@ -92,6 +92,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         staging_max_age: Duration::from_secs(86400),
         max_object_size: None,
         repo_quota: None,
+        compression: None,
         auth: forge_auth(api_url, Duration::from_secs(60), Duration::from_secs(10)),
     }
 }

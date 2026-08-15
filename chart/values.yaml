@@ -25,6 +25,8 @@ limits:
   maxObjectSize: ""
   repoQuota: ""
 
+compression: ""
+
 persistence:
   enabled: true
   existingClaim: ""

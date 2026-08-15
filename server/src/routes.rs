@@ -5,8 +5,6 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router, middleware};
 use futures_util::StreamExt;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
-use tokio_util::io::ReaderStream;
 
 use crate::auth::{self, Actor, Permission};
 use crate::dashboard::{self, Overview};
@@ -211,7 +209,8 @@ async fn download(
     Path((.., oid)): Path<(String, String, String)>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Error> {
-    let (mut file, size) = state.store.open(&ns, &oid).await?;
+    let object = state.store.open(&ns, &oid).await?;
+    let size = object.size();
 
     let requested = headers
         .get(header::RANGE)
@@ -226,13 +225,15 @@ async fn download(
             .into_response());
     }
 
-    if let Range::Slice { start, .. } = range {
-        file.seek(std::io::SeekFrom::Start(start)).await?;
-    }
+    let start = match range {
+        Range::Slice { start, .. } => start,
+        _ => 0,
+    };
 
     let length = range.length(size);
     let counted = state.clone();
-    let body = Body::from_stream(ReaderStream::new(file.take(length)).inspect(move |chunk| {
+    let chunks = object.stream(start, length).await?;
+    let body = Body::from_stream(chunks.inspect(move |chunk| {
         if let Ok(bytes) = chunk {
             counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
         }

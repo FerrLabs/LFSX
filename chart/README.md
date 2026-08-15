@@ -48,6 +48,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
 | `limits.maxObjectSize` | `""` | bytes a single object may reach; empty means no ceiling |
 | `limits.repoQuota` | `""` | bytes a single repository may hold; empty means no budget |
+| `compression` | `""` | `zstd` (or `zstd:1`…`zstd:19`) to store objects compressed; empty stores them as they arrive |
 | `persistence.enabled` | `true` | `false` uses an `emptyDir`, which loses every object on restart |
 | `persistence.existingClaim` | `""` | bring your own PVC |
 | `persistence.storageClass` | `""` | cluster default when empty |

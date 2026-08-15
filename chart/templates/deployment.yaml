@@ -76,6 +76,10 @@ spec:
             - name: LFSX_REPO_QUOTA
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.compression }}
+            - name: LFSX_COMPRESSION
+              value: {{ . | quote }}
+            {{- end }}
             - name: RUST_LOG
               value: {{ .Values.config.logLevel | quote }}
           ports:

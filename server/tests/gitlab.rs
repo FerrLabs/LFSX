@@ -79,6 +79,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
         staging_max_age: Duration::from_secs(86400),
         max_object_size: None,
         repo_quota: None,
+        compression: None,
         auth: Auth::Forge {
             provider: Provider::Gitlab,
             api_url: api_url.to_owned(),

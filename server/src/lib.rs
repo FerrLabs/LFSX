@@ -23,8 +23,9 @@ use crate::state::AppState;
 use crate::storage::LocalStore;
 
 pub fn app(config: Config) -> Router {
-    let store =
-        LocalStore::new(config.storage_root.clone()).with_max_object_size(config.max_object_size);
+    let store = LocalStore::new(config.storage_root.clone())
+        .with_max_object_size(config.max_object_size)
+        .with_compression(config.compression);
     let locks = LockStore::new(config.storage_root.clone());
     let authorizer = Authorizer::new(&config.auth);
 

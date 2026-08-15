@@ -1,3 +1,4 @@
+mod codec;
 mod dedupe;
 mod staging;
 mod sweep;
@@ -21,6 +22,66 @@ use crate::error::Error;
 use crate::namespace::Namespace;
 
 pub use dedupe::DedupeReport;
+
+enum Sink {
+    Raw(fs::File),
+    Framed(Box<codec::Writer>),
+}
+
+impl Sink {
+    async fn write(&mut self, chunk: &[u8]) -> Result<(), Error> {
+        match self {
+            Self::Raw(file) => Ok(file.write_all(chunk).await?),
+            Self::Framed(writer) => writer.push(chunk).await,
+        }
+    }
+
+    async fn finish(self) -> Result<(), Error> {
+        match self {
+            Self::Raw(mut file) => {
+                file.flush().await?;
+                Ok(file.sync_all().await?)
+            }
+            Self::Framed(writer) => writer.finish().await,
+        }
+    }
+}
+
+// What a download reads from, whether or not the bytes on disk are the object.
+pub enum Object {
+    Raw { file: fs::File, size: u64 },
+    Framed(codec::Framed),
+}
+
+impl Object {
+    pub fn size(&self) -> u64 {
+        match self {
+            Self::Raw { size, .. } => *size,
+            Self::Framed(framed) => framed.plaintext(),
+        }
+    }
+
+    pub async fn stream(
+        self,
+        start: u64,
+        length: u64,
+    ) -> Result<futures_util::stream::BoxStream<'static, Result<axum::body::Bytes, Error>>, Error>
+    {
+        use futures_util::StreamExt;
+        use tokio::io::AsyncSeekExt;
+
+        match self {
+            Self::Raw { mut file, .. } => {
+                file.seek(std::io::SeekFrom::Start(start)).await?;
+                let reader =
+                    tokio_util::io::ReaderStream::new(tokio::io::AsyncReadExt::take(file, length));
+
+                Ok(reader.map(|chunk| chunk.map_err(Error::from)).boxed())
+            }
+            Self::Framed(framed) => Ok(framed.stream(start, length).boxed()),
+        }
+    }
+}
 pub use staging::{Reclaimed, reclaim};
 pub use sweep::SweepReport;
 
@@ -54,6 +115,7 @@ pub struct LocalStore {
     per_namespace: Mutex<HashMap<String, (Instant, u64, u64)>>,
     scans: AtomicU64,
     max_object_size: Option<u64>,
+    compression: Option<i32>,
 }
 
 impl LocalStore {
@@ -65,7 +127,13 @@ impl LocalStore {
             per_namespace: Mutex::new(HashMap::new()),
             scans: AtomicU64::new(0),
             max_object_size: None,
+            compression: None,
         }
+    }
+
+    pub fn with_compression(mut self, level: Option<i32>) -> Self {
+        self.compression = level;
+        self
     }
 
     pub fn with_max_object_size(mut self, limit: Option<u64>) -> Self {
@@ -119,12 +187,19 @@ impl LocalStore {
         Self::validate_oid(oid).is_ok() && fs::metadata(self.object_path(ns, oid)).await.is_ok()
     }
 
-    pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<(fs::File, u64), Error> {
+    pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
         Self::validate_oid(oid)?;
         let path = self.object_path(ns, oid);
         let file = fs::File::open(&path).await.map_err(|_| Error::NotFound)?;
-        let size = file.metadata().await?.len();
-        Ok((file, size))
+        let on_disk = file.metadata().await?.len();
+
+        match codec::Framed::open(file, on_disk).await? {
+            Some(framed) => Ok(Object::Framed(framed)),
+            None => Ok(Object::Raw {
+                file: fs::File::open(&path).await.map_err(|_| Error::NotFound)?,
+                size: on_disk,
+            }),
+        }
     }
 
     pub async fn write<S, E>(
@@ -191,7 +266,14 @@ impl LocalStore {
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
     {
-        let mut file = fs::File::create(staged).await?;
+        let file = fs::File::create(staged).await?;
+        // The digest, the declared size and the budget are all counted on the
+        // plaintext going past, whatever the bytes look like once they land —
+        // so compression is a different sink, not a different path.
+        let mut sink = match self.compression {
+            Some(level) => Sink::Framed(Box::new(codec::Writer::open(file, level).await?)),
+            None => Sink::Raw(file),
+        };
         let mut hasher = Sha256::new();
         let mut written = 0u64;
 
@@ -212,11 +294,10 @@ impl LocalStore {
                 return Err(budget.refusal());
             }
 
-            file.write_all(&chunk).await?;
+            sink.write(&chunk).await?;
         }
 
-        file.flush().await?;
-        file.sync_all().await?;
+        sink.finish().await?;
 
         Ok((hex::encode(hasher.finalize()), written))
     }
