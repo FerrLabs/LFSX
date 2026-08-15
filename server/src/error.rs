@@ -26,6 +26,9 @@ pub enum Error {
     #[error("this server does not compress objects — set LFSX_COMPRESSION first")]
     CompressionDisabled,
 
+    #[error("{0}")]
+    Misconfigured(&'static str),
+
     #[error("credentials are required for this repository")]
     Unauthenticated,
 
@@ -67,6 +70,7 @@ impl Error {
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
             Self::CompressionDisabled => StatusCode::CONFLICT,
+            Self::Misconfigured(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::LockHeld(_) => StatusCode::CONFLICT,
@@ -88,6 +92,7 @@ impl Error {
             Self::TooLarge { .. } => "too_large",
             Self::OverQuota { .. } => "over_quota",
             Self::CompressionDisabled => "compression_disabled",
+            Self::Misconfigured(_) => "misconfigured",
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::Forge => "forge_unreachable",

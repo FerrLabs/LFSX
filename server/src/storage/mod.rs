@@ -1,6 +1,7 @@
 mod codec;
 mod dedupe;
 mod rewrite;
+pub mod s3;
 mod staging;
 mod sweep;
 mod verify;
