@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use tokio::fs;
@@ -37,7 +37,14 @@ impl LocalStore {
                 };
 
                 if metadata.is_dir() {
-                    directories.push(path);
+                    // Staging files only ever appear under org/repo/xx/yy, so the
+                    // shared .content store and .locks hold none — walking them
+                    // every hour would cost I/O that grows with the whole store
+                    // instead of with the litter. Only the root carries those:
+                    // deeper down, a repository really can be named .github.
+                    if directory != self.root || !is_dotted(&path) {
+                        directories.push(path);
+                    }
                     continue;
                 }
 
@@ -57,6 +64,11 @@ impl LocalStore {
 
         reclaimed
     }
+}
+
+fn is_dotted(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.to_string_lossy().starts_with('.'))
 }
 
 pub async fn reclaim(root: PathBuf, older_than: Duration) {

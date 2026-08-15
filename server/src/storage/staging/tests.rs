@@ -80,6 +80,44 @@ async fn objects_are_never_touched() {
 }
 
 #[tokio::test]
+async fn the_shared_content_store_is_not_walked() {
+    let (root, store) = store_with_files(&[]);
+    let content = root.path().join(".content").join(&OID[0..2]);
+    std::fs::create_dir_all(&content).unwrap();
+    std::fs::write(content.join(format!("{OID}.0.part")), b"never happens").unwrap();
+
+    let reclaimed = store.reclaim_staging(Duration::ZERO).await;
+
+    assert_eq!(
+        reclaimed,
+        Reclaimed::default(),
+        "uploads never stage under .content, so an hourly walk of it would cost I/O that \
+         grows with the whole store instead of with the litter"
+    );
+}
+
+#[tokio::test]
+async fn a_repository_named_like_a_dot_directory_is_still_swept() {
+    let root = tempfile::tempdir().unwrap();
+    let fanout = root
+        .path()
+        .join("FerrLabs/.github")
+        .join(&OID[0..2])
+        .join(&OID[2..4]);
+    std::fs::create_dir_all(&fanout).unwrap();
+    std::fs::write(fanout.join(format!("{OID}.0.part")), b"litter").unwrap();
+
+    let reclaimed = LocalStore::new(root.path())
+        .reclaim_staging(Duration::ZERO)
+        .await;
+
+    assert_eq!(
+        reclaimed.files, 1,
+        "only the root carries directories worth skipping — .github is a real repository name"
+    );
+}
+
+#[tokio::test]
 async fn an_empty_store_reclaims_nothing_and_does_not_fail() {
     let root = tempfile::tempdir().unwrap();
     let store = LocalStore::new(root.path());
