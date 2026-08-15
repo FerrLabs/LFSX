@@ -93,7 +93,9 @@ once the store passes a few terabytes, where walking it costs more than copying 
 
    It names what fails and separates the two kinds of failure: an object that read fine and is not
    what it claims, and one that could not be read at all — the answer a failing disk gives first.
-   It exits non-zero if either list is non-empty, so it belongs in a cron as much as in a restore.
+   It also says when it could not see the whole repository, because an audit that quietly skipped
+   part of it would read as a clean bill. It exits non-zero on any of the three, so it belongs in a
+   cron as much as in a restore.
 
    Silence means the store is intact. This reads every byte you hold, so it is I/O bound and worth
    an evening rather than a maintenance window — but it is the only check that distinguishes a

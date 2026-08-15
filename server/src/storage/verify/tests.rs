@@ -49,6 +49,7 @@ async fn an_intact_store_reports_nothing() {
             bytes: payload.len() as u64,
             corrupt: Vec::new(),
             unreadable: Vec::new(),
+            incomplete: false,
         }
     );
 }
@@ -116,4 +117,30 @@ async fn a_compressed_object_whose_frames_are_damaged_is_reported_rather_than_th
         "a damaged frame either decompresses to the wrong bytes or refuses to decompress, and \
          both are answers this has to survive giving: {report:?}"
     );
+}
+
+#[tokio::test]
+async fn a_repository_it_could_not_fully_read_is_not_reported_as_clean() {
+    let root = tempfile::tempdir().unwrap();
+    let payload = mesh(1024 * 1024);
+    store_uncompressed(root.path(), &payload);
+    // A file where a fanout directory belongs: whatever put it there, the audit
+    // cannot see what that prefix holds.
+    std::fs::write(
+        root.path().join("FerrLabs/Blastlands/ff"),
+        b"not a directory",
+    )
+    .unwrap();
+
+    let report = LocalStore::new(root.path())
+        .verify(&namespace())
+        .await
+        .unwrap();
+
+    assert!(
+        report.incomplete,
+        "an audit that skipped part of the repository and said nothing would be read as a clean \
+         bill of health, which is the one thing this command must never hand out: {report:?}"
+    );
+    assert_eq!(report.checked, 1, "and it still reports what it did read");
 }

@@ -15,6 +15,10 @@ pub struct VerifyReport {
     pub bytes: u64,
     pub corrupt: Vec<String>,
     pub unreadable: Vec<String>,
+    // An audit that could not see the whole repository must not read like one
+    // that found nothing wrong. Silence is the result here, so anything that
+    // makes the silence partial has to be said out loud.
+    pub incomplete: bool,
 }
 
 impl LocalStore {
@@ -31,12 +35,27 @@ impl LocalStore {
         };
 
         while let Some(prefix) = prefixes.next_entry().await? {
-            let Ok(mut fanouts) = fs::read_dir(prefix.path()).await else {
-                continue;
+            let mut fanouts = match fs::read_dir(prefix.path()).await {
+                Ok(fanouts) => fanouts,
+                Err(error) => {
+                    tracing::warn!(path = ?prefix.path(), %error, "could not be listed");
+                    report.incomplete = true;
+                    continue;
+                }
             };
 
-            while let Some(fanout) = fanouts.next_entry().await? {
-                self.verify_directory(&fanout.path(), ns, &mut report).await;
+            loop {
+                match fanouts.next_entry().await {
+                    Ok(Some(fanout)) => {
+                        self.verify_directory(&fanout.path(), ns, &mut report).await;
+                    }
+                    Ok(None) => break,
+                    Err(error) => {
+                        tracing::warn!(path = ?prefix.path(), %error, "listing stopped early");
+                        report.incomplete = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -44,11 +63,26 @@ impl LocalStore {
     }
 
     async fn verify_directory(&self, directory: &Path, ns: &Namespace, report: &mut VerifyReport) {
-        let Ok(mut entries) = fs::read_dir(directory).await else {
-            return;
+        let mut entries = match fs::read_dir(directory).await {
+            Ok(entries) => entries,
+            Err(error) => {
+                tracing::warn!(?directory, %error, "could not be listed");
+                report.incomplete = true;
+                return;
+            }
         };
 
-        while let Ok(Some(entry)) = entries.next_entry().await {
+        loop {
+            let entry = match entries.next_entry().await {
+                Ok(Some(entry)) => entry,
+                Ok(None) => return,
+                Err(error) => {
+                    tracing::warn!(?directory, %error, "listing stopped early");
+                    report.incomplete = true;
+                    return;
+                }
+            };
+
             let oid = entry.file_name().to_string_lossy().into_owned();
             if Self::validate_oid(&oid).is_err() {
                 continue;

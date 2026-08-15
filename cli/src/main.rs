@@ -139,11 +139,25 @@ fn main() -> Result<()> {
                 bytes as f64 / 1_073_741_824.0
             );
 
-            for oid in corrupt.iter().chain(unreadable.iter()) {
-                println!("  {}", oid.as_str().unwrap_or_default());
+            for (label, oids) in [("corrupt", &corrupt), ("unreadable", &unreadable)] {
+                if oids.is_empty() {
+                    continue;
+                }
+
+                println!("{label}:");
+                for oid in oids.iter() {
+                    println!("  {}", oid.as_str().unwrap_or_default());
+                }
             }
 
-            if !corrupt.is_empty() || !unreadable.is_empty() {
+            let incomplete = report["incomplete"].as_bool().unwrap_or_default();
+            if incomplete {
+                println!(
+                    "part of the repository could not be listed — this audit is not a clean bill"
+                );
+            }
+
+            if incomplete || !corrupt.is_empty() || !unreadable.is_empty() {
                 std::process::exit(1);
             }
         }
