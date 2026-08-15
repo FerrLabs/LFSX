@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.22.0] - 2026-08-15
+
+### Features
+
+- feat(storage): reclaim staging files left by interrupted uploads (#78)
+
 ## [0.21.0] - 2026-08-14
 
 ### Features
