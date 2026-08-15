@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.28.0] - 2026-08-15
+
+### Features
+
+- feat(storage): read a repository back and check it against its own digests (#92)
+
 ## [0.27.0] - 2026-08-15
 
 ### Features

@@ -1,6 +1,6 @@
 {
   "name": "@ferrlabs/lfsx",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "Command line companion for the LFSX Git LFS server",
   "type": "module",
   "bin": {
