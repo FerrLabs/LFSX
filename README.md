@@ -568,6 +568,15 @@ That one starts the binary and a stub forge, pushes a 64 MiB asset with the actu
 it back and compares the bytes. It runs on an isolated `GIT_CONFIG_GLOBAL`, so it cannot touch
 your own git configuration.
 
+```bash
+cargo llvm-cov --workspace --lcov --output-path lcov.info
+```
+
+The same command CI runs before handing the report to
+[sonar.ferrlabs.com](https://sonar.ferrlabs.com), which tracks coverage, duplication and smells
+over time. A pull request is analysed into its own project and the workflow comments what that
+change introduced, since the Community edition has no pull-request analysis of its own.
+
 ## License
 
 [MPL-2.0](LICENSE).
