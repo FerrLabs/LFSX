@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.0] - 2026-08-15
+
+### Features
+
+- feat(storage): fold objects stored before the shared store into it (#88)
+
 ## [0.24.2] - 2026-08-15
 
 ### Bug Fixes
