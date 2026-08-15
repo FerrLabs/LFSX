@@ -18,7 +18,7 @@ use crate::model::{
 use crate::namespace::Namespace;
 use crate::range::Range;
 use crate::state::Shared;
-use crate::storage::{Budget, CompressReport, DedupeReport, SweepReport};
+use crate::storage::{Budget, CompressReport, DedupeReport, SweepReport, VerifyReport};
 
 pub fn router(state: Shared) -> Router {
     let objects = Router::new()
@@ -27,6 +27,7 @@ pub fn router(state: Shared) -> Router {
         .route("/{org}/{repo}/objects/retain", post(retain))
         .route("/{org}/{repo}/objects/dedupe", post(dedupe))
         .route("/{org}/{repo}/objects/compress", post(compress))
+        .route("/{org}/{repo}/objects/audit", post(audit))
         .route("/{org}/{repo}/objects/stats", get(stats))
         .route("/{org}/{repo}", get(overview))
         .route("/{org}/{repo}/objects/{oid}", put(upload).get(download))
@@ -325,6 +326,22 @@ async fn compress(
     permission.require_admin()?;
 
     let report = state.store.compress(&ns, request.dry_run).await?;
+
+    Ok(Json(report))
+}
+
+// Reading every object back through the path a download takes is the only check
+// that still means something once the file on disk is not the object. It is a
+// read of the whole repository, so it asks for the rights of someone who would
+// be entitled to read it all anyway.
+async fn audit(
+    State(state): State<Shared>,
+    Extension(ns): Extension<Namespace>,
+    Extension(permission): Extension<Permission>,
+) -> Result<Json<VerifyReport>, Error> {
+    permission.require_admin()?;
+
+    let report = state.store.verify(&ns).await?;
 
     Ok(Json(report))
 }

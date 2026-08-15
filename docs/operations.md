@@ -84,9 +84,18 @@ once the store passes a few terabytes, where walking it costs more than copying 
 
    **This holds only for a store written without `LFSX_COMPRESSION`.** With compression on, an
    object is no longer the bytes it is named after, so every compressed file would be reported as
-   corrupt by the command above. Verifying a compressed store means decompressing it, which is a
-   server-side job rather than a shell one-liner — until it exists, the honest procedure for such a
-   store is to restore it and read objects back through the API.
+   corrupt by the command above. Ask the server instead, which reads each object back the way a
+   download does and checks it against its own name:
+
+   ```bash
+   lfsx verify --repo FerrLabs/Blastlands
+   ```
+
+   It names what fails and separates the two kinds of failure: an object that read fine and is not
+   what it claims, and one that could not be read at all — the answer a failing disk gives first.
+   It also says when it could not see the whole repository, because an audit that quietly skipped
+   part of it would read as a clean bill. It exits non-zero on any of the three, so it belongs in a
+   cron as much as in a restore.
 
    Silence means the store is intact. This reads every byte you hold, so it is I/O bound and worth
    an evening rather than a maintenance window — but it is the only check that distinguishes a

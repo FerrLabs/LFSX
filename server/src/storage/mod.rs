@@ -3,6 +3,7 @@ mod dedupe;
 mod rewrite;
 mod staging;
 mod sweep;
+mod verify;
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,7 @@ use crate::namespace::Namespace;
 pub use dedupe::DedupeReport;
 use dedupe::shares_bytes_with;
 pub use rewrite::CompressReport;
+pub use verify::VerifyReport;
 
 enum Sink {
     Raw(fs::File),
