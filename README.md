@@ -258,6 +258,10 @@ Backing up the server is backing up that directory. Objects are immutable, so an
 file-level backup never rewrites what it already copied — but use a tool that preserves hard links
 (`rsync -H`, `tar`), or the copy will expand every shared object back into a separate file.
 
+[`docs/operations.md`](docs/operations.md) covers the rest of it: restoring, verifying the store
+against its own digests afterwards, what a client sees when an object is missing and how to get it
+back from a developer's cache, and migrating between servers.
+
 ## API
 
 The Git LFS protocol is small — four routes, plus a health check:

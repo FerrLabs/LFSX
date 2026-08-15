@@ -65,7 +65,8 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 ## Storage
 
 The claim holds every object, so size it for the repositories you expect and grow it there — LFSX
-keeps nothing anywhere else. Backing up the release is backing up that volume.
+keeps nothing anywhere else. Backing up the release is backing up that volume — snapshot the PVC,
+and read [`docs/operations.md`](../docs/operations.md) before you need the restore.
 
 `limits.maxObjectSize` is worth setting here even though the server ships with no ceiling: a claim
 has a fixed size, and a single upload that fills it takes down every repository on the release at
