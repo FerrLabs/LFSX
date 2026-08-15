@@ -141,6 +141,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
+| `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
 `LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
@@ -349,6 +350,15 @@ Two safeguards, because this deletes data. An object is uploaded *before* the co
 it is pushed, so anything touched within `LFSX_GC_GRACE` (two weeks by default, matching git's own
 `gc.pruneExpire`) is never taken — that is the `within_grace` count. And a transfer still in
 flight is skipped, since staging files are not objects yet.
+
+An upload streams into a `.part` file next to its destination and is renamed on success. A process
+kill or a host crash mid-transfer leaves one behind, and nothing used to reclaim it. The server now
+sweeps them at boot — a crash is exactly what strands them — and hourly after that, logging the
+count and the bytes it recovered.
+
+`LFSX_STAGING_MAX_AGE` has to stay above the longest transfer you expect to serve: a `.part` file
+younger than that is not litter, it is an upload in flight, and removing it would break a client
+doing nothing wrong. A day is generous for a multi-gigabyte push on a home upstream.
 
 Both are worth understanding before you shorten the grace period: an empty `oids` set legitimately
 means *nothing is referenced any more*, and outside the grace window that sweeps the repository

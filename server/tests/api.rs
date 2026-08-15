@@ -18,6 +18,7 @@ fn app_with_grace(root: &tempfile::TempDir, gc_grace: std::time::Duration) -> Ro
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace,
+        staging_max_age: Duration::from_secs(86400),
         auth: Auth::Disabled,
     })
 }
@@ -318,6 +319,7 @@ async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness(
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
+        staging_max_age: Duration::from_secs(86400),
         auth: Auth::Disabled,
     });
 
@@ -363,6 +365,7 @@ async fn transfers_are_advertised_on_the_host_the_client_asked_for() {
         public_url: None,
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
+        staging_max_age: Duration::from_secs(86400),
         auth: Auth::Disabled,
     });
 

@@ -76,6 +76,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
+        staging_max_age: Duration::from_secs(86400),
         auth: Auth::Forge {
             provider: Provider::Gitlab,
             api_url: api_url.to_owned(),
