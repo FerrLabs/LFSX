@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.1] - 2026-08-15
+
+### Bug Fixes
+
+- fix(ci): unbreak the image build, and prove the Dockerfile before a release needs it (#84)
+
 ## [0.24.0] - 2026-08-15
 
 ### Features
