@@ -110,11 +110,35 @@ fn header(plaintext: u64, frames: u32, index: u64) -> [u8; HEADER as usize] {
     header
 }
 
+// The header is written by this server and read back from a file whose contents
+// a client chose: an object is whatever bytes hash to the digest it was pushed
+// under, so anyone with push rights can store a file that opens with a header of
+// their own making. Every field is therefore treated as hostile.
+//
+// The frame size is the dangerous one, because it is the size of the buffer each
+// frame is decompressed into: unbounded, it is a request that asks the server to
+// allocate four gigabytes, repeatable on every download of that object. Bounding
+// it rather than pinning it to today's value keeps the frame size a thing this
+// format can change without orphaning what is already stored.
+const FRAME_MIN: u64 = 64 * 1024;
+const FRAME_MAX: u64 = 16 * 1024 * 1024;
+
+fn plausible(plaintext: u64, frame: u64, frames: u64) -> bool {
+    if !(FRAME_MIN..=FRAME_MAX).contains(&frame) {
+        return false;
+    }
+
+    // Exactly the frames the plaintext needs — no more, so a header cannot claim
+    // an object far larger than the file that carries it, and no fewer.
+    frames == plaintext.div_ceil(frame)
+}
+
 impl Framed {
     // Sniffing the header is what makes a raw store and a compressed one the
     // same store. A file that only looks like a header is rejected on its own
-    // arithmetic: the index has to sit inside the file and the frames have to
-    // account for exactly the bytes between them.
+    // arithmetic: the frame size has to be one this format uses, the frame count
+    // has to be the one the plaintext needs, the index has to sit inside the
+    // file, and the frames have to account for exactly the bytes between them.
     pub async fn open(mut file: fs::File, on_disk: u64) -> Result<Option<Self>, Error> {
         if on_disk < HEADER {
             return Ok(None);
@@ -134,7 +158,12 @@ impl Framed {
         let index = u64::from_le_bytes(header[24..32].try_into().expect("eight bytes"));
 
         let indexed = frames.saturating_mul(4);
-        if frame == 0 || index < HEADER || index.saturating_add(indexed) != on_disk {
+        if !plausible(plaintext, frame, frames) || index < HEADER {
+            file.seek(SeekFrom::Start(0)).await?;
+            return Ok(None);
+        }
+
+        if index.saturating_add(indexed) != on_disk {
             file.seek(SeekFrom::Start(0)).await?;
             return Ok(None);
         }
