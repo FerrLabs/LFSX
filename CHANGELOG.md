@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.2] - 2026-08-15
+
+### Bug Fixes
+
+- fix(ci): pin the docker reusable past the syntax fix (#85)
+
 ## [0.24.1] - 2026-08-15
 
 ### Bug Fixes
