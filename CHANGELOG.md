@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.23.1] - 2026-08-15
+
+### Bug Fixes
+
+- fix(storage): stop collection removing a fanout directory out from under an upload (#82)
+
 ## [0.23.0] - 2026-08-15
 
 ### Features
