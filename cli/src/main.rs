@@ -1,4 +1,5 @@
 mod client;
+mod dedupe;
 mod doctor;
 mod gc;
 
@@ -37,6 +38,13 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    Dedupe {
+        #[arg(long)]
+        repo: String,
+
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -64,6 +72,25 @@ fn main() -> Result<()> {
                 bytes as f64 / 1_073_741_824.0,
                 if kept > 0 {
                     format!(", {kept} left alone inside the grace period")
+                } else {
+                    String::new()
+                }
+            );
+        }
+        Command::Dedupe { repo, dry_run } => {
+            let report = dedupe::run(&server, &repo, dry_run)?;
+            let adopted = report["adopted"].as_u64().unwrap_or_default();
+            let linked = report["linked"].as_u64().unwrap_or_default();
+            let reclaimed = report["reclaimed"].as_u64().unwrap_or_default();
+            let refused = report["refused"].as_u64().unwrap_or_default();
+
+            println!(
+                "{} {adopted} objects into the shared store, linked {linked}, {} {:.2} GiB{}",
+                if dry_run { "would move" } else { "moved" },
+                if dry_run { "freeing" } else { "freed" },
+                reclaimed as f64 / 1_073_741_824.0,
+                if refused > 0 {
+                    format!(" — {refused} refused, see the server log")
                 } else {
                     String::new()
                 }

@@ -135,6 +135,30 @@ push reporting success only means the server accepted the bytes.
 Objects nobody holds any more are gone. That is the case backups exist for, and the reason to test
 the restore before needing it.
 
+## Folding an old store into the shared one
+
+A server that predates 0.20.0 wrote every object as a plain file under its repository. Those keep
+serving, but they never deduplicate, so two projects holding the same pack pay for it twice. One
+call per repository fixes that:
+
+```bash
+lfsx dedupe --repo FerrLabs/Blastlands --dry-run   # what it would move and free
+lfsx dedupe --repo FerrLabs/Blastlands
+```
+
+Run it against every repository before judging the saving: the first one to fold in moves its bytes
+into the shared store and frees nothing, and the second is the one that stops paying. Re-running is
+safe and reports nothing left to do.
+
+It is deliberately conservative. Objects are verified against their own digest before being admitted
+or adopted, so neither a corrupt file nor a corrupt shared entry can spread; anything that fails is
+counted as `refused`, named in the log and left exactly where it is. The repository's file is never
+removed before its replacement link exists, so an interrupted run leaves either the old file or the
+new link, never a gap.
+
+The saving shows up in `lfsx_store_bytes`, which counts what the disk holds, rather than in
+`stats`, which counts what each repository holds.
+
 ## Migrating to another server
 
 Two routes, and the choice is usually made for you by whether you can read the old server's disk.

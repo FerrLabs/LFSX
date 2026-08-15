@@ -252,7 +252,28 @@ last reference; the report says zero bytes otherwise, rather than promising spac
 repository is still using.
 
 Objects already stored per repository, from before this, keep working untouched: they are ordinary
-files with a single link, and nothing needs migrating.
+files with a single link. Nothing needs migrating for them to serve — but they never collapse
+either, so a server that has been running since before 0.20.0 keeps paying full price for every
+pack two projects share. Folding them in is one call per repository:
+
+```bash
+lfsx dedupe --repo FerrLabs/Blastlands --dry-run
+lfsx dedupe --repo FerrLabs/Blastlands
+```
+
+It moves each object into the shared store and links it back, or links to what is already there and
+frees the copy. Bytes are only freed by the *second* repository to hold them, so run it everywhere
+before judging the result. Running it again does nothing: an object already sharing its inode is
+recognised and skipped.
+
+Two things it refuses rather than risk. An object whose bytes do not hash to its own name never
+enters the shared store, because everything that links there later would inherit them. And a shared
+entry that does not match its name is never adopted, so a repository with a good copy keeps it. Both
+are counted as `refused` and named in the log.
+
+The repository's file is never removed before its replacement exists: the link is made under a
+temporary name and renamed over the original, so an interrupted run leaves either the old file or
+the new link. It needs admin rights on the repository.
 
 Backing up the server is backing up that directory. Objects are immutable, so an incremental
 file-level backup never rewrites what it already copied — but use a tool that preserves hard links
@@ -275,6 +296,7 @@ The Git LFS protocol is small — four routes, plus a health check:
 | `GET` | `/{org}/{repo}` | a page showing what the repository holds |
 | `GET` | `/{org}/{repo}/objects/stats` | the same numbers as JSON |
 | `POST` | `/{org}/{repo}/objects/retain` | reclaim space, see [Reclaiming space](#reclaiming-space) |
+| `POST` | `/{org}/{repo}/objects/dedupe` | fold objects stored before the shared store into it |
 | `POST` | `/{org}/{repo}/locks` | take a lock on a path |
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
 | `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
