@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use axum::body::Bytes;
 use futures_util::StreamExt;
@@ -54,6 +55,53 @@ fn staging_files(root: &std::path::Path) -> Vec<PathBuf> {
     }
 
     found
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_upload_survives_a_collection_emptying_its_fanout() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Arc::new(LocalStore::new(root.path()));
+    let ns = namespace();
+
+    let collecting = {
+        let store = store.clone();
+        let ns = ns.clone();
+        tokio::spawn(async move {
+            for _ in 0..200 {
+                let _ = store
+                    .sweep(
+                        &ns,
+                        &std::collections::HashSet::new(),
+                        Duration::ZERO,
+                        false,
+                    )
+                    .await;
+                tokio::task::yield_now().await;
+            }
+        })
+    };
+
+    for asset in 0..100u32 {
+        let payload = format!("an asset worth pushing {asset}").into_bytes();
+        let oid = hex::encode(Sha256::digest(&payload));
+
+        let written = store
+            .write(
+                &ns,
+                &oid,
+                None,
+                stream::iter([Ok::<_, std::io::Error>(Bytes::from(payload))]),
+            )
+            .await;
+
+        assert!(
+            written.is_ok(),
+            "scheduled collection removes a fanout directory once it has emptied it, and an \
+             upload that arrives in that window did nothing wrong: {written:?}"
+        );
+    }
+
+    collecting.await.unwrap();
 }
 
 #[tokio::test]
