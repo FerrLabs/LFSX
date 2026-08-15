@@ -30,6 +30,12 @@ pub struct RetainRequest {
     pub dry_run: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DedupeRequest {
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
 #[derive(Debug, Serialize)]
 pub struct BatchResponse {
     pub transfer: &'static str,

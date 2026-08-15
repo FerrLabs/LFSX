@@ -212,8 +212,12 @@ impl LocalStore {
         }
     }
 
+    // Both figures, because both just became wrong. Freeing gigabytes and then
+    // reporting the old total for another minute is how an operator concludes
+    // the collection — or the migration — did nothing.
     pub async fn forget(&self, ns: &Namespace) {
         self.per_namespace.lock().await.remove(&ns.to_string());
+        *self.usage.lock().await = None;
     }
 
     // What the disk actually holds, which is not the sum of what the

@@ -216,3 +216,70 @@ async fn the_capacity_gauge_reports_the_disk_not_the_sum_of_projects() {
         "three projects share one copy, so the capacity metric must show one copy —          counting per-repository links would report the pre-deduplication total and          grow with every project that links the same pack"
     );
 }
+
+async fn dedupe(app: Router, token: &str, repo: &str) -> axum::response::Response {
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/dedupe"))
+        .header("content-type", "application/json")
+        .header("authorization", credentials(token))
+        .body(Body::from(json!({ "dry_run": false }).to_string()))
+        .unwrap();
+
+    app.oneshot(request).await.unwrap()
+}
+
+// What a server that predates the shared store left behind: a plain file at the
+// repository path, holding the only copy of its bytes.
+fn store_the_old_way(root: &tempfile::TempDir, repo: &str, payload: &[u8]) {
+    let oid = hex::encode(Sha256::digest(payload));
+    let fanout = root
+        .path()
+        .join("FerrLabs")
+        .join(repo)
+        .join(&oid[0..2])
+        .join(&oid[2..4]);
+    std::fs::create_dir_all(&fanout).unwrap();
+    std::fs::write(fanout.join(&oid), payload).unwrap();
+}
+
+#[tokio::test]
+async fn objects_from_an_older_server_are_folded_in_and_still_served() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let payload = b"an asset pushed long before deduplication existed".repeat(8);
+    store_the_old_way(&root, "Blastlands", &payload);
+
+    let report = common::read_json(dedupe(app.clone(), "admin", "Blastlands").await).await;
+
+    assert_eq!(report["adopted"], 1);
+    assert_eq!(
+        get_from(app, "Blastlands", &payload).await,
+        StatusCode::OK,
+        "the migration is only worth running if the repository keeps serving what it held"
+    );
+}
+
+#[tokio::test]
+async fn folding_a_repository_in_needs_more_than_push_rights() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let payload = b"an asset nobody should rewrite on a writer's say-so";
+    store_the_old_way(&root, "Blastlands", &payload[..]);
+
+    let refused = dedupe(app.clone(), "writer", "Blastlands").await;
+
+    assert_eq!(
+        refused.status(),
+        StatusCode::FORBIDDEN,
+        "this rewrites every object in place, so it asks for the rights of someone who could \
+         delete them instead"
+    );
+    assert_eq!(
+        get_from(app, "Blastlands", payload).await,
+        StatusCode::OK,
+        "and it changed nothing on the way out"
+    );
+}

@@ -1,3 +1,4 @@
+mod dedupe;
 mod staging;
 mod sweep;
 
@@ -19,6 +20,7 @@ use tokio::io::AsyncWriteExt;
 use crate::error::Error;
 use crate::namespace::Namespace;
 
+pub use dedupe::DedupeReport;
 pub use staging::{Reclaimed, reclaim};
 pub use sweep::SweepReport;
 
