@@ -3,6 +3,14 @@ name: Docker
 on:
   release:
     types: [published]
+  # The image is built on release only, so a Dockerfile that stops linting or
+  # building stays invisible until a version has been tagged and published
+  # without one — which is how five releases went out with no image at all. A
+  # change to the file now has to prove itself before it is merged.
+  pull_request:
+    paths:
+      - Dockerfile
+      - .github/workflows/docker.yml
   workflow_dispatch:
     inputs:
       version:
@@ -66,3 +74,16 @@ jobs:
         done
         echo "::error::the image never answered /health"
         exit 1
+
+  verify:
+    name: Build without publishing
+    if: github.event_name == 'pull_request'
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@79e493a34b510b62b1d2d194e99553d229f81faf # main
+    with:
+      image-name: ghcr.io/ferrlabs/lfsx
+      tag: pr-${{ github.event.pull_request.number }}
+      context: .
+      dockerfile: Dockerfile
+      platforms: linux/amd64
+      sccache-gha: true
+      push: false

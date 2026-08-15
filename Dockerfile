@@ -34,8 +34,9 @@ RUN --mount=type=secret,id=gha-cache-url \
                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc ;; \
         *) echo "unsupported architecture: ${TARGETARCH}" >&2 ; exit 1 ;; \
     esac ; \
-    export ACTIONS_CACHE_URL="$(cat /run/secrets/gha-cache-url 2>/dev/null || true)" ; \
-    export ACTIONS_RUNTIME_TOKEN="$(cat /run/secrets/gha-runtime-token 2>/dev/null || true)" ; \
+    ACTIONS_CACHE_URL="$(cat /run/secrets/gha-cache-url 2>/dev/null || true)" ; \
+    ACTIONS_RUNTIME_TOKEN="$(cat /run/secrets/gha-runtime-token 2>/dev/null || true)" ; \
+    export ACTIONS_CACHE_URL ACTIONS_RUNTIME_TOKEN ; \
     if [ -n "${ACTIONS_RUNTIME_TOKEN}" ] ; then \
         export SCCACHE_GHA_ENABLED=true ; \
         sccache --start-server >/dev/null 2>&1 && export RUSTC_WRAPPER=sccache ; \
