@@ -155,6 +155,53 @@ async fn an_object_already_held_is_never_refused_for_want_of_room() {
 }
 
 #[tokio::test]
+async fn a_body_that_declares_no_size_is_cut_off_at_the_budget() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url);
+    let held = fill(app.clone()).await;
+    let arriving = vec![9u8; 200];
+
+    let request = Request::builder()
+        .method("PUT")
+        .uri(format!(
+            "/FerrLabs/LFSX/objects/{}",
+            hex::encode(Sha256::digest(&arriving))
+        ))
+        .header("authorization", credentials("writer"))
+        .body(Body::from(arriving))
+        .unwrap();
+    let refused = app.clone().oneshot(request).await.unwrap();
+
+    assert_eq!(
+        refused.status(),
+        StatusCode::INSUFFICIENT_STORAGE,
+        "a client that skips negotiation may skip declaring a size too, and a budget checked \
+         once against a number the client chose is not a budget"
+    );
+    assert_eq!(
+        negotiate(app, "download", &held).await["objects"][0]["error"],
+        serde_json::Value::Null,
+        "and the repository is left exactly as it was"
+    );
+}
+
+#[tokio::test]
+async fn a_full_repository_can_still_be_sent_an_object_it_already_holds() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url);
+    let held = fill(app.clone()).await;
+
+    assert_eq!(
+        put(app, Some("writer"), &held).await.status(),
+        StatusCode::OK,
+        "a retried transfer of an object already stored asks for no new room, at this gate as \
+         much as at negotiation"
+    );
+}
+
+#[tokio::test]
 async fn collecting_makes_room_the_next_push_can_use() {
     let root = tempfile::tempdir().unwrap();
     let (api_url, _forge) = forge().await;

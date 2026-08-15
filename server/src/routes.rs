@@ -20,7 +20,7 @@ use crate::model::{
 use crate::namespace::Namespace;
 use crate::range::Range;
 use crate::state::Shared;
-use crate::storage::SweepReport;
+use crate::storage::{Budget, SweepReport};
 
 pub fn router(state: Shared) -> Router {
     let objects = Router::new()
@@ -176,18 +176,26 @@ async fn upload(
         .and_then(|value| value.parse().ok());
 
     // Negotiation already refused what does not fit, but a client is free to
-    // skip it and PUT straight here.
-    if let Some(limit) = state.config.repo_quota {
-        let (_, used) = state.store.usage_of(&ns).await;
+    // skip it and PUT straight here — including without declaring a size, which
+    // is why the budget rides along into the transfer rather than being checked
+    // once against a number the client chose.
+    let budget = match state.config.repo_quota {
+        Some(limit) if !state.store.exists(&ns, &oid).await => {
+            let (_, used) = state.store.usage_of(&ns).await;
+            let budget = Budget { used, limit };
 
-        if used + size.unwrap_or_default() > limit {
-            return Err(Error::OverQuota { used, limit });
+            if budget.exceeded_by(size.unwrap_or_default()) {
+                return Err(budget.refusal());
+            }
+
+            Some(budget)
         }
-    }
+        _ => None,
+    };
 
     let written = state
         .store
-        .write(&ns, &oid, size, body.into_data_stream())
+        .write(&ns, &oid, size, budget, body.into_data_stream())
         .await?;
 
     state.metrics.uploaded_bytes.inc_by(written);

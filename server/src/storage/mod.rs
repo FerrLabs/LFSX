@@ -22,6 +22,29 @@ use crate::namespace::Namespace;
 pub use staging::{Reclaimed, reclaim};
 pub use sweep::SweepReport;
 
+// What is left of a repository's budget for one transfer. It travels with the
+// upload because a client that skips negotiation may also skip declaring a
+// size, and a budget checked once against a number the client chose is not a
+// budget.
+#[derive(Debug, Clone, Copy)]
+pub struct Budget {
+    pub used: u64,
+    pub limit: u64,
+}
+
+impl Budget {
+    pub fn exceeded_by(&self, arriving: u64) -> bool {
+        self.used + arriving > self.limit
+    }
+
+    pub fn refusal(&self) -> Error {
+        Error::OverQuota {
+            used: self.used,
+            limit: self.limit,
+        }
+    }
+}
+
 pub struct LocalStore {
     root: PathBuf,
     counter: AtomicU64,
@@ -107,6 +130,7 @@ impl LocalStore {
         ns: &Namespace,
         oid: &str,
         expected_size: Option<u64>,
+        budget: Option<Budget>,
         mut chunks: S,
     ) -> Result<u64, Error>
     where
@@ -130,7 +154,7 @@ impl LocalStore {
         let fresh = fs::metadata(&path).await.is_err();
 
         let staged = self.staging_path(parent, oid);
-        let outcome = self.stream_to(&staged, &mut chunks).await;
+        let outcome = self.stream_to(&staged, budget, &mut chunks).await;
 
         match outcome {
             Ok((digest, written)) => {
@@ -155,7 +179,12 @@ impl LocalStore {
         parent.join(format!("{oid}.{ticket}.part"))
     }
 
-    async fn stream_to<S, E>(&self, staged: &Path, chunks: &mut S) -> Result<(String, u64), Error>
+    async fn stream_to<S, E>(
+        &self,
+        staged: &Path,
+        budget: Option<Budget>,
+        chunks: &mut S,
+    ) -> Result<(String, u64), Error>
     where
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
@@ -175,6 +204,10 @@ impl LocalStore {
             // big it was would be the outage this limit exists to prevent.
             if let Some(limit) = self.max_object_size.filter(|limit| written > *limit) {
                 return Err(Error::TooLarge { limit });
+            }
+
+            if let Some(budget) = budget.filter(|budget| budget.exceeded_by(written)) {
+                return Err(budget.refusal());
             }
 
             file.write_all(&chunk).await?;
