@@ -152,7 +152,7 @@ impl LocalStore {
     }
 }
 
-fn age(metadata: &std::fs::Metadata) -> Duration {
+pub(super) fn age(metadata: &std::fs::Metadata) -> Duration {
     metadata
         .modified()
         .ok()

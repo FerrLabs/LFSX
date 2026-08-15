@@ -1,3 +1,4 @@
+mod staging;
 mod sweep;
 
 use std::collections::HashMap;
@@ -15,6 +16,7 @@ use tokio::io::AsyncWriteExt;
 use crate::error::Error;
 use crate::namespace::Namespace;
 
+pub use staging::{Reclaimed, reclaim};
 pub use sweep::SweepReport;
 
 pub struct LocalStore {

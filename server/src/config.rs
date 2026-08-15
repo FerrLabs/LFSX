@@ -14,6 +14,7 @@ pub struct Config {
     pub public_url: Option<String>,
     pub action_lifetime: u32,
     pub gc_grace: Duration,
+    pub staging_max_age: Duration,
     pub auth: Auth,
 }
 
@@ -53,6 +54,7 @@ impl Provider {
 const CACHE_TTL: Duration = Duration::from_secs(60);
 const REJECTION_TTL: Duration = Duration::from_secs(10);
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+const STAGING_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 impl Config {
     pub fn from_env() -> Self {
@@ -76,6 +78,7 @@ impl Config {
             public_url,
             action_lifetime: 1800,
             gc_grace: seconds("LFSX_GC_GRACE").unwrap_or(GC_GRACE),
+            staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
             auth: Auth::from_env(),
         }
     }
