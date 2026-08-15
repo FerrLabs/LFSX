@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.0] - 2026-08-15
+
+### Features
+
+- feat(storage): compress objects at rest with zstd (#90)
+
 ## [0.25.0] - 2026-08-15
 
 ### Features
