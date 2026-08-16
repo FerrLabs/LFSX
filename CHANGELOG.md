@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.30.0] - 2026-08-16
+
+### Features
+
+- feat(locks): page the lock list, and negotiate the transfer instead of assuming it (#96)
+
 ## [0.29.0] - 2026-08-16
 
 ### Features
