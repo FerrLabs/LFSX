@@ -5,6 +5,8 @@
 **A fast, lightweight, secure Git LFS server.**
 
 [![CI](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml)
+[![Coverage](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=coverage&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
+[![Quality Gate](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=alert_status&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
 [![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
 
 </div>
