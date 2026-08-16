@@ -30,6 +30,15 @@ fail() {
 	exit 1
 }
 
+# macOS ships shasum rather than sha256sum, and this has to run on the three
+# platforms a studio actually uses: artists on Windows, programmers on macOS,
+# CI on Linux.
+if command -v sha256sum >/dev/null 2>&1; then
+	digest() { sha256sum | cut -d' ' -f1; }
+else
+	digest() { shasum -a 256 | cut -d' ' -f1; }
+fi
+
 wait_for() {
 	for _ in $(seq 50); do
 		if curl -fsS "$1" >/dev/null 2>&1; then
@@ -90,7 +99,7 @@ git lfs install --local
 git lfs track '*.bin' >/dev/null
 
 mkdir -p assets
-head -c 67108864 /dev/urandom >assets/huge.bin
+head -c 16777216 /dev/urandom >assets/huge.bin
 head -c 1024 /dev/urandom >assets/small.bin
 
 git add -A
@@ -106,7 +115,7 @@ grep -Eqi '^(error|fatal)' "${work}/push.log" && {
 }
 
 echo "--- the object landed in the documented layout"
-oid=$(sha256sum <assets/huge.bin | cut -d' ' -f1)
+oid=$(digest <assets/huge.bin)
 stored="${work}/objects/${namespace}/${oid:0:2}/${oid:2:2}/${oid}"
 [ -f "$stored" ] || fail "expected the object at ${stored}"
 

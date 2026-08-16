@@ -52,8 +52,23 @@ jobs:
       - run: cargo test --locked
 
   e2e:
-    name: git-lfs end to end
-    runs-on: ubuntu-latest
+    # The audience is a studio: artists on Windows, programmers on macOS, CI on
+    # Linux, and whatever git-lfs their tooling happened to bundle. One job on
+    # one runner proved none of that.
+    name: git-lfs ${{ matrix.lfs && matrix.lfs || 'bundled' }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest
+          # The floor this project claims to support. Locking settled in 3.0, and
+          # the clients that ship inside Git for Windows, Sourcetree or Unity are
+          # rarely the newest.
+          - os: ubuntu-latest
+            lfs: v3.0.2
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -68,6 +83,20 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-e2e-
+
+      - name: Pin git-lfs ${{ matrix.lfs }}
+        if: matrix.lfs
+        run: |
+          set -euo pipefail
+          version="${{ matrix.lfs }}"
+          curl -fsSL "https://github.com/git-lfs/git-lfs/releases/download/${version}/git-lfs-linux-amd64-${version}.tar.gz"             | tar xz -C "$RUNNER_TEMP"
+          # 3.0 tarballs unpack flat; later ones nest under a directory. Take
+          # whichever binary is there rather than guessing the shape.
+          binary=$(find "$RUNNER_TEMP" -name git-lfs -type f | head -n1)
+          chmod +x "$binary"
+          mkdir -p "$RUNNER_TEMP/bin"
+          mv "$binary" "$RUNNER_TEMP/bin/git-lfs"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - run: git lfs version
       - run: bash ci/e2e.sh
