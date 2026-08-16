@@ -11,6 +11,7 @@ pub mod range;
 pub mod routes;
 pub mod state;
 pub mod storage;
+pub mod tls;
 
 use std::sync::Arc;
 

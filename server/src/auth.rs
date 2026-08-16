@@ -53,6 +53,8 @@ pub enum Authorizer {
 
 impl Authorizer {
     pub fn new(auth: &Auth) -> Self {
+        crate::tls::install_crypto_provider();
+
         match auth {
             Auth::Disabled => Self::Disabled,
             Auth::Forge {

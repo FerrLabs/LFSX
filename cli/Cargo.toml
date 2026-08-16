@@ -16,5 +16,6 @@ categories = ["command-line-utilities", "development-tools"]
 clap.workspace = true
 anyhow.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
