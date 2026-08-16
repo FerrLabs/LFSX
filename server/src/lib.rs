@@ -48,8 +48,8 @@ pub fn app(config: Config) -> Router {
             })
             .expect("the bucket configuration is not usable");
 
-            tracing::info!(
-                "objects are stored in a bucket — collection, deduplication, compression and                  verification are local-store features and answer 501 here"
+            tracing::warn!(
+                "objects are stored in a bucket: collection, deduplication, compression and                  verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes gauges                  are not measured — read capacity from the bucket itself"
             );
 
             Store::Bucket {

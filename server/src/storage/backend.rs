@@ -96,15 +96,15 @@ impl Store {
         }
     }
 
-    pub async fn usage(&self) -> (u64, u64) {
+    // None rather than zero: a bucket has no cheap answer for what the whole
+    // store holds, and building one from a full listing would cost a request per
+    // object on every scrape. Zero would be read as an empty bucket by every
+    // dashboard that averages it, which is the one lie this seam otherwise
+    // refuses to tell — everything else it cannot do answers 501.
+    pub async fn capacity(&self) -> Option<(u64, u64)> {
         match self {
-            Self::Local(store) => store.usage().await,
-            // A bucket has no cheap answer for "what does the whole store hold",
-            // and inventing one from a full listing would cost a request per
-            // object on every scrape. The per-repository figure is the one this
-            // server can afford, and the bucket's own console is where capacity
-            // belongs anyway.
-            Self::Bucket { .. } => (0, 0),
+            Self::Local(store) => Some(store.usage().await),
+            Self::Bucket { .. } => None,
         }
     }
 
@@ -240,6 +240,27 @@ mod tests {
             leftovers.is_empty(),
             "local disk is a write buffer here, and one that is never emptied is a disk that \
              fills: {leftovers:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_bucket_reports_no_capacity_rather_than_an_empty_one() {
+        let root = tempfile::tempdir().unwrap();
+        let (endpoint, _objects) = bucket().await;
+
+        assert!(
+            bucket_store(&root, &endpoint)
+                .await
+                .capacity()
+                .await
+                .is_none(),
+            "zero would be read as an empty store by every dashboard that averages it"
+        );
+        assert!(
+            Store::Local(LocalStore::new(root.path()))
+                .capacity()
+                .await
+                .is_some()
         );
     }
 

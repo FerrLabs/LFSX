@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use futures_util::Stream;
-use rusty_s3::actions::{GetObject, ListObjectsV2, PutObject, S3Action};
+use rusty_s3::actions::{GetObject, HeadObject, ListObjectsV2, PutObject, S3Action};
 use rusty_s3::{Bucket, Credentials, UrlStyle};
 
 use crate::error::Error;
@@ -80,8 +80,12 @@ impl S3Store {
         self.head(&Self::marker_key(ns, oid)).await.is_ok()
     }
 
+    // Signed as a HEAD rather than reusing a GET signature: SigV4 covers the
+    // method, and an implementation that checks it — which is the point of
+    // testing against MinIO and Garage rather than only AWS — is entitled to
+    // refuse the mismatch.
     async fn head(&self, key: &str) -> Result<u64, Error> {
-        let action = GetObject::new(&self.bucket, Some(&self.credentials), key);
+        let action = HeadObject::new(&self.bucket, Some(&self.credentials), key);
         let url = action.sign(self.presign);
 
         let response = self.client.head(url).send().await.map_err(|_| {
@@ -108,6 +112,12 @@ impl S3Store {
     }
 
     pub async fn size_of(&self, oid: &str) -> Result<u64, Error> {
+        // Every entry point validates before slicing an oid into a key: the
+        // fanout takes the first four characters, so a short one is a panic
+        // rather than a refusal, and a panic is a 500 for something that should
+        // have been a 422.
+        crate::storage::LocalStore::validate_oid(oid)?;
+
         self.head(&Self::content_key(oid)).await
     }
 
@@ -122,6 +132,8 @@ impl S3Store {
         start: u64,
         length: u64,
     ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>> + use<>, Error> {
+        crate::storage::LocalStore::validate_oid(oid)?;
+
         let key = Self::content_key(oid);
         let action = GetObject::new(&self.bucket, Some(&self.credentials), &key);
         let url = action.sign(self.presign);
@@ -184,6 +196,8 @@ impl S3Store {
         oid: &str,
         staged: &std::path::Path,
     ) -> Result<(), Error> {
+        crate::storage::LocalStore::validate_oid(oid)?;
+
         if self.head(&Self::content_key(oid)).await.is_err() {
             let file = tokio::fs::File::open(staged).await?;
             let stream = tokio_util::io::ReaderStream::new(file);

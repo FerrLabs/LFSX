@@ -251,3 +251,24 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
         "the marker is empty, so the size has to come from the content it points at — counting          the marker would report a repository holding nothing"
     );
 }
+
+#[tokio::test]
+async fn an_object_id_that_could_not_be_one_is_refused_rather_than_slicing_into_it() {
+    let (endpoint, _objects) = bucket().await;
+    let store = store(&endpoint);
+    let (_root, path) = staged(b"bytes nobody will store").await;
+
+    // The fanout takes the first four characters of the digest, so anything
+    // shorter is an index out of bounds — a panic where the client deserves a
+    // refusal.
+    for short in ["", "ab", "abc"] {
+        assert!(store.size_of(short).await.is_err());
+        assert!(store.read(short, 0, 1).await.is_err());
+        assert!(
+            store
+                .store(&namespace("Blastlands"), short, &path)
+                .await
+                .is_err()
+        );
+    }
+}

@@ -530,6 +530,12 @@ working. A download asks the bucket for exactly the range it wants, so resuming 
 local volume is still used, as a write buffer: an upload lands there to be hashed and checked before
 anything is sent, and is deleted once it has been.
 
+**Capacity is not reported.** `lfsx_objects_stored` and `lfsx_store_bytes` are not measured against
+a bucket: there is no cheap answer for what one holds, and building it from a full listing would cost
+a request per object on every scrape. The gauges are left alone rather than pinned to a zero a
+dashboard would average as an empty store, and the server says so at startup. Read capacity from the
+bucket itself. Per-repository figures still work, since a repository is a prefix.
+
 **Four things do not apply, and say so** rather than reporting an empty success. Collection,
 compression and verification are not implemented against a bucket yet and answer `501`.
 Deduplication answers `501` too, for a different reason: content addressing already stores each
