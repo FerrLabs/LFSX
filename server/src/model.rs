@@ -21,6 +21,8 @@ pub struct BatchRequest {
     #[serde(default)]
     pub transfers: Vec<String>,
     pub objects: Vec<ObjectId>,
+    #[serde(rename = "ref")]
+    pub reference: Option<Reference>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,10 +132,26 @@ pub struct CreateLockRequest {
 pub struct ListLocksQuery {
     pub path: Option<String>,
     pub id: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<usize>,
+    // Accepted and not acted on: see `refs` in the README. Rejecting it would
+    // break a client that sends what the specification tells it to send.
+    #[serde(rename = "refspec")]
+    pub refspec: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-pub struct VerifyLocksRequest {}
+pub struct VerifyLocksRequest {
+    pub cursor: Option<String>,
+    pub limit: Option<usize>,
+    #[serde(rename = "ref")]
+    pub reference: Option<Reference>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Reference {
+    pub name: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct UnlockRequest {
@@ -149,14 +167,16 @@ pub struct LockResponse {
 #[derive(Debug, Serialize)]
 pub struct ListLocksResponse {
     pub locks: Vec<Lock>,
-    pub next_cursor: &'static str,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub next_cursor: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct VerifyLocksResponse {
     pub ours: Vec<Lock>,
     pub theirs: Vec<Lock>,
-    pub next_cursor: &'static str,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub next_cursor: String,
 }
 
 #[derive(Debug, Serialize)]
