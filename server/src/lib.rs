@@ -38,6 +38,7 @@ pub fn app(config: Config) -> Router {
             access_key,
             secret_key,
             path_style,
+            presign,
         } => {
             let bucket = S3Store::new(&S3Config {
                 endpoint: endpoint.clone(),
@@ -46,12 +47,20 @@ pub fn app(config: Config) -> Router {
                 access_key: access_key.clone(),
                 secret_key: secret_key.clone(),
                 path_style: *path_style,
+                redirect: *presign,
+                lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
             })
             .expect("the bucket configuration is not usable");
 
             tracing::warn!(
                 "objects are stored in a bucket: collection, deduplication, compression and                  verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes gauges                  are not measured — read capacity from the bucket itself"
             );
+
+            if *presign {
+                tracing::warn!(
+                    "LFSX_S3_PRESIGN=true — downloads are redirected to the bucket, so                      lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
+                );
+            }
 
             if config.compression.is_some() {
                 tracing::warn!(

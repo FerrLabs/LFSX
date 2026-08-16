@@ -161,7 +161,7 @@ async fn an_object_already_stored_is_not_asked_for_again() {
 }
 
 #[tokio::test]
-async fn batch_never_claims_the_transfer_is_pre_authenticated() {
+async fn batch_never_claims_a_transfer_through_this_server_is_pre_authenticated() {
     let root = tempfile::tempdir().unwrap();
     let payload = b"payload".to_vec();
     let oid = oid_of(&payload);
@@ -179,8 +179,7 @@ async fn batch_never_claims_the_transfer_is_pre_authenticated() {
 
     assert!(
         body["objects"][0]["authenticated"].is_null(),
-        "advertising authenticated without supplying a header makes the client send \
-         transfers with no credentials, and it loops on 401"
+        "advertising authenticated for a URL that points back here makes the client transfer \n         with no credentials at all, and loop on the 401 that follows. The only href this server \n         signs is a pre-signed bucket URL, and this is not one"
     );
 }
 

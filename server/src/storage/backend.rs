@@ -69,6 +69,20 @@ impl Store {
         }
     }
 
+    // Where the client should fetch this object from, when that is somewhere
+    // other than this server. None for a local store, and for a bucket the
+    // operator has not asked to redirect — which is the default, because the
+    // streamed path is the one that counts the bytes and holds the ceiling.
+    //
+    // The caller is responsible for having established that this repository
+    // holds the object. This hands out a signature, not a permission.
+    pub fn redirect(&self, oid: &str) -> Option<String> {
+        match &self.0 {
+            Backend::Local(_) => None,
+            Backend::Bucket { bucket, .. } => bucket.presigned_download(oid),
+        }
+    }
+
     pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
         match &self.0 {
             Backend::Local(store) => store.open(ns, oid).await,

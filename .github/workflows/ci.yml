@@ -51,6 +51,49 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --locked
 
+  bucket:
+    # The stub the unit tests drive agrees with whatever it is sent, so it
+    # cannot catch what a real implementation refuses. It missed an upload with
+    # no Content-Length, which every push to a real bucket answered with a 500.
+    name: Objects in a bucket
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # Not a service container: MinIO needs a command, and services take an
+      # image and an entrypoint override at best.
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d --name minio -p 9000:9000             -e MINIO_ROOT_USER=lfsxkey             -e MINIO_ROOT_PASSWORD=lfsxsecret             quay.io/minio/minio:latest server /data
+          for _ in $(seq 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
+              docker exec minio mc alias set local http://127.0.0.1:9000 lfsxkey lfsxsecret
+              docker exec minio mc mb --ignore-existing local/lfsx-test
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs minio
+          echo "::error::MinIO never came up"
+          exit 1
+
+      - run: cargo test --locked --test bucket
+        env:
+          LFSX_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+
   e2e:
     # The audience is a studio: artists on Windows, programmers on macOS, CI on
     # Linux, and whatever git-lfs their tooling happened to bundle. One job on

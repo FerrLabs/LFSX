@@ -125,13 +125,24 @@ fn negotiate(advertised: &[String]) -> &'static str {
 }
 
 async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+    // The marker is what says this repository holds the object, and it is
+    // consulted before anything else — including before a signature is cut, so
+    // a redirect is never a way around the check that a plain download makes.
     if !state.store.exists(ns, &id.oid).await {
         return ObjectSpec::missing(id);
     }
 
-    let href = state.config.object_url(base, ns, &id.oid);
+    // A pre-signed bucket URL is the one href this server hands out that
+    // genuinely carries its own credentials, so it is the one case where saying
+    // so is true rather than the trap it is everywhere else.
+    let (href, authenticated) = match state.store.redirect(&id.oid) {
+        Some(signed) => (signed, Some(true)),
+        None => (state.config.object_url(base, ns, &id.oid), None),
+    };
+
     ObjectSpec {
         id,
+        authenticated,
         actions: Some(Actions {
             download: Some(state.config.action(href)),
             ..Actions::default()
@@ -158,6 +169,7 @@ async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId
     if state.store.exists(ns, &id.oid).await {
         return ObjectSpec {
             id,
+            authenticated: None,
             actions: None,
             error: None,
         };
@@ -175,6 +187,7 @@ async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId
     let verify = state.config.verify_url(base, ns);
     ObjectSpec {
         id,
+        authenticated: None,
         actions: Some(Actions {
             upload: Some(state.config.action(upload)),
             verify: Some(state.config.action(verify)),
