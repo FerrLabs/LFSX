@@ -40,6 +40,8 @@ pub struct S3Config {
 
 impl S3Store {
     pub fn new(config: &S3Config) -> Result<Self, Error> {
+        crate::tls::install_crypto_provider();
+
         let style = if config.path_style {
             UrlStyle::Path
         } else {

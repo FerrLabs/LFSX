@@ -10,6 +10,12 @@ pub struct Server {
 
 impl Server {
     pub fn new(url: &str, token: Option<String>) -> Result<Self> {
+        // rustls needs a process-wide crypto provider before the first TLS
+        // connection, and reqwest is built without one so the choice is this
+        // project's: ring, as 0.12 used, rather than the aws-lc that 0.13 made
+        // the default. It sits next to the client it is for.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
         Ok(Self {
             client: Client::builder()
                 .user_agent(concat!("lfsx/", env!("CARGO_PKG_VERSION")))

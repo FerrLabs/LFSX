@@ -15,7 +15,13 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs"
 tokio-util = { version = "0.7", features = ["io"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "stream"] }
+# 0.13 renamed `rustls-tls` and made rustls default to aws-lc instead of ring.
+# The provider is pinned back to ring, and the roots to the bundled Mozilla set,
+# so this upgrade changes the version and nothing about how TLS is done: the
+# release builds seven targets including two musl and two cross-compiled
+# aarch64, and aws-lc wants a C toolchain at build time on exactly those.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "webpki-roots", "json", "blocking", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 base64 = "0.23"
 time = { version = "0.3", features = ["formatting", "serde"] }
 prometheus = { version = "0.14", default-features = false }
