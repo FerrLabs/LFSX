@@ -27,6 +27,13 @@ limits:
 
 compression: ""
 
+encryption:
+  # Name of an existing Secret holding the key file. The chart never takes the
+  # key itself: a Helm value ends up in the release secret and in whatever CI
+  # printed the command.
+  existingSecret: ""
+  key: key
+
 persistence:
   enabled: true
   existingClaim: ""

@@ -33,17 +33,17 @@ impl Store {
         Self(Backend::Local(store))
     }
 
-    // The staging store is stripped of compression rather than trusted not to
-    // have been handed any: the two are configured independently, and what they
-    // produce together is silent. The frames would go up under the digest of the
-    // plaintext, and every download would hand the client a zstd stream it never
-    // asked for. Nothing on the far side of the upload knows to undo them —
-    // that lives in the file the local store opens, which is the one thing a
-    // bucket does not have.
+    // The staging store is stripped of compression and encryption rather than
+    // trusted not to have been handed either: each is configured independently
+    // of the bucket, and what they produce together is silent. The frames would
+    // go up under the digest of the plaintext, and every download would hand the
+    // client a zstd or ChaCha20 stream it never asked for. Nothing on the far
+    // side of the upload knows to undo them — that lives in the file the local
+    // store opens, which is the one thing a bucket does not have.
     pub fn bucket(bucket: S3Store, staging: LocalStore) -> Self {
         Self(Backend::Bucket {
             bucket: Box::new(bucket),
-            staging: staging.with_compression(None),
+            staging: staging.with_compression(None).with_encryption(None),
         })
     }
 

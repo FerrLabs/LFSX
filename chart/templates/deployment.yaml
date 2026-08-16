@@ -80,6 +80,10 @@ spec:
             - name: LFSX_COMPRESSION
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.encryption.existingSecret }}
+            - name: LFSX_ENCRYPTION_KEY_FILE
+              value: /etc/lfsx/keys/{{ .Values.encryption.key }}
+            {{- end }}
             - name: RUST_LOG
               value: {{ .Values.config.logLevel | quote }}
           ports:
@@ -101,6 +105,11 @@ spec:
           volumeMounts:
             - name: objects
               mountPath: /var/lib/lfsx
+            {{- if .Values.encryption.existingSecret }}
+            - name: encryption-key
+              mountPath: /etc/lfsx/keys
+              readOnly: true
+            {{- end }}
       volumes:
         - name: objects
           {{- if .Values.persistence.enabled }}
@@ -109,6 +118,15 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.encryption.existingSecret }}
+        - name: encryption-key
+          secret:
+            secretName: {{ .Values.encryption.existingSecret }}
+            # 0440, not 0400. A projected secret is owned by root, and fsGroup
+            # gives the group to 65532 — the user this runs as. Owner-only read
+            # looks tighter and leaves the server unable to open its own key.
+            defaultMode: 0440
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

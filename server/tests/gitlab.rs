@@ -80,6 +80,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        encryption_key_file: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Forge {
             provider: Provider::Gitlab,

@@ -25,9 +25,21 @@ use crate::storage::s3::{S3Config, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
+    // Refusing to start beats starting without it. A server that silently wrote
+    // plaintext because a Secret failed to mount is the one failure this feature
+    // must never have: nothing downstream would notice, and the objects written
+    // in the meantime are the ones the operator believed were covered.
+    let keys = config.encryption_key_file.as_deref().map(|path| {
+        std::sync::Arc::new(
+            crate::storage::crypt::Keyring::load(path)
+                .expect("the encryption key file is not usable"),
+        )
+    });
+
     let local = LocalStore::new(config.storage_root.clone())
         .with_max_object_size(config.max_object_size)
-        .with_compression(config.compression);
+        .with_compression(config.compression)
+        .with_encryption(keys);
 
     let store = match &config.storage {
         crate::config::Storage::Local => Store::local(local),
@@ -59,6 +71,12 @@ pub fn app(config: Config) -> Router {
             if *presign {
                 tracing::warn!(
                     "LFSX_S3_PRESIGN=true — downloads are redirected to the bucket, so                      lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
+                );
+            }
+
+            if config.encryption_key_file.is_some() {
+                tracing::warn!(
+                    "LFSX_ENCRYPTION_KEY_FILE is set and objects are stored in a bucket — the                      bucket holds them as they arrive, because an encrypted object is only                      readable through the local file the codec opens"
                 );
             }
 

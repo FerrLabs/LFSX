@@ -26,6 +26,15 @@ pub enum Error {
     #[error("this server does not compress objects — set LFSX_COMPRESSION first")]
     CompressionDisabled,
 
+    #[error("this object is encrypted and this server holds no key — set LFSX_ENCRYPTION_KEY_FILE")]
+    NotDecryptable,
+
+    #[error("this object was encrypted with a key this server does not hold")]
+    UnknownKey,
+
+    #[error("this object failed its integrity check — the bytes on disk are not what was stored")]
+    Tampered,
+
     #[error("{0}")]
     Misconfigured(&'static str),
 
@@ -73,6 +82,10 @@ impl Error {
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
             Self::CompressionDisabled => StatusCode::CONFLICT,
+            // The object is there and the request was fine; this server cannot
+            // serve it, which is a fact about the deployment.
+            Self::NotDecryptable | Self::UnknownKey => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Tampered => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Misconfigured(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unsupported(_) => StatusCode::NOT_IMPLEMENTED,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
@@ -96,6 +109,9 @@ impl Error {
             Self::TooLarge { .. } => "too_large",
             Self::OverQuota { .. } => "over_quota",
             Self::CompressionDisabled => "compression_disabled",
+            Self::NotDecryptable => "not_decryptable",
+            Self::UnknownKey => "unknown_key",
+            Self::Tampered => "tampered",
             Self::Misconfigured(_) => "misconfigured",
             Self::Unsupported(_) => "unsupported",
             Self::Unauthenticated => "unauthenticated",
