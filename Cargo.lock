@@ -912,7 +912,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lfsx"
-version = "0.31.0"
+version = "0.32.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "lfsx-server"
-version = "0.31.0"
+version = "0.32.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
