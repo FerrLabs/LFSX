@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.30.2] - 2026-08-16
+
+### Bug Fixes
+
+- fix(storage): store the object in a bucket, not the frames a compressing server made (#105)
+
 ## [0.30.1] - 2026-08-16
 
 ### Refactoring
