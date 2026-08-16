@@ -65,6 +65,7 @@ fn app(root: &tempfile::TempDir, bucket: &Bucket, presign: bool) -> Router {
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        encryption_key_file: None,
         storage: Storage::Bucket {
             endpoint: bucket.endpoint.clone(),
             bucket: bucket.bucket.clone(),

@@ -1,5 +1,6 @@
 mod backend;
 mod codec;
+pub mod crypt;
 mod dedupe;
 mod rewrite;
 pub mod s3;
@@ -151,6 +152,9 @@ pub struct LocalStore {
     scans: AtomicU64,
     max_object_size: Option<u64>,
     compression: Option<i32>,
+    // Shared rather than cloned: the staging store and the store proper are two
+    // handles onto one deployment's keys.
+    keys: Option<std::sync::Arc<crypt::Keyring>>,
 }
 
 impl LocalStore {
@@ -163,6 +167,7 @@ impl LocalStore {
             scans: AtomicU64::new(0),
             max_object_size: None,
             compression: None,
+            keys: None,
         }
     }
 
@@ -174,6 +179,15 @@ impl LocalStore {
     pub fn with_max_object_size(mut self, limit: Option<u64>) -> Self {
         self.max_object_size = limit;
         self
+    }
+
+    pub fn with_encryption(mut self, keys: Option<std::sync::Arc<crypt::Keyring>>) -> Self {
+        self.keys = keys;
+        self
+    }
+
+    pub fn encrypts(&self) -> bool {
+        self.keys.is_some()
     }
 
     pub fn validate_oid(oid: &str) -> Result<(), Error> {
@@ -228,7 +242,7 @@ impl LocalStore {
         let file = fs::File::open(&path).await.map_err(|_| Error::NotFound)?;
         let on_disk = file.metadata().await?.len();
 
-        match codec::Framed::open(file, on_disk).await? {
+        match codec::Framed::open(file, on_disk, self.keys.as_deref(), oid).await? {
             Some(framed) => Ok(Object::Framed(framed)),
             None => Ok(Object::Raw {
                 file: fs::File::open(&path).await.map_err(|_| Error::NotFound)?,
@@ -271,7 +285,7 @@ impl LocalStore {
         let fresh = fs::metadata(&path).await.is_err();
         let staged = self.staging_path(parent, oid);
 
-        match self.stream_to(&staged, budget, &mut chunks).await {
+        match self.stream_to(&staged, oid, budget, &mut chunks).await {
             Ok((digest, written)) => {
                 if let Err(error) = Self::agrees(oid, expected_size, &digest, written) {
                     let _ = fs::remove_file(&staged).await;
@@ -347,6 +361,7 @@ impl LocalStore {
     async fn stream_to<S, E>(
         &self,
         staged: &Path,
+        oid: &str,
         budget: Option<Budget>,
         chunks: &mut S,
     ) -> Result<(String, u64), Error>
@@ -358,9 +373,11 @@ impl LocalStore {
         // The digest, the declared size and the budget are all counted on the
         // plaintext going past, whatever the bytes look like once they land —
         // so compression is a different sink, not a different path.
-        let mut sink = match self.compression {
-            Some(level) => Sink::Framed(Box::new(codec::Writer::open(file, level).await?)),
-            None => Sink::Raw(file),
+        let mut sink = match (self.compression, self.keys.as_deref()) {
+            (None, None) => Sink::Raw(file),
+            (level, keys) => Sink::Framed(Box::new(
+                codec::Writer::open(file, level, keys.map(crypt::Keyring::writing), oid).await?,
+            )),
         };
         let mut hasher = Sha256::new();
         let mut written = 0u64;

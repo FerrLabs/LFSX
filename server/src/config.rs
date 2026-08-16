@@ -18,6 +18,10 @@ pub struct Config {
     pub max_object_size: Option<u64>,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
+    // A path rather than the key itself: a key in the environment is in the pod
+    // spec, in `docker inspect`, and in every log that dumps the environment. A
+    // file comes from a Kubernetes Secret mount or FerrVault without any of that.
+    pub encryption_key_file: Option<PathBuf>,
     pub storage: Storage,
     pub auth: Auth,
 }
@@ -133,6 +137,10 @@ impl Config {
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),
+            encryption_key_file: std::env::var("LFSX_ENCRYPTION_KEY_FILE")
+                .ok()
+                .filter(|path| !path.is_empty())
+                .map(PathBuf::from),
             storage: Storage::from_env(),
             auth: Auth::from_env(),
         }

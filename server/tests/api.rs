@@ -22,6 +22,7 @@ fn app_with_grace(root: &tempfile::TempDir, gc_grace: std::time::Duration) -> Ro
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        encryption_key_file: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Disabled,
     })
@@ -326,6 +327,7 @@ async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness(
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        encryption_key_file: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Disabled,
     });
@@ -376,6 +378,7 @@ async fn transfers_are_advertised_on_the_host_the_client_asked_for() {
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        encryption_key_file: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Disabled,
     });

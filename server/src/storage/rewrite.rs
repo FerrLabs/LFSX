@@ -5,8 +5,8 @@ use sha2::{Digest, Sha256};
 use tokio::fs;
 use tokio::io::AsyncReadExt;
 
-use super::codec;
 use super::{LocalStore, shares_bytes_with};
+use super::{codec, crypt};
 use crate::error::Error;
 use crate::namespace::Namespace;
 
@@ -41,7 +41,7 @@ impl LocalStore {
             let on_disk = fs::metadata(&found.path).await?.len();
             report.before += on_disk;
 
-            if self.is_framed(&found.path, on_disk).await? {
+            if self.is_framed(&found.path, &found.oid, on_disk).await? {
                 report.already += 1;
                 report.after += on_disk;
                 continue;
@@ -59,10 +59,14 @@ impl LocalStore {
         Ok(report)
     }
 
-    async fn is_framed(&self, path: &Path, on_disk: u64) -> Result<bool, Error> {
+    async fn is_framed(&self, path: &Path, oid: &str, on_disk: u64) -> Result<bool, Error> {
         let file = fs::File::open(path).await?;
 
-        Ok(codec::Framed::open(file, on_disk).await?.is_some())
+        Ok(
+            codec::Framed::open(file, on_disk, self.keys.as_deref(), oid)
+                .await?
+                .is_some(),
+        )
     }
 
     async fn compress_object(
@@ -76,7 +80,7 @@ impl LocalStore {
         let parent = path.parent().expect("objects live in a fanout directory");
         let staged = self.staging_path(parent, oid);
 
-        let (digest, compressed) = match self.rewrite(path, &staged, level).await {
+        let (digest, compressed) = match self.rewrite(path, &staged, oid, level).await {
             Ok(measured) => measured,
             Err(error) => {
                 let _ = fs::remove_file(&staged).await;
@@ -138,10 +142,17 @@ impl LocalStore {
         &self,
         path: &Path,
         staged: &Path,
+        oid: &str,
         level: i32,
     ) -> Result<(String, u64), Error> {
         let mut source = fs::File::open(path).await?;
-        let mut writer = codec::Writer::open(fs::File::create(staged).await?, level).await?;
+        let mut writer = codec::Writer::open(
+            fs::File::create(staged).await?,
+            Some(level),
+            self.keys.as_deref().map(crypt::Keyring::writing),
+            oid,
+        )
+        .await?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; 1024 * 1024];
 
