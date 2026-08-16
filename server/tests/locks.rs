@@ -205,3 +205,85 @@ async fn locks_can_be_looked_up_by_path() {
             .is_empty()
     );
 }
+
+async fn lock_many(app: Router, count: usize) {
+    for n in 0..count {
+        lock(app.clone(), "writer", &format!("Assets/Prop{n:03}.psd")).await;
+    }
+}
+
+#[tokio::test]
+async fn a_long_list_of_locks_is_paged_rather_than_sent_whole() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    lock_many(app.clone(), 7).await;
+
+    let first = list(app.clone(), "writer", "?limit=3").await;
+    let cursor = first["next_cursor"].as_str().unwrap().to_owned();
+    let second = list(app.clone(), "writer", &format!("?limit=3&cursor={cursor}")).await;
+
+    assert_eq!(first["locks"].as_array().unwrap().len(), 3);
+    assert_eq!(second["locks"].as_array().unwrap().len(), 3);
+    assert!(
+        !cursor.is_empty(),
+        "a client that sent a limit and got no cursor believes it has seen every lock"
+    );
+
+    let seen: Vec<_> = first["locks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(second["locks"].as_array().unwrap())
+        .map(|lock| lock["id"].as_str().unwrap())
+        .collect();
+    let mut unique = seen.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(seen.len(), unique.len(), "a walk must not repeat a lock");
+}
+
+#[tokio::test]
+async fn the_last_page_of_locks_carries_no_cursor() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    lock_many(app.clone(), 4).await;
+
+    let page = list(app, "writer", "?limit=10").await;
+
+    assert_eq!(page["locks"].as_array().unwrap().len(), 4);
+    assert!(
+        page["next_cursor"].is_null(),
+        "an absent cursor is what ends the walk: {page}"
+    );
+}
+
+#[tokio::test]
+async fn verify_pages_over_the_whole_list_so_both_sides_agree() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    lock_many(app.clone(), 5).await;
+    lock(app.clone(), "admin", "Assets/Hero.psd").await;
+
+    let page = read_json(
+        post(
+            app,
+            "writer",
+            "/FerrLabs/Blastlands/locks/verify",
+            json!({ "limit": 4 }),
+        )
+        .await,
+    )
+    .await;
+
+    let ours = page["ours"].as_array().unwrap().len();
+    let theirs = page["theirs"].as_array().unwrap().len();
+    assert_eq!(
+        ours + theirs,
+        4,
+        "the limit governs the page, not each half of it: {page}"
+    );
+    assert!(!page["next_cursor"].as_str().unwrap_or_default().is_empty());
+}

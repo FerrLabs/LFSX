@@ -13,9 +13,10 @@ use crate::metrics;
 use crate::model::{
     Actions, BatchRequest, BatchResponse, CompressRequest, CreateLockRequest, DedupeRequest,
     ListLocksQuery, ListLocksResponse, LockResponse, ObjectId, ObjectSpec, Operation,
-    RetainRequest, StatsResponse, UnlockRequest, VerifyLocksResponse,
+    RetainRequest, StatsResponse, UnlockRequest, VerifyLocksRequest, VerifyLocksResponse,
 };
 use crate::namespace::Namespace;
+use crate::page;
 use crate::range::Range;
 use crate::state::Shared;
 use crate::storage::{Budget, CompressReport, DedupeReport, SweepReport, VerifyReport};
@@ -101,9 +102,26 @@ async fn batch(
     }
 
     Ok(Json(BatchResponse {
-        transfer: "basic",
+        transfer: negotiate(&request.transfers),
         objects,
     }))
+}
+
+// The client advertises what it can speak and the server answers with one of
+// them. `basic` is the only adapter this server implements and every client
+// supports it, so the answer never changes today — but it is chosen here rather
+// than assumed, so adding an adapter is a change in one place instead of a hunt.
+fn negotiate(advertised: &[String]) -> &'static str {
+    const BASIC: &str = "basic";
+
+    if !advertised.is_empty() && !advertised.iter().any(|transfer| transfer == BASIC) {
+        tracing::debug!(
+            ?advertised,
+            "client advertised no adapter this server implements, answering basic"
+        );
+    }
+
+    BASIC
 }
 
 async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
@@ -371,7 +389,7 @@ async fn list_locks(
     Extension(ns): Extension<Namespace>,
     Query(query): Query<ListLocksQuery>,
 ) -> Result<Json<ListLocksResponse>, Error> {
-    let locks = state
+    let matching: Vec<_> = state
         .locks
         .list(&ns)
         .await?
@@ -380,9 +398,11 @@ async fn list_locks(
         .filter(|lock| query.id.as_ref().is_none_or(|id| *id == lock.id))
         .collect();
 
+    let page = page::paginate(matching, query.cursor.as_deref(), query.limit);
+
     Ok(Json(ListLocksResponse {
-        locks,
-        next_cursor: "",
+        locks: page.locks,
+        next_cursor: page.next_cursor,
     }))
 }
 
@@ -390,19 +410,26 @@ async fn verify_locks(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     headers: axum::http::HeaderMap,
+    Json(request): Json<VerifyLocksRequest>,
 ) -> Result<Json<VerifyLocksResponse>, Error> {
     let Actor(caller) = state.authorizer.actor(&headers).await?;
-    let (ours, theirs) = state
+
+    // Paginated over the whole list before it is split, so a cursor means the
+    // same position on both sides and a client walking pages sees each lock once.
+    let page = page::paginate(
+        state.locks.list(&ns).await?,
+        request.cursor.as_deref(),
+        request.limit,
+    );
+    let (ours, theirs) = page
         .locks
-        .list(&ns)
-        .await?
         .into_iter()
         .partition(|lock| lock.owner.name == caller);
 
     Ok(Json(VerifyLocksResponse {
         ours,
         theirs,
-        next_cursor: "",
+        next_cursor: page.next_cursor,
     }))
 }
 
