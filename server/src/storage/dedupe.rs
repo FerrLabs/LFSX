@@ -17,6 +17,7 @@ pub struct DedupeReport {
     pub linked: u64,
     pub reclaimed: u64,
     pub refused: u64,
+    pub incomplete: bool,
     pub dry_run: bool,
 }
 
@@ -26,22 +27,31 @@ impl LocalStore {
     // that predates deduplication keeps paying full price for every pack two
     // projects share. This folds them in, one repository at a time.
     pub async fn dedupe(&self, ns: &Namespace, dry_run: bool) -> Result<DedupeReport, Error> {
+        let walk = self.objects_of(ns).await;
         let mut report = DedupeReport {
             dry_run,
+            incomplete: !walk.complete,
             ..DedupeReport::default()
         };
 
-        let Ok(mut prefixes) = fs::read_dir(self.root.join(ns.org()).join(ns.repo())).await else {
-            return Ok(report);
-        };
+        for found in walk.objects {
+            report.inspected += 1;
+            let content = self.content_path(&found.oid);
 
-        while let Some(prefix) = prefixes.next_entry().await? {
-            let Ok(mut fanouts) = fs::read_dir(prefix.path()).await else {
+            if shares_bytes_with(&found.path, &content).await {
+                report.already_shared += 1;
                 continue;
-            };
+            }
 
-            while let Some(fanout) = fanouts.next_entry().await? {
-                self.dedupe_directory(&fanout.path(), &mut report).await?;
+            match fs::metadata(&content).await {
+                Ok(shared) => {
+                    self.adopt(&found.path, &content, &found.oid, shared.len(), &mut report)
+                        .await?
+                }
+                Err(_) => {
+                    self.promote(&found.path, &content, &found.oid, &mut report)
+                        .await?
+                }
             }
         }
 
@@ -50,42 +60,6 @@ impl LocalStore {
         }
 
         Ok(report)
-    }
-
-    async fn dedupe_directory(
-        &self,
-        directory: &Path,
-        report: &mut DedupeReport,
-    ) -> Result<(), Error> {
-        let Ok(mut entries) = fs::read_dir(directory).await else {
-            return Ok(());
-        };
-
-        while let Some(entry) = entries.next_entry().await? {
-            let oid = entry.file_name().to_string_lossy().into_owned();
-            if Self::validate_oid(&oid).is_err() {
-                continue;
-            }
-
-            report.inspected += 1;
-            let path = entry.path();
-            let content = self.content_path(&oid);
-
-            if shares_bytes_with(&path, &content).await {
-                report.already_shared += 1;
-                continue;
-            }
-
-            match fs::metadata(&content).await {
-                Ok(shared) => {
-                    self.adopt(&path, &content, &oid, shared.len(), report)
-                        .await?
-                }
-                Err(_) => self.promote(&path, &content, &oid, report).await?,
-            }
-        }
-
-        Ok(())
     }
 
     // The shared store already holds these bytes. Replacing this repository's

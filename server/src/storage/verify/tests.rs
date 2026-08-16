@@ -144,3 +144,33 @@ async fn a_repository_it_could_not_fully_read_is_not_reported_as_clean() {
     );
     assert_eq!(report.checked, 1, "and it still reports what it did read");
 }
+
+#[tokio::test]
+async fn collection_and_the_migrations_say_when_they_could_not_see_everything() {
+    let root = tempfile::tempdir().unwrap();
+    store_uncompressed(root.path(), &mesh(1024 * 1024));
+    std::fs::write(
+        root.path().join("FerrLabs/Blastlands/ff"),
+        b"a file where a fanout directory belongs",
+    )
+    .unwrap();
+    let store = LocalStore::new(root.path()).with_compression(Some(3));
+
+    let swept = store
+        .sweep(
+            &namespace(),
+            &std::collections::HashSet::new(),
+            std::time::Duration::ZERO,
+            true,
+        )
+        .await
+        .unwrap();
+    let deduped = store.dedupe(&namespace(), true).await.unwrap();
+    let compressed = store.compress(&namespace(), true).await.unwrap();
+
+    assert!(
+        swept.incomplete && deduped.incomplete && compressed.incomplete,
+        "an operator reads the report, not the log: a collection that could not list a prefix \
+         used to come back looking like it had finished"
+    );
+}

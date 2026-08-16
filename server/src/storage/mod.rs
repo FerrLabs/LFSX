@@ -6,6 +6,7 @@ pub mod s3;
 mod staging;
 mod sweep;
 mod verify;
+mod walk;
 
 #[cfg(test)]
 mod tests;

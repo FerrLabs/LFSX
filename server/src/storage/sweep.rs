@@ -15,6 +15,7 @@ pub struct SweepReport {
     pub swept: usize,
     pub bytes: u64,
     pub within_grace: usize,
+    pub incomplete: bool,
     pub dry_run: bool,
 }
 
@@ -35,24 +36,26 @@ impl LocalStore {
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
+        let walk = self.objects_of(ns).await;
         let mut report = SweepReport {
             dry_run,
+            incomplete: !walk.complete,
             ..SweepReport::default()
         };
 
-        let Ok(mut prefixes) = fs::read_dir(self.root.join(ns.org()).join(ns.repo())).await else {
-            return Ok(report);
-        };
-
-        while let Some(prefix) = prefixes.next_entry().await? {
-            let Ok(mut fanouts) = fs::read_dir(prefix.path()).await else {
+        for found in walk.objects {
+            if retained.contains(&found.oid) {
                 continue;
-            };
-
-            while let Some(fanout) = fanouts.next_entry().await? {
-                self.sweep_directory(&fanout.path(), ns, retained, grace, &mut report)
-                    .await?;
             }
+
+            let metadata = fs::metadata(&found.path).await?;
+            if age(&metadata) < grace {
+                report.within_grace += 1;
+                continue;
+            }
+
+            self.collect(&found.path, &found.oid, metadata.len(), ns, &mut report)
+                .await?;
         }
 
         if !dry_run {
@@ -60,6 +63,51 @@ impl LocalStore {
         }
 
         Ok(report)
+    }
+
+    // The bytes live once under .content, linked from each repository that holds
+    // them. Dropping this repository's link frees nothing until the last one
+    // goes, so only then is it counted as freed — and a dry run that counted
+    // otherwise would promise space it cannot deliver.
+    async fn collect(
+        &self,
+        path: &Path,
+        oid: &str,
+        held: u64,
+        ns: &Namespace,
+        report: &mut SweepReport,
+    ) -> Result<(), Error> {
+        report.swept += 1;
+
+        if report.dry_run {
+            if !self.referenced_elsewhere(oid, ns).await {
+                report.bytes += held;
+            }
+
+            return Ok(());
+        }
+
+        fs::remove_file(path).await?;
+
+        if self.referenced_elsewhere(oid, ns).await {
+            return Ok(());
+        }
+
+        let content = self.content_path(oid);
+        let size = fs::metadata(&content)
+            .await
+            .map(|shared| shared.len())
+            .unwrap_or(held);
+
+        // Count the bytes only if this call is the one that removed them. Two
+        // repositories dropping their last reference at the same time would
+        // otherwise each claim the same space, and two reports would add up to
+        // more than the disk ever held.
+        if fs::remove_file(&content).await.is_ok() {
+            report.bytes += size;
+        }
+
+        Ok(())
     }
 
     // Is this object still linked from a repository other than the one being
@@ -94,66 +142,6 @@ impl LocalStore {
         }
 
         false
-    }
-
-    async fn sweep_directory(
-        &self,
-        directory: &Path,
-        ns: &Namespace,
-        retained: &HashSet<String>,
-        grace: Duration,
-        report: &mut SweepReport,
-    ) -> Result<(), Error> {
-        let Ok(mut entries) = fs::read_dir(directory).await else {
-            return Ok(());
-        };
-
-        while let Some(entry) = entries.next_entry().await? {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if Self::validate_oid(&name).is_err() || retained.contains(&name) {
-                continue;
-            }
-
-            let metadata = entry.metadata().await?;
-            if age(&metadata) < grace {
-                report.within_grace += 1;
-                continue;
-            }
-
-            report.swept += 1;
-
-            if report.dry_run {
-                // A dry run must not count bytes another repository still holds,
-                // or it promises space it cannot free.
-                if !self.referenced_elsewhere(&name, ns).await {
-                    report.bytes += metadata.len();
-                }
-                continue;
-            }
-
-            fs::remove_file(entry.path()).await?;
-
-            // The bytes live once under .content, linked from each repository
-            // that holds them. Dropping this repository's link frees nothing
-            // until the last one goes, so only then is it counted as freed.
-            if !self.referenced_elsewhere(&name, ns).await {
-                let content = self.content_path(&name);
-                let size = fs::metadata(&content)
-                    .await
-                    .map(|content_metadata| content_metadata.len())
-                    .unwrap_or_else(|_| metadata.len());
-
-                // Count the bytes only if this call is the one that removed
-                // them. Two repositories dropping their last reference at the
-                // same time would otherwise each claim the same space, and two
-                // reports would add up to more than the disk ever held.
-                if fs::remove_file(&content).await.is_ok() {
-                    report.bytes += size;
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 
