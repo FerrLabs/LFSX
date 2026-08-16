@@ -19,6 +19,7 @@ pub struct CompressReport {
     pub refused: u64,
     pub before: u64,
     pub after: u64,
+    pub incomplete: bool,
     pub dry_run: bool,
 }
 
@@ -28,24 +29,27 @@ impl LocalStore {
     pub async fn compress(&self, ns: &Namespace, dry_run: bool) -> Result<CompressReport, Error> {
         let level = self.compression.ok_or(Error::CompressionDisabled)?;
 
+        let walk = self.objects_of(ns).await;
         let mut report = CompressReport {
             dry_run,
+            incomplete: !walk.complete,
             ..CompressReport::default()
         };
 
-        let Ok(mut prefixes) = fs::read_dir(self.root.join(ns.org()).join(ns.repo())).await else {
-            return Ok(report);
-        };
+        for found in walk.objects {
+            report.inspected += 1;
+            let on_disk = fs::metadata(&found.path).await?.len();
+            report.before += on_disk;
 
-        while let Some(prefix) = prefixes.next_entry().await? {
-            let Ok(mut fanouts) = fs::read_dir(prefix.path()).await else {
+            if self.is_framed(&found.path, on_disk).await? {
+                report.already += 1;
+                report.after += on_disk;
                 continue;
-            };
-
-            while let Some(fanout) = fanouts.next_entry().await? {
-                self.compress_directory(&fanout.path(), level, &mut report)
-                    .await?;
             }
+
+            report.after += self
+                .compress_object(&found.path, &found.oid, on_disk, level, &mut report)
+                .await?;
         }
 
         if !dry_run && report.compressed > 0 {
@@ -53,41 +57,6 @@ impl LocalStore {
         }
 
         Ok(report)
-    }
-
-    async fn compress_directory(
-        &self,
-        directory: &Path,
-        level: i32,
-        report: &mut CompressReport,
-    ) -> Result<(), Error> {
-        let Ok(mut entries) = fs::read_dir(directory).await else {
-            return Ok(());
-        };
-
-        while let Some(entry) = entries.next_entry().await? {
-            let oid = entry.file_name().to_string_lossy().into_owned();
-            if Self::validate_oid(&oid).is_err() {
-                continue;
-            }
-
-            report.inspected += 1;
-            let path = entry.path();
-            let on_disk = entry.metadata().await?.len();
-            report.before += on_disk;
-
-            if self.is_framed(&path, on_disk).await? {
-                report.already += 1;
-                report.after += on_disk;
-                continue;
-            }
-
-            report.after += self
-                .compress_object(&path, &oid, on_disk, level, report)
-                .await?;
-        }
-
-        Ok(())
     }
 
     async fn is_framed(&self, path: &Path, on_disk: u64) -> Result<bool, Error> {

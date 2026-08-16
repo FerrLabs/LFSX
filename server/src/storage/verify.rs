@@ -1,9 +1,6 @@
-use std::path::Path;
-
 use futures_util::StreamExt;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use tokio::fs;
 
 use super::LocalStore;
 use crate::error::Error;
@@ -28,85 +25,34 @@ impl LocalStore {
     // is no longer the bytes it is named after, so reading it back has to go
     // through the same path a download does.
     pub async fn verify(&self, ns: &Namespace) -> Result<VerifyReport, Error> {
-        let mut report = VerifyReport::default();
-
-        let Ok(mut prefixes) = fs::read_dir(self.root.join(ns.org()).join(ns.repo())).await else {
-            return Ok(report);
+        let walk = self.objects_of(ns).await;
+        let mut report = VerifyReport {
+            incomplete: !walk.complete,
+            ..VerifyReport::default()
         };
 
-        while let Some(prefix) = prefixes.next_entry().await? {
-            let mut fanouts = match fs::read_dir(prefix.path()).await {
-                Ok(fanouts) => fanouts,
-                Err(error) => {
-                    tracing::warn!(path = ?prefix.path(), %error, "could not be listed");
-                    report.incomplete = true;
-                    continue;
-                }
-            };
-
-            loop {
-                match fanouts.next_entry().await {
-                    Ok(Some(fanout)) => {
-                        self.verify_directory(&fanout.path(), ns, &mut report).await;
-                    }
-                    Ok(None) => break,
-                    Err(error) => {
-                        tracing::warn!(path = ?prefix.path(), %error, "listing stopped early");
-                        report.incomplete = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        Ok(report)
-    }
-
-    async fn verify_directory(&self, directory: &Path, ns: &Namespace, report: &mut VerifyReport) {
-        let mut entries = match fs::read_dir(directory).await {
-            Ok(entries) => entries,
-            Err(error) => {
-                tracing::warn!(?directory, %error, "could not be listed");
-                report.incomplete = true;
-                return;
-            }
-        };
-
-        loop {
-            let entry = match entries.next_entry().await {
-                Ok(Some(entry)) => entry,
-                Ok(None) => return,
-                Err(error) => {
-                    tracing::warn!(?directory, %error, "listing stopped early");
-                    report.incomplete = true;
-                    return;
-                }
-            };
-
-            let oid = entry.file_name().to_string_lossy().into_owned();
-            if Self::validate_oid(&oid).is_err() {
-                continue;
-            }
-
+        for found in walk.objects {
             report.checked += 1;
 
-            match self.digest_of(ns, &oid).await {
+            match self.digest_of(ns, &found.oid).await {
                 Ok((digest, read)) => {
                     report.bytes += read;
 
-                    if digest != oid {
-                        report.corrupt.push(oid);
+                    if digest != found.oid {
+                        report.corrupt.push(found.oid);
                     }
                 }
                 // A file that cannot be read is its own kind of answer, and the
                 // one a failing disk gives first. Reporting it as corrupt would
                 // send an operator looking for the wrong problem.
                 Err(error) => {
-                    tracing::warn!(oid, %error, "object could not be read");
-                    report.unreadable.push(oid);
+                    tracing::warn!(oid = found.oid, %error, "object could not be read");
+                    report.unreadable.push(found.oid);
                 }
             }
         }
+
+        Ok(report)
     }
 
     async fn digest_of(&self, ns: &Namespace, oid: &str) -> Result<(String, u64), Error> {
