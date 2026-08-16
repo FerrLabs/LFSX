@@ -14,6 +14,7 @@ use crate::namespace::Namespace;
 // what keeps two projects sharing an asset pack from paying twice, and what
 // stops a repository reading an object it never pushed: the marker is the proof
 // of possession, and it is the only thing the permission check consults.
+#[derive(Clone)]
 pub struct S3Store {
     bucket: Bucket,
     credentials: Credentials,
@@ -91,7 +92,19 @@ impl S3Store {
             return Err(Error::NotFound);
         }
 
-        Ok(response.content_length().unwrap_or_default())
+        // Read the header rather than the body length: a HEAD has no body, and
+        // asking the response how long it is answers about what was received
+        // rather than what is there.
+        response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse().ok())
+            .ok_or_else(|| {
+                Error::Storage(std::io::Error::other(
+                    "the object store gave no object size",
+                ))
+            })
     }
 
     pub async fn size_of(&self, oid: &str) -> Result<u64, Error> {
@@ -241,4 +254,4 @@ impl S3Store {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

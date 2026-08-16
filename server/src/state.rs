@@ -4,10 +4,10 @@ use crate::auth::Authorizer;
 use crate::config::Config;
 use crate::locks::LockStore;
 use crate::metrics::Metrics;
-use crate::storage::LocalStore;
+use crate::storage::Store;
 
 pub struct AppState {
-    pub store: LocalStore,
+    pub store: Store,
     pub locks: LockStore,
     pub config: Config,
     pub authorizer: Authorizer,

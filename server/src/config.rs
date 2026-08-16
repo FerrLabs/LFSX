@@ -18,7 +18,49 @@ pub struct Config {
     pub max_object_size: Option<u64>,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
+    pub storage: Storage,
     pub auth: Auth,
+}
+
+#[derive(Debug, Clone)]
+pub enum Storage {
+    Local,
+    // Endpoint, bucket and credentials all have to be there: a bucket the server
+    // cannot reach is a server that answers every push with an error, and
+    // discovering that on the first upload rather than at boot is the wrong
+    // order.
+    Bucket {
+        endpoint: String,
+        bucket: String,
+        region: String,
+        access_key: String,
+        secret_key: String,
+        path_style: bool,
+    },
+}
+
+impl Storage {
+    fn from_env() -> Self {
+        if std::env::var("LFSX_STORAGE").as_deref() != Ok("s3") {
+            return Self::Local;
+        }
+
+        let required = |name: &str| {
+            std::env::var(name)
+                .ok()
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| panic!("LFSX_STORAGE=s3 needs {name}"))
+        };
+
+        Self::Bucket {
+            endpoint: required("LFSX_S3_ENDPOINT"),
+            bucket: required("LFSX_S3_BUCKET"),
+            region: std::env::var("LFSX_S3_REGION").unwrap_or_else(|_| "us-east-1".into()),
+            access_key: required("LFSX_S3_ACCESS_KEY"),
+            secret_key: required("LFSX_S3_SECRET_KEY"),
+            path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +127,7 @@ impl Config {
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),
+            storage: Storage::from_env(),
             auth: Auth::from_env(),
         }
     }

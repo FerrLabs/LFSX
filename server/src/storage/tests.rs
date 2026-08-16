@@ -32,7 +32,7 @@ fn body(
     (stream, pulled)
 }
 
-fn staging_files(root: &std::path::Path) -> Vec<PathBuf> {
+pub(crate) fn staging_files(root: &std::path::Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let mut directories = vec![root.to_path_buf()];
 

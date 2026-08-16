@@ -93,6 +93,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         max_object_size: None,
         repo_quota: None,
         compression: None,
+        storage: lfsx_server::config::Storage::Local,
         auth: forge_auth(api_url, Duration::from_secs(60), Duration::from_secs(10)),
     }
 }

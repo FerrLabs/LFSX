@@ -10,13 +10,13 @@ use futures_util::StreamExt;
 
 use super::*;
 
-type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
+pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 
 // Enough of S3 to prove the layout and the wire format this store depends on:
 // PUT, HEAD, ranged GET and a prefix listing. The same shape as the stub forge
 // the authentication tests run against — a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
-async fn bucket() -> (String, Objects) {
+pub(crate) async fn bucket() -> (String, Objects) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
 
     let app = Router::new()
@@ -118,7 +118,7 @@ fn list(objects: &Objects, query: &str) -> Response {
         .into_response()
 }
 
-fn store(endpoint: &str) -> S3Store {
+pub(crate) fn store(endpoint: &str) -> S3Store {
     S3Store::new(&S3Config {
         endpoint: endpoint.to_owned(),
         bucket: "assets".into(),
@@ -243,7 +243,11 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
         .await
         .unwrap();
 
-    let (objects, _bytes) = store.usage_of(&namespace("Blastlands")).await;
+    let (objects, bytes) = store.usage_of(&namespace("Blastlands")).await;
 
     assert_eq!(objects, 1);
+    assert_eq!(
+        bytes, 23,
+        "the marker is empty, so the size has to come from the content it points at — counting          the marker would report a repository holding nothing"
+    );
 }
