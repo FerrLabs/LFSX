@@ -36,6 +36,11 @@ pub enum Storage {
         access_key: String,
         secret_key: String,
         path_style: bool,
+        // Whether a download is redirected to the bucket instead of streamed
+        // through this server. Off by default: the streamed path is the one
+        // that counts bytes, serves ranges and holds the ceiling, and an
+        // operator should choose to give those up rather than discover it.
+        presign: bool,
     },
 }
 
@@ -59,6 +64,7 @@ impl Storage {
             access_key: required("LFSX_S3_ACCESS_KEY"),
             secret_key: required("LFSX_S3_SECRET_KEY"),
             path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
+            presign: std::env::var("LFSX_S3_PRESIGN").as_deref() == Ok("true"),
         }
     }
 }

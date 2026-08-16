@@ -148,6 +148,7 @@ All configuration is by environment variable.
 | `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | — | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | — | credentials for it, required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
+| `LFSX_S3_PRESIGN` | `false` | `true` to redirect downloads to the bucket instead of streaming them through the server |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
@@ -548,11 +549,25 @@ hard link: it is why two projects sharing an asset pack cost the bucket once, an
 thing consulted when a repository asks for an object, so a digest cannot be guessed into someone
 else's assets.
 
-**Transfers still go through the server.** It streams to and from the bucket rather than handing out
-a redirect, which is what keeps the byte counters, the ranges, the size ceiling and the quota
-working. A download asks the bucket for exactly the range it wants, so resuming stays cheap. The
-local volume is still used, as a write buffer: an upload lands there to be hashed and checked before
-anything is sent, and is deleted once it has been.
+**Transfers go through the server by default.** It streams to and from the bucket rather than
+handing out a redirect, which is what keeps the byte counters, the ranges, the size ceiling and the
+quota working. A download asks the bucket for exactly the range it wants, so resuming stays cheap.
+The local volume is still used, as a write buffer: an upload lands there to be hashed and checked
+before anything is sent, and is deleted once it has been.
+
+**`LFSX_S3_PRESIGN=true` redirects downloads instead.** The batch response hands the client a
+pre-signed URL and the bytes never cross this server, which is what you want when the bucket is
+closer to the clients than the server is, or when the server's egress is the thing you are paying
+for. Uploads are unaffected and still stream through, because that is where the digest is checked.
+
+The permission check does not move. A signature is cut only after the marker says this repository
+holds the object, exactly as a plain download is refused without it, and the URL it signs is scoped
+to one object and expires with the action. What changes is what the server can still see:
+`lfsx_downloaded_bytes` stops counting bytes it no longer carries, and the bucket serves the ranges.
+
+This is the one case where the batch response says `"authenticated": true`, and the one case where
+it is true: see [below](#why-authentication-cannot-live-in-the-proxy) for why that field is a trap
+everywhere else.
 
 **Capacity is not reported.** `lfsx_objects_stored` and `lfsx_store_bytes` are not measured against
 a bucket: there is no cheap answer for what one holds, and building it from a full listing would cost
@@ -699,9 +714,16 @@ This is exactly what makes [rudolfs](https://github.com/jasonwhite/rudolfs) unus
 Traefik BasicAuth: it answers `"authenticated": true` with `"header": null` and offers no way to
 change that.
 
-LFSX never emits `authenticated`, so the client authenticates each transfer itself. A test pins
-the behaviour down — `batch_never_claims_the_transfer_is_pre_authenticated` — and it will fail if
-anyone reintroduces the field.
+LFSX never emits `authenticated` for a URL that points back at itself, so the client authenticates
+each transfer itself. A test pins the behaviour down —
+`batch_never_claims_a_transfer_through_this_server_is_pre_authenticated` — and it will fail if
+anyone sets the field on the ordinary path.
+
+The exception proves the rule rather than bending it. With `LFSX_S3_PRESIGN=true` the href is a
+pre-signed bucket URL, which genuinely carries its own credentials and genuinely must be called
+without an `Authorization` header — the proxy in front of this server is not even in that path. The
+field is not a claim about the server's own authentication; it is a claim about the URL, and it is
+set only when the URL was signed.
 
 Authentication therefore lives in the server, which is what the section above describes.
 

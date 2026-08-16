@@ -19,7 +19,8 @@ pub struct S3Store {
     bucket: Bucket,
     credentials: Credentials,
     client: reqwest::Client,
-    presign: Duration,
+    lifetime: Duration,
+    redirect: bool,
 }
 
 pub struct S3Config {
@@ -29,6 +30,12 @@ pub struct S3Config {
     pub access_key: String,
     pub secret_key: String,
     pub path_style: bool,
+    pub redirect: bool,
+    // How long a signature is good for. It is the same number the batch
+    // response advertises as `expires_in`, because a client told it has half an
+    // hour and handed a URL that dies in five minutes will fail a resume it had
+    // every reason to expect to work.
+    pub lifetime: Duration,
 }
 
 impl S3Store {
@@ -54,7 +61,8 @@ impl S3Store {
             bucket,
             credentials: Credentials::new(config.access_key.clone(), config.secret_key.clone()),
             client: reqwest::Client::new(),
-            presign: Duration::from_secs(1800),
+            lifetime: config.lifetime,
+            redirect: config.redirect,
         })
     }
 
@@ -86,7 +94,7 @@ impl S3Store {
     // refuse the mismatch.
     async fn head(&self, key: &str) -> Result<u64, Error> {
         let action = HeadObject::new(&self.bucket, Some(&self.credentials), key);
-        let url = action.sign(self.presign);
+        let url = action.sign(self.lifetime);
 
         let response = self.client.head(url).send().await.map_err(|_| {
             Error::Storage(std::io::Error::other("the object store is unreachable"))
@@ -136,7 +144,7 @@ impl S3Store {
 
         let key = Self::content_key(oid);
         let action = GetObject::new(&self.bucket, Some(&self.credentials), &key);
-        let url = action.sign(self.presign);
+        let url = action.sign(self.lifetime);
 
         let response = self
             .client
@@ -158,25 +166,56 @@ impl S3Store {
         Ok(response.bytes_stream())
     }
 
-    pub fn presigned_download(&self, oid: &str) -> String {
+    // A URL the client fetches from the bucket directly, so the bytes never
+    // cross this server. Whether the caller is entitled to them has already been
+    // settled by the marker before this is called: the signature is scoped to
+    // one content key and expires, and it grants nothing the batch response was
+    // not about to grant anyway.
+    pub fn presigned_download(&self, oid: &str) -> Option<String> {
+        if !self.redirect || crate::storage::LocalStore::validate_oid(oid).is_err() {
+            return None;
+        }
+
         let key = Self::content_key(oid);
 
-        GetObject::new(&self.bucket, Some(&self.credentials), &key)
-            .sign(self.presign)
-            .to_string()
+        Some(
+            GetObject::new(&self.bucket, Some(&self.credentials), &key)
+                .sign(self.lifetime)
+                .to_string(),
+        )
     }
 
-    async fn put(&self, key: &str, body: reqwest::Body) -> Result<(), Error> {
+    async fn put(&self, key: &str, body: reqwest::Body, length: u64) -> Result<(), Error> {
         let action = PutObject::new(&self.bucket, Some(&self.credentials), key);
-        let url = action.sign(self.presign);
+        let url = action.sign(self.lifetime);
 
-        let response = self.client.put(url).body(body).send().await.map_err(|_| {
-            Error::Storage(std::io::Error::other("the object store is unreachable"))
-        })?;
+        let response = self
+            .client
+            .put(url)
+            // S3 has no use for a chunked body and answers 501 rather than
+            // starting the upload. reqwest cannot infer a length from a stream,
+            // so it comes from the staging file being sent.
+            .header(reqwest::header::CONTENT_LENGTH, length)
+            .body(body)
+            .send()
+            .await
+            .map_err(|_| {
+                Error::Storage(std::io::Error::other("the object store is unreachable"))
+            })?;
 
-        response
-            .error_for_status()
-            .map_err(|error| Error::Storage(std::io::Error::other(error)))?;
+        let status = response.status();
+        if !status.is_success() {
+            // The store says why in the body, and an operator staring at a
+            // failing push has nothing else to go on: a bucket that does not
+            // exist, a key that is denied and a clock that has drifted are three
+            // different afternoons.
+            let detail = response.text().await.unwrap_or_default();
+
+            return Err(Error::Storage(std::io::Error::other(format!(
+                "the object store refused a write with {status}: {}",
+                detail.trim()
+            ))));
+        }
 
         Ok(())
     }
@@ -200,14 +239,23 @@ impl S3Store {
 
         if self.head(&Self::content_key(oid)).await.is_err() {
             let file = tokio::fs::File::open(staged).await?;
+            let length = file.metadata().await?.len();
             let stream = tokio_util::io::ReaderStream::new(file);
 
-            self.put(&Self::content_key(oid), reqwest::Body::wrap_stream(stream))
-                .await?;
+            self.put(
+                &Self::content_key(oid),
+                reqwest::Body::wrap_stream(stream),
+                length,
+            )
+            .await?;
         }
 
-        self.put(&Self::marker_key(ns, oid), reqwest::Body::from(Vec::new()))
-            .await
+        self.put(
+            &Self::marker_key(ns, oid),
+            reqwest::Body::from(Vec::new()),
+            0,
+        )
+        .await
     }
 
     // What the bucket holds for this repository, counted from its markers and
@@ -234,7 +282,7 @@ impl S3Store {
         // Every step logs what stopped it rather than returning an empty
         // listing: a capacity figure that silently reads zero is worse than one
         // that is missing, because it looks like an answer.
-        let response = match self.client.get(action.sign(self.presign)).send().await {
+        let response = match self.client.get(action.sign(self.lifetime)).send().await {
             Ok(response) => response,
             Err(error) => {
                 tracing::warn!(%error, "the object store could not be listed");

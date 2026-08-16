@@ -54,6 +54,12 @@ pub struct BatchResponse {
 pub struct ObjectSpec {
     #[serde(flatten)]
     pub id: ObjectId,
+    // Set only when the href carries its own credentials, which is true of a
+    // pre-signed bucket URL and of nothing else this server hands out. Claiming
+    // it for a URL pointing back here makes the client transfer with no
+    // credentials at all, and loop on the 401 that follows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticated: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Actions>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,6 +92,7 @@ impl ObjectSpec {
     pub fn missing(id: ObjectId) -> Self {
         Self {
             id,
+            authenticated: None,
             actions: None,
             error: Some(ObjectError {
                 code: 404,
@@ -104,6 +111,7 @@ impl ObjectSpec {
                 ),
             }),
             id,
+            authenticated: None,
             actions: None,
         }
     }
@@ -111,6 +119,7 @@ impl ObjectSpec {
     pub fn over_quota(id: ObjectId, used: u64, limit: u64) -> Self {
         Self {
             id,
+            authenticated: None,
             actions: None,
             error: Some(ObjectError {
                 code: 507,

@@ -119,6 +119,14 @@ fn list(objects: &Objects, query: &str) -> Response {
 }
 
 pub(crate) fn store(endpoint: &str) -> S3Store {
+    configured(endpoint, false)
+}
+
+pub(crate) fn redirecting(endpoint: &str) -> S3Store {
+    configured(endpoint, true)
+}
+
+fn configured(endpoint: &str, redirect: bool) -> S3Store {
     S3Store::new(&S3Config {
         endpoint: endpoint.to_owned(),
         bucket: "assets".into(),
@@ -126,6 +134,8 @@ pub(crate) fn store(endpoint: &str) -> S3Store {
         access_key: "key".into(),
         secret_key: "secret".into(),
         path_style: true,
+        redirect,
+        lifetime: Duration::from_secs(1800),
     })
     .unwrap()
 }
@@ -270,5 +280,48 @@ async fn an_object_id_that_could_not_be_one_is_refused_rather_than_slicing_into_
                 .await
                 .is_err()
         );
+    }
+}
+
+#[test]
+fn a_store_that_was_not_asked_to_redirect_hands_out_no_signature() {
+    assert!(
+        store("http://127.0.0.1:1")
+            .presigned_download(OID)
+            .is_none(),
+        "streaming through the server is what counts the bytes, serves the ranges and holds the          ceiling — giving that up is a choice an operator makes, not a default they discover"
+    );
+}
+
+#[test]
+fn a_pre_signed_url_points_at_the_shared_content_key_and_expires() {
+    let signed = redirecting("http://s3.example")
+        .presigned_download(OID)
+        .expect("a redirecting store signs");
+
+    assert!(
+        signed.contains(&format!(".content/{}/{}/{OID}", &OID[0..2], &OID[2..4])),
+        "the bytes live once, under their digest: {signed}"
+    );
+    assert!(
+        !signed.contains("FerrLabs"),
+        "the marker is this server's bookkeeping and has no business in a URL the client          resolves: {signed}"
+    );
+    assert!(signed.contains("X-Amz-Signature="), "{signed}");
+    assert!(
+        signed.contains("X-Amz-Expires=1800"),
+        "a client told the action lasts half an hour and handed a URL that dies sooner fails a          resume it had every reason to expect: {signed}"
+    );
+}
+
+#[test]
+fn an_object_id_that_could_not_be_one_is_never_signed_into_a_key() {
+    let store = redirecting("http://s3.example");
+
+    // The fanout slices the first four characters, so a short oid is a panic
+    // rather than a refusal — and a signature is handed to the client, which is
+    // the last place to discover it.
+    for short in ["", "ab", "abc", "../../etc/passwd"] {
+        assert!(store.presigned_download(short).is_none(), "{short:?}");
     }
 }
