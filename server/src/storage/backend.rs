@@ -13,7 +13,9 @@ use std::time::Duration;
 // price of the things a filesystem gave for nothing — hard links, a directory
 // walk, and a rename that is atomic. Each of those is answered here or refused
 // out loud; none of them is quietly skipped.
-pub enum Store {
+pub struct Store(Backend);
+
+enum Backend {
     Local(LocalStore),
     // Even with a bucket the local store stays, because a transfer has to land
     // somewhere before anyone can tell whether it is the object it claims to be.
@@ -27,10 +29,28 @@ pub enum Store {
 }
 
 impl Store {
+    pub fn local(store: LocalStore) -> Self {
+        Self(Backend::Local(store))
+    }
+
+    // The staging store is stripped of compression rather than trusted not to
+    // have been handed any: the two are configured independently, and what they
+    // produce together is silent. The frames would go up under the digest of the
+    // plaintext, and every download would hand the client a zstd stream it never
+    // asked for. Nothing on the far side of the upload knows to undo them —
+    // that lives in the file the local store opens, which is the one thing a
+    // bucket does not have.
+    pub fn bucket(bucket: S3Store, staging: LocalStore) -> Self {
+        Self(Backend::Bucket {
+            bucket: Box::new(bucket),
+            staging: staging.with_compression(None),
+        })
+    }
+
     fn staging(&self) -> &LocalStore {
-        match self {
-            Self::Local(store) => store,
-            Self::Bucket { staging, .. } => staging,
+        match &self.0 {
+            Backend::Local(store) => store,
+            Backend::Bucket { staging, .. } => staging,
         }
     }
 
@@ -43,16 +63,16 @@ impl Store {
     }
 
     pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
-        match self {
-            Self::Local(store) => store.exists(ns, oid).await,
-            Self::Bucket { bucket, .. } => bucket.exists(ns, oid).await,
+        match &self.0 {
+            Backend::Local(store) => store.exists(ns, oid).await,
+            Backend::Bucket { bucket, .. } => bucket.exists(ns, oid).await,
         }
     }
 
     pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
-        match self {
-            Self::Local(store) => store.open(ns, oid).await,
-            Self::Bucket { bucket, .. } => {
+        match &self.0 {
+            Backend::Local(store) => store.open(ns, oid).await,
+            Backend::Bucket { bucket, .. } => {
                 if !bucket.exists(ns, oid).await {
                     return Err(Error::NotFound);
                 }
@@ -78,9 +98,9 @@ impl Store {
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
     {
-        match self {
-            Self::Local(store) => store.write(ns, oid, expected_size, budget, chunks).await,
-            Self::Bucket { bucket, staging } => {
+        match &self.0 {
+            Backend::Local(store) => store.write(ns, oid, expected_size, budget, chunks).await,
+            Backend::Bucket { bucket, staging } => {
                 let staged = staging
                     .stage(ns, oid, expected_size, budget, chunks)
                     .await?;
@@ -102,16 +122,16 @@ impl Store {
     // dashboard that averages it, which is the one lie this seam otherwise
     // refuses to tell — everything else it cannot do answers 501.
     pub async fn capacity(&self) -> Option<(u64, u64)> {
-        match self {
-            Self::Local(store) => Some(store.usage().await),
-            Self::Bucket { .. } => None,
+        match &self.0 {
+            Backend::Local(store) => Some(store.usage().await),
+            Backend::Bucket { .. } => None,
         }
     }
 
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        match self {
-            Self::Local(store) => store.usage_of(ns).await,
-            Self::Bucket { bucket, .. } => bucket.usage_of(ns).await,
+        match &self.0 {
+            Backend::Local(store) => store.usage_of(ns).await,
+            Backend::Bucket { bucket, .. } => bucket.usage_of(ns).await,
         }
     }
 
@@ -122,39 +142,39 @@ impl Store {
         grace: std::time::Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
-        match self {
-            Self::Local(store) => store.sweep(ns, retained, grace, dry_run).await,
-            Self::Bucket { .. } => Err(Error::Unsupported(
+        match &self.0 {
+            Backend::Local(store) => store.sweep(ns, retained, grace, dry_run).await,
+            Backend::Bucket { .. } => Err(Error::Unsupported(
                 "collection is not implemented for a bucket yet",
             )),
         }
     }
 
     pub async fn dedupe(&self, ns: &Namespace, dry_run: bool) -> Result<DedupeReport, Error> {
-        match self {
-            Self::Local(store) => store.dedupe(ns, dry_run).await,
+        match &self.0 {
+            Backend::Local(store) => store.dedupe(ns, dry_run).await,
             // Content addressing already gives this: two repositories pushing the
             // same object write the same key, and each holds a marker beside it.
             // There is nothing left to fold in.
-            Self::Bucket { .. } => Err(Error::Unsupported(
+            Backend::Bucket { .. } => Err(Error::Unsupported(
                 "a bucket stores each object once already, so there is nothing to deduplicate",
             )),
         }
     }
 
     pub async fn compress(&self, ns: &Namespace, dry_run: bool) -> Result<CompressReport, Error> {
-        match self {
-            Self::Local(store) => store.compress(ns, dry_run).await,
-            Self::Bucket { .. } => Err(Error::Unsupported(
+        match &self.0 {
+            Backend::Local(store) => store.compress(ns, dry_run).await,
+            Backend::Bucket { .. } => Err(Error::Unsupported(
                 "compression is not implemented for a bucket yet",
             )),
         }
     }
 
     pub async fn verify(&self, ns: &Namespace) -> Result<VerifyReport, Error> {
-        match self {
-            Self::Local(store) => store.verify(ns).await,
-            Self::Bucket { .. } => Err(Error::Unsupported(
+        match &self.0 {
+            Backend::Local(store) => store.verify(ns).await,
+            Backend::Bucket { .. } => Err(Error::Unsupported(
                 "verification is not implemented for a bucket yet",
             )),
         }
@@ -172,18 +192,28 @@ mod tests {
         Namespace::new("FerrLabs", "Blastlands").unwrap()
     }
 
-    async fn bucket_store(root: &tempfile::TempDir, endpoint: &str) -> Store {
-        Store::Bucket {
-            bucket: Box::new(store(endpoint)),
-            staging: LocalStore::new(root.path()),
+    fn bucket_store(root: &tempfile::TempDir, endpoint: &str) -> Store {
+        Store::bucket(store(endpoint), LocalStore::new(root.path()))
+    }
+
+    async fn read_back(store: &Store, ns: &Namespace, oid: &str) -> Vec<u8> {
+        let object = store.open(ns, oid).await.unwrap();
+        let size = object.size();
+        let mut chunks = object.stream(0, size).await.unwrap();
+        let mut out = Vec::new();
+
+        while let Some(chunk) = chunks.next().await {
+            out.extend_from_slice(&chunk.unwrap());
         }
+
+        out
     }
 
     #[tokio::test]
     async fn an_upload_lands_in_the_bucket_and_reads_back_through_the_same_seam() {
         let root = tempfile::tempdir().unwrap();
         let (endpoint, _objects) = bucket().await;
-        let store = bucket_store(&root, &endpoint).await;
+        let store = bucket_store(&root, &endpoint);
         let payload = b"an asset that never touches this disk for long".repeat(32);
         let oid = hex::encode(sha2::Sha256::digest(&payload));
 
@@ -203,22 +233,53 @@ mod tests {
         assert_eq!(written, payload.len() as u64);
         assert!(store.exists(&namespace(), &oid).await);
 
-        let object = store.open(&namespace(), &oid).await.unwrap();
-        let size = object.size();
-        let mut chunks = object.stream(0, size).await.unwrap();
-        let mut out = Vec::new();
-        while let Some(chunk) = chunks.next().await {
-            out.extend_from_slice(&chunk.unwrap());
-        }
+        assert_eq!(read_back(&store, &namespace(), &oid).await, payload);
+    }
 
-        assert_eq!(out, payload);
+    // Compression and a bucket are configured independently, and a studio that
+    // turns both on gets no warning from either. What lands under the digest
+    // has to be the object, because the only thing that will ever read it back
+    // is a client that asked for those bytes by that name.
+    #[tokio::test]
+    async fn a_bucket_holds_the_object_even_when_the_server_was_told_to_compress() {
+        let root = tempfile::tempdir().unwrap();
+        let (endpoint, _objects) = bucket().await;
+        let store = Store::bucket(
+            store(&endpoint),
+            LocalStore::new(root.path()).with_compression(Some(3)),
+        );
+        let payload = b"a mesh that gives up most of its ground to zstd ".repeat(4096);
+        let oid = hex::encode(sha2::Sha256::digest(&payload));
+
+        store
+            .write(
+                &namespace(),
+                &oid,
+                Some(payload.len() as u64),
+                None,
+                futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                    payload.clone(),
+                ))]),
+            )
+            .await
+            .unwrap();
+
+        let restored = read_back(&store, &namespace(), &oid).await;
+
+        assert_eq!(
+            hex::encode(sha2::Sha256::digest(&restored)),
+            oid,
+            "the client asked for the object named by this digest and has no way to know the              server framed it on the way past: {} bytes came back",
+            restored.len()
+        );
+        assert_eq!(restored, payload);
     }
 
     #[tokio::test]
     async fn the_staging_file_does_not_outlive_the_upload() {
         let root = tempfile::tempdir().unwrap();
         let (endpoint, _objects) = bucket().await;
-        let store = bucket_store(&root, &endpoint).await;
+        let store = bucket_store(&root, &endpoint);
         let payload = b"an asset passing through".to_vec();
         let oid = hex::encode(sha2::Sha256::digest(&payload));
 
@@ -249,15 +310,11 @@ mod tests {
         let (endpoint, _objects) = bucket().await;
 
         assert!(
-            bucket_store(&root, &endpoint)
-                .await
-                .capacity()
-                .await
-                .is_none(),
+            bucket_store(&root, &endpoint).capacity().await.is_none(),
             "zero would be read as an empty store by every dashboard that averages it"
         );
         assert!(
-            Store::Local(LocalStore::new(root.path()))
+            Store::local(LocalStore::new(root.path()))
                 .capacity()
                 .await
                 .is_some()
@@ -268,7 +325,7 @@ mod tests {
     async fn the_maintenance_commands_say_they_do_not_apply_rather_than_lying() {
         let root = tempfile::tempdir().unwrap();
         let (endpoint, _objects) = bucket().await;
-        let store = bucket_store(&root, &endpoint).await;
+        let store = bucket_store(&root, &endpoint);
         let ns = namespace();
 
         for outcome in [

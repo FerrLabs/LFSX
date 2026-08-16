@@ -565,6 +565,12 @@ compression and verification are not implemented against a bucket yet and answer
 Deduplication answers `501` too, for a different reason: content addressing already stores each
 object once, so there is nothing left to fold in.
 
+**`LFSX_COMPRESSION` is ignored here**, and the server says so at startup rather than quietly
+obeying. A compressed object is only readable through the file the codec opens to find its index,
+and a bucket key is not a file the server holds. Setting both would put frames in the bucket under
+the digest of the plaintext, and every download would hand the client something that is not the
+object it asked for.
+
 ## Kubernetes
 
 A chart lives in [`chart/`](chart/) and is published to the same registry as the image:
