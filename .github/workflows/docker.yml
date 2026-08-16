@@ -52,7 +52,7 @@ jobs:
   build:
     name: Build & Push LFSX
     needs: meta
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@67e9379b88113fa45ca5aaa073c7afa46d3f29ca # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@5cbbf0fc748727ecc99bfa4596d8c59a163c7267 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
@@ -78,7 +78,7 @@ jobs:
   verify:
     name: Build without publishing
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@67e9379b88113fa45ca5aaa073c7afa46d3f29ca # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@5cbbf0fc748727ecc99bfa4596d8c59a163c7267 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: pr-${{ github.event.pull_request.number }}
