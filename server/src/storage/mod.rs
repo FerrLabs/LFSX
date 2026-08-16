@@ -1,6 +1,8 @@
+mod backend;
 mod codec;
 mod dedupe;
 mod rewrite;
+pub mod s3;
 mod staging;
 mod sweep;
 mod verify;
@@ -23,6 +25,7 @@ use tokio::io::AsyncWriteExt;
 use crate::error::Error;
 use crate::namespace::Namespace;
 
+pub use backend::Store;
 pub use dedupe::DedupeReport;
 use dedupe::shares_bytes_with;
 pub use rewrite::CompressReport;
@@ -52,10 +55,26 @@ impl Sink {
     }
 }
 
+// A transfer that has passed every check and is waiting to be put somewhere.
+pub struct Staged {
+    pub path: PathBuf,
+    destination: PathBuf,
+    pub written: u64,
+    fresh: bool,
+}
+
 // What a download reads from, whether or not the bytes on disk are the object.
 pub enum Object {
-    Raw { file: fs::File, size: u64 },
+    Raw {
+        file: fs::File,
+        size: u64,
+    },
     Framed(codec::Framed),
+    Remote {
+        bucket: s3::S3Store,
+        oid: String,
+        size: u64,
+    },
 }
 
 impl Object {
@@ -63,6 +82,7 @@ impl Object {
         match self {
             Self::Raw { size, .. } => *size,
             Self::Framed(framed) => framed.plaintext(),
+            Self::Remote { size, .. } => *size,
         }
     }
 
@@ -84,6 +104,15 @@ impl Object {
                 Ok(reader.map(|chunk| chunk.map_err(Error::from)).boxed())
             }
             Self::Framed(framed) => Ok(framed.stream(start, length).boxed()),
+            Self::Remote { bucket, oid, .. } => {
+                let chunks = bucket.read(&oid, start, length).await?;
+
+                Ok(chunks
+                    .map(|chunk| {
+                        chunk.map_err(|error| Error::Storage(std::io::Error::other(error)))
+                    })
+                    .boxed())
+            }
         }
     }
 }
@@ -207,14 +236,19 @@ impl LocalStore {
         }
     }
 
-    pub async fn write<S, E>(
+    // Everything a transfer has to survive before it counts as an object: the
+    // digest it claims, the size it declared, the ceiling on a single object and
+    // the repository's remaining budget. It ends on local disk whatever the
+    // backend is, because a bucket cannot be asked to hold bytes that might turn
+    // out to be the wrong ones.
+    pub async fn stage<S, E>(
         &self,
         ns: &Namespace,
         oid: &str,
         expected_size: Option<u64>,
         budget: Option<Budget>,
         mut chunks: S,
-    ) -> Result<u64, Error>
+    ) -> Result<Staged, Error>
     where
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
@@ -234,26 +268,74 @@ impl LocalStore {
         // A retried transfer of an object this repository already holds costs it
         // no room, so it must not count against the budget a second time.
         let fresh = fs::metadata(&path).await.is_err();
-
         let staged = self.staging_path(parent, oid);
-        let outcome = self.stream_to(&staged, budget, &mut chunks).await;
 
-        match outcome {
+        match self.stream_to(&staged, budget, &mut chunks).await {
             Ok((digest, written)) => {
-                self.finish(&staged, &path, oid, expected_size, &digest, written)
-                    .await?;
-
-                if fresh {
-                    self.stored(ns, written).await;
+                if let Err(error) = Self::agrees(oid, expected_size, &digest, written) {
+                    let _ = fs::remove_file(&staged).await;
+                    return Err(error);
                 }
 
-                Ok(written)
+                Ok(Staged {
+                    path: staged,
+                    destination: path,
+                    written,
+                    fresh,
+                })
             }
             Err(error) => {
                 let _ = fs::remove_file(&staged).await;
                 Err(error)
             }
         }
+    }
+
+    fn agrees(
+        oid: &str,
+        expected_size: Option<u64>,
+        digest: &str,
+        written: u64,
+    ) -> Result<(), Error> {
+        if let Some(declared) = expected_size.filter(|declared| *declared != written) {
+            return Err(Error::SizeMismatch {
+                declared,
+                actual: written,
+            });
+        }
+
+        if digest != oid {
+            return Err(Error::OidMismatch {
+                declared: oid.to_owned(),
+                actual: digest.to_owned(),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub async fn write<S, E>(
+        &self,
+        ns: &Namespace,
+        oid: &str,
+        expected_size: Option<u64>,
+        budget: Option<Budget>,
+        chunks: S,
+    ) -> Result<u64, Error>
+    where
+        S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        let staged = self.stage(ns, oid, expected_size, budget, chunks).await?;
+
+        self.link_or_move(&staged.path, &staged.destination, oid)
+            .await?;
+
+        if staged.fresh {
+            self.stored(ns, staged.written).await;
+        }
+
+        Ok(staged.written)
     }
 
     fn staging_path(&self, parent: &Path, oid: &str) -> PathBuf {
@@ -305,34 +387,6 @@ impl LocalStore {
         sink.finish().await?;
 
         Ok((hex::encode(hasher.finalize()), written))
-    }
-
-    async fn finish(
-        &self,
-        staged: &Path,
-        final_path: &Path,
-        oid: &str,
-        expected_size: Option<u64>,
-        digest: &str,
-        written: u64,
-    ) -> Result<(), Error> {
-        if let Some(declared) = expected_size.filter(|declared| *declared != written) {
-            let _ = fs::remove_file(staged).await;
-            return Err(Error::SizeMismatch {
-                declared,
-                actual: written,
-            });
-        }
-
-        if digest != oid {
-            let _ = fs::remove_file(staged).await;
-            return Err(Error::OidMismatch {
-                declared: oid.to_owned(),
-                actual: digest.to_owned(),
-            });
-        }
-
-        self.link_or_move(staged, final_path, oid).await
     }
 
     // One copy of the bytes under .content, and a hard link per repository that

@@ -52,9 +52,14 @@ pub fn router(state: Shared) -> Router {
 }
 
 async fn scrape(State(state): State<Shared>) -> Response {
-    let (objects, bytes) = state.store.usage().await;
-    state.metrics.objects_stored.set(objects as i64);
-    state.metrics.store_bytes.set(bytes as i64);
+    // Left untouched when the backend cannot measure itself, so the gauges keep
+    // whatever they last held rather than being pinned to a zero a dashboard
+    // would read as an empty store.
+    if let Some((objects, bytes)) = state.store.capacity().await {
+        state.metrics.objects_stored.set(objects as i64);
+        state.metrics.store_bytes.set(bytes as i64);
+    }
+
     state.metrics.store_scans.set(state.store.scans() as i64);
 
     state.metrics.render().into_response()

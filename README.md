@@ -144,6 +144,10 @@ All configuration is by environment variable.
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
+| `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume |
+| `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | — | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
+| `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | — | credentials for it, required with `LFSX_STORAGE=s3` |
+| `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
@@ -500,6 +504,42 @@ What it costs: CPU on both ends of every transfer, and an integrity check that c
 a download does. See [`docs/operations.md`](docs/operations.md). `stats`, the dashboard and
 `LFSX_REPO_QUOTA` all count bytes on disk, so a repository's figure drops when compression is on;
 that is the number an operator budgets a volume against.
+
+## Objects in a bucket
+
+`LFSX_STORAGE=s3` puts the objects in an S3-compatible bucket — MinIO, Garage, Backblaze, AWS —
+instead of on the volume, which is what unties capacity from one machine.
+
+```bash
+LFSX_STORAGE=s3
+LFSX_S3_ENDPOINT=https://s3.example.com
+LFSX_S3_BUCKET=assets
+LFSX_S3_ACCESS_KEY=…
+LFSX_S3_SECRET_KEY=…
+```
+
+**The layout is the one on disk.** The bytes live once under a key derived from their digest, and a
+repository that holds them owns an empty marker beside it. That marker is the bucket's answer to a
+hard link: it is why two projects sharing an asset pack cost the bucket once, and it is the only
+thing consulted when a repository asks for an object, so a digest cannot be guessed into someone
+else's assets.
+
+**Transfers still go through the server.** It streams to and from the bucket rather than handing out
+a redirect, which is what keeps the byte counters, the ranges, the size ceiling and the quota
+working. A download asks the bucket for exactly the range it wants, so resuming stays cheap. The
+local volume is still used, as a write buffer: an upload lands there to be hashed and checked before
+anything is sent, and is deleted once it has been.
+
+**Capacity is not reported.** `lfsx_objects_stored` and `lfsx_store_bytes` are not measured against
+a bucket: there is no cheap answer for what one holds, and building it from a full listing would cost
+a request per object on every scrape. The gauges are left alone rather than pinned to a zero a
+dashboard would average as an empty store, and the server says so at startup. Read capacity from the
+bucket itself. Per-repository figures still work, since a repository is a prefix.
+
+**Four things do not apply, and say so** rather than reporting an empty success. Collection,
+compression and verification are not implemented against a bucket yet and answer `501`.
+Deduplication answers `501` too, for a different reason: content addressing already stores each
+object once, so there is nothing left to fold in.
 
 ## Kubernetes
 
