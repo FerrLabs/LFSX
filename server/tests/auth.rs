@@ -3,10 +3,12 @@ mod common;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use common::{app, app_with_rejection_ttl, batch, credentials, forge, put};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -264,5 +266,180 @@ async fn a_rejected_token_stops_reaching_the_forge_then_recovers() {
         forge.calls.load(Ordering::SeqCst),
         2,
         "once the rejection lapses the forge is asked again, so newly granted access is picked up"
+    );
+}
+
+// Cloning a public repository pulls its LFS objects with no credentials at all,
+// everywhere else. A public project pointed at LFSX used to fail every anonymous
+// clone on a 401: CI without a token, a contributor with no credential helper,
+// anyone who just wants to read.
+fn oid_of(payload: &[u8]) -> String {
+    hex::encode(Sha256::digest(payload))
+}
+
+async fn download_from(app: Router, repo: &str, oid: &str, token: Option<&str>) -> StatusCode {
+    let mut request = Request::builder().uri(format!("/FerrLabs/{repo}/objects/{oid}"));
+    if let Some(token) = token {
+        request = request.header("authorization", credentials(token));
+    }
+
+    app.oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+        .status()
+}
+
+#[tokio::test]
+async fn a_public_repository_can_be_read_without_credentials() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let payload = b"an asset in a public project".to_vec();
+    let oid = oid_of(&payload);
+
+    let request = Request::builder()
+        .method("PUT")
+        .uri(format!("/FerrLabs/Public/objects/{oid}"))
+        .header("authorization", credentials("writer"))
+        .header("content-length", payload.len())
+        .body(Body::from(payload.clone()))
+        .unwrap();
+    assert_eq!(
+        common::app_reading_anonymously(&root, &api_url)
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        download_from(
+            common::app_reading_anonymously(&root, &api_url),
+            "Public",
+            &oid,
+            None
+        )
+        .await,
+        StatusCode::OK
+    );
+}
+
+// A private repository must answer 401 with the challenge, not 403. A 403 tells
+// git-lfs the answer will not change, so it stops asking the credential helper
+// and a user who does have access can never get in.
+#[tokio::test]
+async fn a_private_repository_still_challenges_an_anonymous_caller() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/Private/objects/{}", "a".repeat(64)))
+        .body(Body::empty())
+        .unwrap();
+    let response = common::app_reading_anonymously(&root, &api_url)
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert!(
+        response.headers().contains_key("www-authenticate"),
+        "without the challenge git-lfs never asks for a token"
+    );
+    assert!(response.headers().contains_key("lfs-authenticate"));
+}
+
+#[tokio::test]
+async fn anonymous_read_does_not_mean_anonymous_write() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let payload = b"an asset nobody signed for".to_vec();
+
+    let request = Request::builder()
+        .method("PUT")
+        .uri(format!("/FerrLabs/Public/objects/{}", oid_of(&payload)))
+        .header("content-length", payload.len())
+        .body(Body::from(payload))
+        .unwrap();
+
+    assert_eq!(
+        common::app_reading_anonymously(&root, &api_url)
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+        "a public repository grants reading, and nothing else"
+    );
+}
+
+// The two resolutions are cached under different keys, so one can never be served
+// in place of the other. Reading anonymously first must not let a token inherit
+// read-only access, nor the reverse.
+#[tokio::test]
+async fn an_anonymous_resolution_is_never_handed_to_a_token() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let payload = b"an asset both callers want".to_vec();
+    let oid = oid_of(&payload);
+
+    let app = || {
+        lfsx_server::app(lfsx_server::config::Config {
+            auth: common::anonymous_forge_auth(
+                &api_url,
+                Duration::from_secs(60),
+                Duration::from_secs(60),
+                true,
+            ),
+            ..common::config(&root, &api_url)
+        })
+    };
+
+    // Anonymous first, so the cache holds a read-only decision for this namespace.
+    assert_eq!(
+        download_from(app(), "Public", &oid, None).await,
+        StatusCode::NOT_FOUND,
+        "readable, and the object is not there yet"
+    );
+
+    let request = Request::builder()
+        .method("PUT")
+        .uri(format!("/FerrLabs/Public/objects/{oid}"))
+        .header("authorization", credentials("writer"))
+        .header("content-length", payload.len())
+        .body(Body::from(payload))
+        .unwrap();
+
+    assert_eq!(
+        app().oneshot(request).await.unwrap().status(),
+        StatusCode::OK,
+        "a writer must not inherit the anonymous caller's read-only decision"
+    );
+}
+
+// The switch, tested on the case that separates the two settings: a public
+// repository, where anonymous read would otherwise be granted. Without this the
+// option could do nothing and every test would still pass, since a private
+// repository is refused either way.
+#[tokio::test]
+async fn the_option_actually_closes_anonymous_read() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+
+    let closed = lfsx_server::app(lfsx_server::config::Config {
+        auth: common::anonymous_forge_auth(&api_url, Duration::ZERO, Duration::ZERO, false),
+        ..common::config(&root, &api_url)
+    });
+
+    let before = forge.calls.load(Ordering::SeqCst);
+    assert_eq!(
+        download_from(closed, "Public", &"a".repeat(64), None).await,
+        StatusCode::UNAUTHORIZED,
+        "with the option off a public repository is no more readable than a private one"
+    );
+    assert_eq!(
+        forge.calls.load(Ordering::SeqCst),
+        before,
+        "and the forge is not even asked: refusing outright is the old behaviour"
     );
 }

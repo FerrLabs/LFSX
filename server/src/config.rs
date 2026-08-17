@@ -84,6 +84,10 @@ pub enum Auth {
         api_url: String,
         cache_ttl: Duration,
         rejection_ttl: Duration,
+        // Whether a request with no credentials is resolved against the forge
+        // instead of refused. On by default, because that is what cloning a
+        // public repository does everywhere else.
+        anonymous_read: bool,
     },
     Disabled,
 }
@@ -223,6 +227,7 @@ impl Auth {
             api_url,
             cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
+            anonymous_read: std::env::var("LFSX_ANONYMOUS_READ").as_deref() != Ok("false"),
         }
     }
 }

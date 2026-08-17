@@ -88,6 +88,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
             api_url: api_url.to_owned(),
             cache_ttl: Duration::from_secs(60),
             rejection_ttl: Duration::from_secs(60),
+            anonymous_read: false,
         },
     })
 }
