@@ -186,6 +186,10 @@ impl LocalStore {
         self
     }
 
+    pub(super) fn keyring(&self) -> Option<&std::sync::Arc<crypt::Keyring>> {
+        self.keys.as_ref()
+    }
+
     pub fn encrypts(&self) -> bool {
         self.keys.is_some()
     }
@@ -242,7 +246,14 @@ impl LocalStore {
         let file = fs::File::open(&path).await.map_err(|_| Error::NotFound)?;
         let on_disk = file.metadata().await?.len();
 
-        match codec::Framed::open(file, on_disk, self.keys.as_deref(), oid).await? {
+        match codec::Framed::open(
+            codec::Reader::File(file),
+            on_disk,
+            self.keys.as_deref(),
+            oid,
+        )
+        .await?
+        {
             Some(framed) => Ok(Object::Framed(framed)),
             None => Ok(Object::Raw {
                 file: fs::File::open(&path).await.map_err(|_| Error::NotFound)?,

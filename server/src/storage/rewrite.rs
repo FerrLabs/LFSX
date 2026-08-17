@@ -62,11 +62,14 @@ impl LocalStore {
     async fn is_framed(&self, path: &Path, oid: &str, on_disk: u64) -> Result<bool, Error> {
         let file = fs::File::open(path).await?;
 
-        Ok(
-            codec::Framed::open(file, on_disk, self.keys.as_deref(), oid)
-                .await?
-                .is_some(),
+        Ok(codec::Framed::open(
+            codec::Reader::File(file),
+            on_disk,
+            self.keys.as_deref(),
+            oid,
         )
+        .await?
+        .is_some())
     }
 
     async fn compress_object(

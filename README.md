@@ -699,12 +699,26 @@ compression and verification are not implemented against a bucket yet and answer
 Deduplication answers `501` too, for a different reason: content addressing already stores each
 object once, so there is nothing left to fold in.
 
-**`LFSX_COMPRESSION` and `LFSX_ENCRYPTION_KEY_FILE` are ignored here**, and the server says so at
-startup rather than quietly obeying. Both formats are read through the file the codec opens to find
-its index, and a bucket key is not a file the server holds. Setting either would put frames in the
-bucket under the digest of the plaintext, and every download would hand the client something that is
-not the object it asked for. Encrypting objects that live in somebody else's bucket is the case that
-most deserves it, so this is a gap rather than a decision.
+**Compression and encryption work here too.** They were refused against a bucket at first, because a
+framed object was only readable through the file the codec opened. The codec reads from a bucket as
+well now: the header and the index are two ranged `GET`s before the first frame, which is what the
+format was shaped for. So `LFSX_COMPRESSION` and `LFSX_ENCRYPTION_KEY_FILE` mean the same thing on a
+volume and in a bucket, and encrypting into storage somebody else operates is the case that most
+deserves it.
+
+What that costs, measured against a bucket on localhost, twenty downloads each:
+
+```
+raw                       12.3 ms   1.56 MB
+compressed                 6.0 ms   1.68 MB plaintext
+compressed, but noise     12.3 ms   1.20 MB plaintext
+```
+
+A compressible asset comes out ahead: the frames save far more on the wire than two extra round trips
+cost. An already-compressed one saves nothing and still pays them, about 30% more per byte. And the
+bucket here is on localhost, so those round trips are close to free in a way they will not be across
+a WAN: on a remote bucket, expect two extra latencies per download before the first byte. If your
+store is mostly PNG and MP3, leave compression off and the objects stay raw.
 
 ## Kubernetes
 

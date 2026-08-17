@@ -45,8 +45,47 @@ const STORED: u32 = 1 << 31;
 // megabytes is about where a home upstream stops noticing either.
 pub const FRAME: u64 = 4 * 1024 * 1024;
 
+// Where a framed object is read from. Everything the format needs is three
+// positional reads before the first frame and one per frame after, which a file
+// answers with a seek and a bucket answers with a ranged GET. That is the whole
+// reason the format was built with a header and an index rather than a stream.
+pub enum Reader {
+    File(fs::File),
+    Bucket {
+        bucket: super::s3::S3Store,
+        oid: String,
+    },
+}
+
+impl Reader {
+    async fn read_at(&mut self, at: u64, length: u64) -> Result<Vec<u8>, Error> {
+        match self {
+            Self::File(file) => {
+                file.seek(SeekFrom::Start(at)).await?;
+                let mut out = vec![0u8; length as usize];
+                file.read_exact(&mut out).await?;
+
+                Ok(out)
+            }
+            Self::Bucket { bucket, oid } => {
+                use futures_util::StreamExt;
+
+                let mut chunks = Box::pin(bucket.read(oid, at, length).await?);
+                let mut out = Vec::with_capacity(length as usize);
+                while let Some(chunk) = chunks.next().await {
+                    let chunk =
+                        chunk.map_err(|error| Error::Storage(std::io::Error::other(error)))?;
+                    out.extend_from_slice(&chunk);
+                }
+
+                Ok(out)
+            }
+        }
+    }
+}
+
 pub struct Framed {
-    file: fs::File,
+    reader: Reader,
     plaintext: u64,
     frame: u64,
     frames: u32,
@@ -222,7 +261,7 @@ impl Framed {
     // to sit inside the file, and the frames have to account for exactly the
     // bytes between them.
     pub async fn open(
-        mut file: fs::File,
+        mut reader: Reader,
         on_disk: u64,
         keys: Option<&Keyring>,
         oid: &str,
@@ -231,11 +270,17 @@ impl Framed {
             return Ok(None);
         }
 
-        let mut prefix = [0u8; 32];
-        file.read_exact(&mut prefix).await?;
+        // The widest header this format has, in one read: a bucket charges a
+        // round trip for each, and sniffing must not cost two.
+        let prefix = reader
+            .read_at(0, SEALED_HEADER.min(on_disk))
+            .await
+            .unwrap_or_default();
 
-        if &prefix[0..4] != MAGIC || !matches!(prefix[4], V_PLAIN | V_SEALED) {
-            file.seek(SeekFrom::Start(0)).await?;
+        if prefix.len() < HEADER as usize
+            || &prefix[0..4] != MAGIC
+            || !matches!(prefix[4], V_PLAIN | V_SEALED)
+        {
             return Ok(None);
         }
 
@@ -250,8 +295,8 @@ impl Framed {
         if !plausible(plaintext, frame, frames)
             || index < header
             || index.saturating_add(indexed) != on_disk
+            || prefix.len() < header as usize
         {
-            file.seek(SeekFrom::Start(0)).await?;
             return Ok(None);
         }
 
@@ -259,13 +304,11 @@ impl Framed {
         // become an error rather than a reason to read it as a plain object.
         // Answering `None` here would serve the ciphertext as the object.
         let key = match version {
-            V_SEALED => Some(sealed_key(&mut file, keys).await?),
+            V_SEALED => Some(sealed_key(&prefix, keys)?),
             _ => None,
         };
 
-        file.seek(SeekFrom::Start(index)).await?;
-        let mut lengths = vec![0u8; indexed as usize];
-        file.read_exact(&mut lengths).await?;
+        let lengths = reader.read_at(index, indexed).await?;
 
         let mut offsets = Vec::with_capacity(frames as usize + 1);
         let mut stored = Vec::with_capacity(frames as usize);
@@ -279,12 +322,11 @@ impl Framed {
         }
 
         if at != index {
-            file.seek(SeekFrom::Start(0)).await?;
             return Ok(None);
         }
 
         Ok(Some(Self {
-            file,
+            reader,
             plaintext,
             frame,
             frames: frames as u32,
@@ -315,9 +357,10 @@ impl Framed {
                     return Ok(None);
                 };
 
-                framed.file.seek(SeekFrom::Start(bounds[0])).await?;
-                let mut body = vec![0u8; (bounds[1] - bounds[0]) as usize];
-                framed.file.read_exact(&mut body).await?;
+                let body = framed
+                    .reader
+                    .read_at(bounds[0], bounds[1] - bounds[0])
+                    .await?;
 
                 let plain = framed.decode(index, body)?;
 
@@ -356,16 +399,13 @@ impl Framed {
 // The header field is unauthenticated, so a wrong key id sends the reader at the
 // wrong key and the frames refuse to open. That is the right failure: it is
 // reported as tampering rather than as a bad key, which is what it is.
-async fn sealed_key(file: &mut fs::File, keys: Option<&Keyring>) -> Result<ObjectKey, Error> {
+fn sealed_key(header: &[u8], keys: Option<&Keyring>) -> Result<ObjectKey, Error> {
     let keys = keys.ok_or(Error::NotDecryptable)?;
 
-    let mut rest = [0u8; 32];
-    file.read_exact(&mut rest).await?;
-
     let mut id = [0u8; crypt::ID];
-    id.copy_from_slice(&rest[0..crypt::ID]);
+    id.copy_from_slice(&header[32..32 + crypt::ID]);
     let mut salt = [0u8; crypt::SALT];
-    salt.copy_from_slice(&rest[4..4 + crypt::SALT]);
+    salt.copy_from_slice(&header[36..36 + crypt::SALT]);
 
     keys.reading(id, salt)
 }
