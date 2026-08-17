@@ -81,6 +81,45 @@ impl Store {
         }
     }
 
+    // Where the client should PUT the object, when that is the bucket rather than
+    // this server. None for a local store and for a bucket the operator has not
+    // asked to redirect.
+    pub fn presigned_upload(&self, ns: &Namespace, oid: &str) -> Option<super::s3::Presigned> {
+        match &self.0 {
+            Backend::Local(_) => None,
+            // A client uploading straight to the bucket writes the object as it
+            // is, so a configured key would never touch it and the bucket would
+            // hold plaintext while an operator believed otherwise. Encryption is
+            // a promise about what the storage provider can read; a faster upload
+            // is not worth quietly breaking it. Those transfers keep coming
+            // through the server, which seals them.
+            Backend::Bucket { staging, .. } if staging.encrypts() => None,
+            Backend::Bucket { bucket, .. } => bucket.presigned_upload(ns, oid),
+        }
+    }
+
+    // How big an object waiting under this repository's own upload key is. None
+    // when there is nothing waiting, which is every local deployment and every
+    // client that has not used its URL.
+    pub async fn uploaded_size(&self, ns: &Namespace, oid: &str) -> Result<Option<u64>, Error> {
+        match &self.0 {
+            Backend::Local(_) => Ok(None),
+            Backend::Bucket { bucket, .. } => Ok(bucket.uploaded_size(ns, oid).await.ok()),
+        }
+    }
+
+    // Take an upload this repository made into the shared keyspace. Only reachable
+    // for a bucket, because only there does a client write anywhere this server
+    // did not.
+    pub async fn adopt(&self, ns: &Namespace, oid: &str) -> Result<(), Error> {
+        match &self.0 {
+            Backend::Local(_) => Err(Error::Unsupported(
+                "objects are written through this server, so there is nothing to adopt",
+            )),
+            Backend::Bucket { bucket, .. } => bucket.adopt(ns, oid).await,
+        }
+    }
+
     pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
         match &self.0 {
             Backend::Local(store) => store.open(ns, oid).await,

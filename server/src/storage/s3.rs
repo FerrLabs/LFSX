@@ -5,8 +5,20 @@ use futures_util::Stream;
 use rusty_s3::actions::{DeleteObject, GetObject, HeadObject, ListObjectsV2, PutObject, S3Action};
 use rusty_s3::{Bucket, Credentials, UrlStyle};
 
+use base64::Engine;
+
 use crate::error::Error;
 use crate::namespace::Namespace;
+
+const CHECKSUM: &str = "x-amz-checksum-sha256";
+const COPY_SOURCE: &str = "x-amz-copy-source";
+
+// An href a client uses directly, and the headers it has to send with it. The
+// headers are part of the signature, so they are not advice.
+pub struct Presigned {
+    pub href: String,
+    pub headers: Vec<(String, String)>,
+}
 
 // The same layout as the local store, for the same reasons. The bytes live once
 // under a key derived from their digest, and a repository that holds them owns
@@ -94,6 +106,22 @@ impl S3Store {
 
     fn content_key(oid: &str) -> String {
         format!(".content/{}/{}/{oid}", &oid[0..2], &oid[2..4])
+    }
+
+    // Where a client uploads to when the bytes never pass through this server.
+    // Per repository on purpose: the shared content key would take bytes from
+    // anyone allowed to write, and then nothing distinguishes a repository that
+    // uploaded an object from one that merely knew its digest. A key only this
+    // repository was handed a signature for is the proof of possession that the
+    // marker stands for everywhere else.
+    fn incoming_key(ns: &Namespace, oid: &str) -> String {
+        format!(
+            ".incoming/{}/{}/{}/{}/{oid}",
+            ns.org(),
+            ns.repo(),
+            &oid[0..2],
+            &oid[2..4]
+        )
     }
 
     fn marker_key(ns: &Namespace, oid: &str) -> String {
@@ -207,6 +235,93 @@ impl S3Store {
                 .sign(self.lifetime)
                 .to_string(),
         )
+    }
+
+    // A URL the client PUTs the object to, and the headers it has to send with
+    // it. The digest is bound into the signature, so the store refuses anything
+    // that does not hash to the object it was signed for: a client with this URL
+    // cannot put arbitrary bytes anywhere, which is what makes handing one out
+    // safe at all.
+    pub fn presigned_upload(&self, ns: &Namespace, oid: &str) -> Option<Presigned> {
+        if !self.redirect || crate::storage::LocalStore::validate_oid(oid).is_err() {
+            return None;
+        }
+
+        let digest = base64::engine::general_purpose::STANDARD.encode(hex::decode(oid).ok()?);
+        let key = Self::incoming_key(ns, oid);
+        let mut action = PutObject::new(&self.bucket, Some(&self.credentials), &key);
+        action
+            .headers_mut()
+            .insert(CHECKSUM, std::borrow::Cow::Owned(digest.clone()));
+
+        Some(Presigned {
+            href: action.sign(self.lifetime).to_string(),
+            headers: vec![(CHECKSUM.to_owned(), digest)],
+        })
+    }
+
+    // How big the object a client uploaded actually is, which is the first thing
+    // this server learns about it: nothing measured the bytes on the way past.
+    pub async fn uploaded_size(&self, ns: &Namespace, oid: &str) -> Result<u64, Error> {
+        crate::storage::LocalStore::validate_oid(oid)?;
+
+        self.head(&Self::incoming_key(ns, oid)).await
+    }
+
+    // Take an upload that landed under this repository's own key into the shared
+    // keyspace. The bytes are already known to hash to the oid, because the store
+    // refused everything else.
+    pub async fn adopt(&self, ns: &Namespace, oid: &str) -> Result<(), Error> {
+        crate::storage::LocalStore::validate_oid(oid)?;
+
+        let incoming = Self::incoming_key(ns, oid);
+        let content = Self::content_key(oid);
+
+        // Already there means another repository pushed the same object, and the
+        // bytes are identical by construction.
+        if self.head(&content).await.is_err() {
+            self.copy(&incoming, &content).await?;
+        }
+
+        self.put(
+            &Self::marker_key(ns, oid),
+            reqwest::Body::from(Vec::new()),
+            0,
+        )
+        .await?;
+
+        // Leaving it would pay for the object twice. A failure here is not worth
+        // failing the push over: the object is adopted, and what is left is a key
+        // the operator can see.
+        if let Err(error) = self.delete(&incoming).await {
+            tracing::warn!(%error, key = incoming, "an adopted upload could not be cleaned up");
+        }
+
+        Ok(())
+    }
+
+    // A copy is a PUT to the destination carrying `x-amz-copy-source`, so this is
+    // a signed PutObject with that header bound rather than a separate action.
+    // The bytes move inside the store: nothing crosses this server.
+    async fn copy(&self, from: &str, to: &str) -> Result<(), Error> {
+        let source = format!("/{}/{from}", self.bucket.name());
+        let mut action = PutObject::new(&self.bucket, Some(&self.credentials), to);
+        action
+            .headers_mut()
+            .insert(COPY_SOURCE, std::borrow::Cow::Owned(source.clone()));
+
+        let response = self
+            .client
+            .put(action.sign(self.lifetime))
+            .header(COPY_SOURCE, source)
+            .header(reqwest::header::CONTENT_LENGTH, 0)
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        self.expect_success(response, "copy").await?;
+
+        Ok(())
     }
 
     async fn put(&self, key: &str, body: reqwest::Body, length: u64) -> Result<(), Error> {

@@ -646,3 +646,212 @@ async fn a_range_over_a_framed_object_in_a_bucket_lands() {
         payload[5_000_000..5_004_096]
     );
 }
+
+// The whole flow: negotiate, PUT straight to the bucket with the headers the
+// server signed, then report back so the object becomes this repository's.
+async fn negotiate_upload(app: Router, repo: &str, oid: &str, size: usize) -> serde_json::Value {
+    let body = serde_json::json!({
+        "operation": "upload",
+        "transfers": ["basic"],
+        "objects": [{ "oid": oid, "size": size }]
+    });
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/batch"))
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+async fn report(app: Router, repo: &str, oid: &str, size: usize) -> StatusCode {
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/verify"))
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(
+            serde_json::json!({ "oid": oid, "size": size }).to_string(),
+        ))
+        .unwrap();
+
+    app.oneshot(request).await.unwrap().status()
+}
+
+async fn put_signed(action: &serde_json::Value, body: Vec<u8>) -> reqwest::StatusCode {
+    let mut request = reqwest::Client::new()
+        .put(action["href"].as_str().unwrap())
+        .header("content-length", body.len());
+
+    for (name, value) in action["header"].as_object().unwrap() {
+        request = request.header(name, value.as_str().unwrap());
+    }
+
+    request.body(body).send().await.unwrap().status()
+}
+
+async fn download(app: Router, repo: &str, oid: &str) -> axum::response::Response {
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/objects/{oid}"))
+        .body(Body::empty())
+        .unwrap();
+
+    app.oneshot(request).await.unwrap()
+}
+
+#[tokio::test]
+async fn a_client_uploads_straight_to_the_bucket_and_then_owns_the_object() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("a presigned upload");
+    let oid = oid_of(&payload);
+    let repo = repository("Direct");
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &repo, &oid, payload.len()).await;
+    assert_eq!(
+        answer["objects"][0]["authenticated"],
+        serde_json::json!(true)
+    );
+    let action = &answer["objects"][0]["actions"]["upload"];
+    assert!(
+        action["header"]["x-amz-checksum-sha256"].is_string(),
+        "the digest has to travel as a header the store will check: {answer}"
+    );
+
+    assert!(put_signed(action, payload.clone()).await.is_success());
+
+    assert_eq!(
+        download(app(&root, &bucket, true), &repo, &oid)
+            .await
+            .status(),
+        StatusCode::NOT_FOUND,
+        "an upload nobody has reported is not yet this repository's"
+    );
+
+    assert_eq!(
+        report(app(&root, &bucket, true), &repo, &oid, payload.len()).await,
+        StatusCode::OK
+    );
+
+    let response = download(app(&root, &bucket, true), &repo, &oid).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        oid_of(
+            &axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+        ),
+        oid
+    );
+}
+
+// The reason the digest is bound into the signature rather than trusted. Without
+// it a client holding an upload URL could put anything under a key the server
+// will later adopt as the object it is named after.
+#[tokio::test]
+async fn the_store_refuses_bytes_that_are_not_the_object() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("the object it claims");
+    let oid = oid_of(&payload);
+    let repo = repository("Wrong");
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &repo, &oid, payload.len()).await;
+    let action = &answer["objects"][0]["actions"]["upload"];
+
+    let refused = put_signed(action, b"something else entirely".to_vec()).await;
+
+    assert!(
+        refused.is_client_error(),
+        "the store took bytes that do not hash to the digest the URL was signed for, so a          pre-signed upload could not be trusted to hold the object: {refused}"
+    );
+    assert_eq!(
+        report(app(&root, &bucket, true), &repo, &oid, payload.len()).await,
+        StatusCode::NOT_FOUND,
+        "and nothing arrived, so there is nothing to adopt"
+    );
+}
+
+// Possession is the invariant the marker stands for everywhere else. A repository
+// that knows a digest and nothing more must not come to hold the object: a leaked
+// pointer file is exactly that much knowledge.
+#[tokio::test]
+async fn knowing_a_digest_is_not_holding_the_object() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("somebody elses asset");
+    let oid = oid_of(&payload);
+    let (owner, stranger) = (repository("Owner"), repository("Stranger"));
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &owner, &oid, payload.len()).await;
+    put_signed(&answer["objects"][0]["actions"]["upload"], payload.clone()).await;
+    report(app(&root, &bucket, true), &owner, &oid, payload.len()).await;
+
+    assert_eq!(
+        report(app(&root, &bucket, true), &stranger, &oid, payload.len()).await,
+        StatusCode::NOT_FOUND,
+        "the bytes are in the shared keyspace, and that must not be enough: without an upload of          its own this repository has no claim on them"
+    );
+    assert_eq!(
+        download(app(&root, &bucket, true), &stranger, &oid)
+            .await
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+// Nothing measured these bytes on the way past, so the size the client declared
+// is checked against what actually arrived before the object is adopted.
+#[tokio::test]
+async fn a_declared_size_that_does_not_match_what_arrived_is_refused() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("a misdeclared object");
+    let oid = oid_of(&payload);
+    let repo = repository("Misdeclared");
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &repo, &oid, payload.len()).await;
+    put_signed(&answer["objects"][0]["actions"]["upload"], payload.clone()).await;
+
+    assert_eq!(
+        report(app(&root, &bucket, true), &repo, &oid, payload.len() - 1).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "the declared size is a claim, and this is the only place left to check it"
+    );
+}
+
+// The guarantee encryption makes is about what the storage provider can read, and
+// an object the client writes itself arrives as it is. So a keyed server keeps
+// carrying uploads rather than handing out a URL that would put plaintext in
+// somebody else's bucket.
+#[tokio::test]
+async fn a_keyed_server_does_not_hand_out_upload_urls() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("an object that must not go up in the clear");
+    let oid = oid_of(&payload);
+    let repo = repository("Keyed");
+
+    let keyed = built(&root, &bucket, true, None, None, true);
+    let answer = negotiate_upload(keyed, &repo, &oid, payload.len()).await;
+    let action = &answer["objects"][0]["actions"]["upload"];
+
+    assert!(
+        action["header"].is_null(),
+        "a signed upload URL would let the client write the object unencrypted: {answer}"
+    );
+    assert!(
+        action["href"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://lfs.example"),
+        "the upload has to come back through this server, which seals it: {answer}"
+    );
+    assert!(answer["objects"][0]["authenticated"].is_null());
+}
