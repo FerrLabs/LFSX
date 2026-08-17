@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.0] - 2026-08-17
+
+### Features
+
+- feat(auth): let anyone read a repository the forge serves publicly (#124)
+
 ## [0.37.0] - 2026-08-17
 
 ### Features
