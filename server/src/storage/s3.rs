@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use futures_util::Stream;
-use rusty_s3::actions::{GetObject, HeadObject, ListObjectsV2, PutObject, S3Action};
+use rusty_s3::actions::{DeleteObject, GetObject, HeadObject, ListObjectsV2, PutObject, S3Action};
 use rusty_s3::{Bucket, Credentials, UrlStyle};
 
 use crate::error::Error;
@@ -14,6 +14,10 @@ use crate::namespace::Namespace;
 // what keeps two projects sharing an asset pack from paying twice, and what
 // stops a repository reading an object it never pushed: the marker is the proof
 // of possession, and it is the only thing the permission check consults.
+fn unreachable_store() -> Error {
+    Error::Storage(std::io::Error::other("the object store is unreachable"))
+}
+
 #[derive(Clone)]
 pub struct S3Store {
     bucket: Bucket,
@@ -258,6 +262,146 @@ impl S3Store {
             0,
         )
         .await
+    }
+
+    // Everything below is the bucket as a keyspace rather than as an object
+    // store: whole small values, written, read, deleted and listed by key. The
+    // lock store is built on it, and it is kept here so the signing and the
+    // client stay in one place.
+
+    // The mutual exclusion `create_new` gives on a filesystem, asked of S3.
+    // `If-None-Match: *` is a conditional write: the store itself decides who
+    // arrived first, and answers 412 to everyone after. Without it two replicas
+    // sharing a bucket would each believe they took the lock.
+    //
+    // The header is bound into the signature and sent alongside, so a store that
+    // ignores conditional writes cannot silently accept both.
+    pub(crate) async fn put_if_absent(&self, key: &str, body: Vec<u8>) -> Result<bool, Error> {
+        let mut action = PutObject::new(&self.bucket, Some(&self.credentials), key);
+        action.headers_mut().insert("if-none-match", "*");
+        let url = action.sign(self.lifetime);
+
+        let length = body.len();
+        let response = self
+            .client
+            .put(url)
+            .header("if-none-match", "*")
+            .header(reqwest::header::CONTENT_LENGTH, length)
+            .body(body)
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        if response.status() == reqwest::StatusCode::PRECONDITION_FAILED {
+            return Ok(false);
+        }
+
+        self.expect_success(response, "write").await?;
+
+        Ok(true)
+    }
+
+    pub(crate) async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
+        let action = GetObject::new(&self.bucket, Some(&self.credentials), key);
+        let response = self
+            .client
+            .get(action.sign(self.lifetime))
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let response = self.expect_success(response, "read").await?;
+
+        response
+            .bytes()
+            .await
+            .map(|bytes| Some(bytes.to_vec()))
+            .map_err(|_| unreachable_store())
+    }
+
+    pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {
+        // S3 answers 204 whether or not the key was there, so whether this
+        // removed anything is settled before asking.
+        let existed = self.head(key).await.is_ok();
+
+        let action = DeleteObject::new(&self.bucket, Some(&self.credentials), key);
+        let response = self
+            .client
+            .delete(action.sign(self.lifetime))
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        self.expect_success(response, "delete").await?;
+
+        Ok(existed)
+    }
+
+    // Every key under a prefix, following the continuation token to the end.
+    // Stopping at the first page would report a repository holding a thousand
+    // locks as holding a thousand and none of the rest, and a lock nobody can
+    // see is a lock nobody respects.
+    pub(crate) async fn keys(&self, prefix: &str) -> Result<Vec<String>, Error> {
+        let mut out = Vec::new();
+        let mut token: Option<String> = None;
+
+        loop {
+            let mut action = ListObjectsV2::new(&self.bucket, Some(&self.credentials));
+            action.with_prefix(prefix);
+            if let Some(token) = &token {
+                action.with_continuation_token(token);
+            }
+
+            let response = self
+                .client
+                .get(action.sign(self.lifetime))
+                .send()
+                .await
+                .map_err(|_| unreachable_store())?;
+            let body = self
+                .expect_success(response, "list")
+                .await?
+                .text()
+                .await
+                .map_err(|_| unreachable_store())?;
+
+            let listing = ListObjectsV2::parse_response(&body).map_err(|error| {
+                Error::Storage(std::io::Error::other(format!(
+                    "the object store sent a listing this server could not read: {error}"
+                )))
+            })?;
+
+            out.extend(listing.contents.into_iter().map(|object| object.key));
+
+            match listing.next_continuation_token {
+                Some(next) => token = Some(next),
+                None => break,
+            }
+        }
+
+        Ok(out)
+    }
+
+    async fn expect_success(
+        &self,
+        response: reqwest::Response,
+        what: &str,
+    ) -> Result<reqwest::Response, Error> {
+        let status = response.status();
+        if status.is_success() {
+            return Ok(response);
+        }
+
+        let detail = response.text().await.unwrap_or_default();
+
+        Err(Error::Storage(std::io::Error::other(format!(
+            "the object store refused a {what} with {status}: {}",
+            detail.trim()
+        ))))
     }
 
     // What the bucket holds for this repository, counted from its markers and

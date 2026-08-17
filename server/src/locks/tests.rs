@@ -7,7 +7,7 @@ fn namespace() -> Namespace {
 #[tokio::test]
 async fn a_lock_survives_a_round_trip_through_the_store() {
     let root = tempfile::tempdir().unwrap();
-    let locks = LockStore::new(root.path());
+    let locks = LockStore::local(root.path());
     let ns = namespace();
 
     let created = locks
@@ -23,7 +23,7 @@ async fn a_lock_survives_a_round_trip_through_the_store() {
 #[tokio::test]
 async fn taking_a_held_lock_fails_and_reports_who_holds_it() {
     let root = tempfile::tempdir().unwrap();
-    let locks = LockStore::new(root.path());
+    let locks = LockStore::local(root.path());
     let ns = namespace();
     locks
         .create(&ns, "Assets/Scenes/Arena.unity", "jane")
@@ -44,7 +44,7 @@ async fn taking_a_held_lock_fails_and_reports_who_holds_it() {
 #[tokio::test]
 async fn locks_are_scoped_to_their_repository() {
     let root = tempfile::tempdir().unwrap();
-    let locks = LockStore::new(root.path());
+    let locks = LockStore::local(root.path());
     let elsewhere = Namespace::new("FerrLabs", "RogueLite").unwrap();
     locks
         .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
@@ -63,7 +63,7 @@ async fn locks_are_scoped_to_their_repository() {
 #[tokio::test]
 async fn removing_a_lock_frees_the_path() {
     let root = tempfile::tempdir().unwrap();
-    let locks = LockStore::new(root.path());
+    let locks = LockStore::local(root.path());
     let ns = namespace();
     let lock = locks
         .create(&ns, "Assets/Art/Hero.psd", "jane")
@@ -82,7 +82,7 @@ async fn removing_a_lock_frees_the_path() {
 #[tokio::test]
 async fn removing_something_that_is_not_a_lock_is_reported_as_missing() {
     let root = tempfile::tempdir().unwrap();
-    let locks = LockStore::new(root.path());
+    let locks = LockStore::local(root.path());
 
     assert!(matches!(
         locks.remove(&namespace(), "not-an-id").await,
