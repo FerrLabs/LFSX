@@ -62,6 +62,10 @@ impl LockStore {
         self
     }
 
+    pub fn max_age(&self) -> Option<Duration> {
+        self.max_age
+    }
+
     // How long a lock has gone untouched, once it is past the age an operator
     // said was too long. None while it is still somebody's.
     pub fn stale_for(&self, lock: &Lock) -> Option<Duration> {

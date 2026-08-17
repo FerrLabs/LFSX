@@ -14,6 +14,26 @@ use crate::namespace::Namespace;
 // what keeps two projects sharing an asset pack from paying twice, and what
 // stops a repository reading an object it never pushed: the marker is the proof
 // of possession, and it is the only thing the permission check consults.
+// A conditional write that is refused makes the store answer and hang up, and
+// the connection goes back into the pool looking usable. The next request on it
+// fails at the transport layer with nothing to do with the store's health, which
+// is how a losing `git lfs lock` came back as a 500 instead of a 409.
+//
+// Retried once, and only for requests that carry no body: a GET and a HEAD can be
+// repeated with no consequence, so a dead connection costs a round trip rather
+// than an error. A PUT is not retried here.
+async fn read_retrying(request: reqwest::RequestBuilder) -> Result<reqwest::Response, Error> {
+    let retry = request.try_clone();
+
+    match request.send().await {
+        Ok(response) => Ok(response),
+        Err(_) => match retry {
+            Some(retry) => retry.send().await.map_err(|_| unreachable_store()),
+            None => Err(unreachable_store()),
+        },
+    }
+}
+
 fn unreachable_store() -> Error {
     Error::Storage(std::io::Error::other("the object store is unreachable"))
 }
@@ -102,9 +122,7 @@ impl S3Store {
         let action = HeadObject::new(&self.bucket, Some(&self.credentials), key);
         let url = action.sign(self.lifetime);
 
-        let response = self.client.head(url).send().await.map_err(|_| {
-            Error::Storage(std::io::Error::other("the object store is unreachable"))
-        })?;
+        let response = read_retrying(self.client.head(url)).await?;
 
         if !response.status().is_success() {
             return Err(Error::NotFound);
@@ -303,12 +321,7 @@ impl S3Store {
 
     pub(crate) async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
         let action = GetObject::new(&self.bucket, Some(&self.credentials), key);
-        let response = self
-            .client
-            .get(action.sign(self.lifetime))
-            .send()
-            .await
-            .map_err(|_| unreachable_store())?;
+        let response = read_retrying(self.client.get(action.sign(self.lifetime))).await?;
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
@@ -356,12 +369,7 @@ impl S3Store {
                 action.with_continuation_token(token);
             }
 
-            let response = self
-                .client
-                .get(action.sign(self.lifetime))
-                .send()
-                .await
-                .map_err(|_| unreachable_store())?;
+            let response = read_retrying(self.client.get(action.sign(self.lifetime))).await?;
             let body = self
                 .expect_success(response, "list")
                 .await?

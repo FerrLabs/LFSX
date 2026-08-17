@@ -92,3 +92,10 @@ fn a_stale_lock_says_how_long_it_has_been_and_that_anyone_can_take_it() {
         "with no expiry configured nothing is stale, however old"
     );
 }
+
+#[test]
+fn an_age_below_a_minute_is_said_in_seconds() {
+    assert_eq!(human_age(Duration::from_secs(40)), "40 seconds");
+    assert_eq!(human_age(Duration::from_secs(1)), "1 second");
+    assert_eq!(human_age(Duration::from_secs(90)), "1 minute");
+}

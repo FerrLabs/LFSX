@@ -95,7 +95,10 @@ fn human_age(age: Duration) -> String {
         s if s >= 7 * DAY => (s / (7 * DAY), "week"),
         s if s >= DAY => (s / DAY, "day"),
         s if s >= HOUR => (s / HOUR, "hour"),
-        s => (s / MINUTE, "minute"),
+        s if s >= MINUTE => (s / MINUTE, "minute"),
+        // A short ceiling is a strange thing to configure, but "untouched for 0
+        // minutes" is a strange thing to print.
+        s => (s, "second"),
     };
 
     format!("{count} {unit}{}", if count == 1 { "" } else { "s" })

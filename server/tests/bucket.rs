@@ -55,6 +55,15 @@ macro_rules! bucket_or_skip {
 }
 
 fn app(root: &tempfile::TempDir, bucket: &Bucket, presign: bool) -> Router {
+    expiring(root, bucket, presign, None)
+}
+
+fn expiring(
+    root: &tempfile::TempDir,
+    bucket: &Bucket,
+    presign: bool,
+    lock_max_age: Option<Duration>,
+) -> Router {
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: root.path().to_path_buf(),
@@ -62,7 +71,7 @@ fn app(root: &tempfile::TempDir, bucket: &Bucket, presign: bool) -> Router {
         action_lifetime: 1800,
         gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
         staging_max_age: Duration::from_secs(86400),
-        lock_max_age: None,
+        lock_max_age,
         max_object_size: None,
         repo_quota: None,
         compression: None,
@@ -324,7 +333,7 @@ async fn a_lock_taken_on_one_replica_is_refused_on_the_other() {
     assert_eq!(
         again,
         StatusCode::CONFLICT,
-        "the second replica handed out a scene the first had already given away, which is two          artists editing the same file and one of them losing the afternoon"
+        "the second replica handed out a scene the first had already given away, which is two          artists editing the same file and one of them losing the afternoon: {body}"
     );
     assert_eq!(body["lock"]["path"], path.as_str());
 }
@@ -387,11 +396,50 @@ async fn the_store_itself_refuses_the_second_writer() {
     let path = scene("conditional");
 
     let (first, _) = lock(one, "Conditional", &path).await;
-    let (second, _) = lock(two, "Conditional", &path).await;
+    let (second, complaint) = lock(two, "Conditional", &path).await;
 
     assert_eq!(
         (first, second),
         (StatusCode::CREATED, StatusCode::CONFLICT),
-        "both replicas were told they hold it, so the bucket is not honouring `If-None-Match: *`"
+        "both replicas were told they hold it, so the bucket is not honouring `If-None-Match: *`:          {complaint}"
     );
+}
+
+// The setting reached the local lock store and not the bucket one, and every
+// test here passed because this file always configured it off. A deployment with
+// `LFSX_STORAGE=s3` got a dead takeover path and a page that tinted locks as
+// takeable which the server then refused forever.
+//
+// A one-second ceiling and a wait, rather than reaching into the bucket to
+// rewrite the stored claim: the server writes the lock, reads it back and decides,
+// which is the path that was broken.
+#[tokio::test]
+async fn a_maximum_lock_age_applies_to_a_bucket_too() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let second = Duration::from_secs(1);
+    let path = scene("expiring");
+
+    let expiring = || expiring(&root, &bucket, false, Some(second));
+
+    assert_eq!(
+        lock(expiring(), "Expiring", &path).await.0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        lock(expiring(), "Expiring", &path).await.0,
+        StatusCode::CONFLICT,
+        "still fresh, so still the first caller's"
+    );
+
+    tokio::time::sleep(second + Duration::from_millis(300)).await;
+
+    let (taken, body) = lock(expiring(), "Expiring", &path).await;
+
+    assert_eq!(
+        taken,
+        StatusCode::CREATED,
+        "the ceiling has to hold wherever the locks live, or the page tints a lock as takeable          and the server refuses it forever"
+    );
+    assert_eq!(body["lock"]["path"], path.as_str());
 }

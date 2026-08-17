@@ -499,7 +499,9 @@ async fn overview(
         objects,
         bytes,
         locks: state.locks.list(&ns).await?,
-        lock_max_age: state.config.lock_max_age,
+        // Asked of the store rather than the config, so the page cannot tint a
+        // lock as takeable that the store would refuse to hand over.
+        lock_max_age: state.locks.max_age(),
         writable: permission.require_write().is_ok(),
     });
 
