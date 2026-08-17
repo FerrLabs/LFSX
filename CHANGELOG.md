@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.34.2] - 2026-08-17
+
+### Bug Fixes
+
+- fix(auth): tell a client how long to wait when the forge is throttling us (#118)
+
 ## [0.34.1] - 2026-08-17
 
 ### Bug Fixes
