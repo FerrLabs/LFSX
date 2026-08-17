@@ -162,8 +162,8 @@ async fn a_throttled_gitlab_is_an_outage_not_a_denial() {
 
     assert_eq!(
         upload(app(&root, &api_url), "throttled").await,
-        StatusCode::BAD_GATEWAY,
-        "GitLab answers 429 where GitHub answers 403, and both mean retry rather than denied"
+        StatusCode::SERVICE_UNAVAILABLE,
+        "GitLab answers 429 where GitHub answers 403, and both mean wait rather than denied"
     );
 }
 

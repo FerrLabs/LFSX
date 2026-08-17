@@ -48,9 +48,11 @@ pub async fn permission(
     match response.status() {
         StatusCode::OK => {}
         StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
-        StatusCode::FORBIDDEN if rate_limited(&response) => {
-            tracing::warn!(%url, "forge rate limit hit while resolving permissions");
-            return Err(Error::Forge);
+        StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
+            if let Some(retry_after) = super::backoff::rate_limited(&response) =>
+        {
+            tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
+            return Err(Error::RateLimited { retry_after });
         }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
         status => {
@@ -90,7 +92,12 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
     match response.status() {
         StatusCode::OK => {}
         StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
-        StatusCode::FORBIDDEN if rate_limited(&response) => return Err(Error::Forge),
+        StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
+            if let Some(retry_after) = super::backoff::rate_limited(&response) =>
+        {
+            tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
+            return Err(Error::RateLimited { retry_after });
+        }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
         status => {
             tracing::warn!(%status, %url, "unexpected forge response");
@@ -106,12 +113,4 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
             tracing::warn!(%error, %url, "forge response could not be parsed");
             Error::Forge
         })
-}
-
-fn rate_limited(response: &reqwest::Response) -> bool {
-    let headers = response.headers();
-    headers.contains_key("retry-after")
-        || headers
-            .get("x-ratelimit-remaining")
-            .is_some_and(|remaining| remaining.as_bytes() == b"0")
 }

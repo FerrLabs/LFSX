@@ -1,3 +1,4 @@
+mod backoff;
 mod cache;
 mod credentials;
 mod github;

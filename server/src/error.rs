@@ -50,6 +50,13 @@ pub enum Error {
     #[error("the forge could not be reached to check permissions")]
     Forge,
 
+    // Distinct from `Forge` on purpose. A throttled forge is not a broken one:
+    // it is working, it has said when to come back, and the answer has to carry
+    // that so a client waits instead of spending the next request on the same
+    // exhausted quota.
+    #[error("the forge is rate-limiting this server — retry in {retry_after} seconds")]
+    RateLimited { retry_after: u64 },
+
     #[error("lock path must not be empty")]
     MalformedLockPath,
 
@@ -93,6 +100,9 @@ impl Error {
             Self::LockHeld(_) => StatusCode::CONFLICT,
             Self::NotFound | Self::LockNotFound => StatusCode::NOT_FOUND,
             Self::Forge => StatusCode::BAD_GATEWAY,
+            // Not 502: a bad gateway invites an immediate retry, which is the
+            // one thing that must not happen here.
+            Self::RateLimited { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Self::Storage(_) | Self::Serialisation(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -117,6 +127,9 @@ impl Error {
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::Forge => "forge_unreachable",
+            // "the forge is throttling us" and "the forge is broken" are
+            // different afternoons, and sharing one label hides which.
+            Self::RateLimited { .. } => "forge_rate_limited",
             Self::LockHeld(_) => "lock_held",
             Self::LockNotFound => "lock_not_found",
             Self::NotFound => "not_found",
@@ -133,6 +146,17 @@ impl IntoResponse for Error {
 
         if status.is_server_error() {
             tracing::error!(error = %self, "request failed");
+        }
+
+        if let Self::RateLimited { retry_after } = &self {
+            let mut response = (
+                status,
+                [(header::RETRY_AFTER, retry_after.to_string())],
+                Json(json!({ "message": self.to_string() })),
+            )
+                .into_response();
+            response.extensions_mut().insert(cause);
+            return response;
         }
 
         if let Self::LockHeld(lock) = &self {

@@ -193,8 +193,40 @@ async fn a_rate_limited_forge_is_an_outage_not_a_denial() {
 
     assert_eq!(
         response.status(),
-        StatusCode::BAD_GATEWAY,
-        "a rate-limited forge must read as an outage the client retries, not as denied access"
+        StatusCode::SERVICE_UNAVAILABLE,
+        "a throttled forge is not a broken one, and 502 invites the immediate retry that spends          another request on the same exhausted quota"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok()),
+        Some("60"),
+        "the forge said when to come back, so the answer has to carry it or the client guesses"
+    );
+}
+
+// The forge sends the duration itself for a secondary limit, and that is what
+// the client should be told rather than this server's fallback.
+#[tokio::test]
+async fn the_wait_the_forge_asked_for_is_the_one_passed_on() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let response = put(
+        app(&root, &api_url, Duration::from_secs(60)),
+        Some("throttled"),
+        b"asset",
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok()),
+        Some("42")
     );
 }
 
