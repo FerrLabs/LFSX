@@ -64,6 +64,34 @@ fn expiring(
     presign: bool,
     lock_max_age: Option<Duration>,
 ) -> Router {
+    built(root, bucket, presign, lock_max_age, None, false)
+}
+
+// Compression and encryption used to be refused against a bucket. They are the
+// point of these last cases, so the helper has to be able to turn them on.
+fn framing(
+    root: &tempfile::TempDir,
+    bucket: &Bucket,
+    compression: Option<i32>,
+    encrypted: bool,
+) -> Router {
+    built(root, bucket, false, None, compression, encrypted)
+}
+
+fn built(
+    root: &tempfile::TempDir,
+    bucket: &Bucket,
+    presign: bool,
+    lock_max_age: Option<Duration>,
+    compression: Option<i32>,
+    encrypted: bool,
+) -> Router {
+    let encryption_key_file = encrypted.then(|| {
+        let key = root.path().join("key");
+        std::fs::write(&key, hex::encode([9u8; 32])).unwrap();
+        key
+    });
+
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: root.path().to_path_buf(),
@@ -74,8 +102,8 @@ fn expiring(
         lock_max_age,
         max_object_size: None,
         repo_quota: None,
-        compression: None,
-        encryption_key_file: None,
+        compression,
+        encryption_key_file,
         storage: Storage::Bucket {
             endpoint: bucket.endpoint.clone(),
             bucket: bucket.bucket.clone(),
@@ -101,6 +129,31 @@ fn payload(what: &str) -> Vec<u8> {
 
     format!("an asset that only {what} pushes, run {run}: ")
         .repeat(4096)
+        .into_bytes()
+}
+
+// A repository nothing else has pushed to. The bucket outlives a test run, and
+// `objects/stats` sums a whole repository, so a shared name would report every
+// object every previous run left behind.
+fn repository(what: &str) -> String {
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+
+    format!("{what}{run}")
+}
+
+// Past two four-megabyte frames, so a range has to pick the frames it covers
+// rather than the only one there is.
+fn several_frames(what: &str) -> Vec<u8> {
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+
+    format!("vertex 0.7071 normal 1.0000 for {what} on run {run}, ")
+        .repeat(200_000)
         .into_bytes()
 }
 
@@ -442,4 +495,154 @@ async fn a_maximum_lock_age_applies_to_a_bucket_too() {
         "the ceiling has to hold wherever the locks live, or the page tints a lock as takeable          and the server refuses it forever"
     );
     assert_eq!(body["lock"]["path"], path.as_str());
+}
+
+// #104 was fixed by refusing to compress into a bucket at all, because a framed
+// object was only readable through the file the codec opened. It reads from a
+// bucket now, so the frames go up as they are.
+#[tokio::test]
+async fn a_compressed_object_survives_a_bucket() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("a compressible mesh");
+    let oid = oid_of(&payload);
+    let repo = repository("Zstd");
+
+    assert_eq!(
+        push(
+            framing(&root, &bucket, Some(3), false),
+            &repo,
+            &oid,
+            &payload
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/objects/{oid}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = framing(&root, &bucket, Some(3), false)
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let length = response
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let restored = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    assert_eq!(oid_of(&restored), oid);
+    assert_eq!(
+        length,
+        payload.len().to_string(),
+        "the client is promised the plaintext length, read from the header rather than from what          the bucket holds"
+    );
+
+    let held = stats(framing(&root, &bucket, Some(3), false), &repo).await;
+    assert!(
+        held < payload.len() as u64 / 4,
+        "the bucket holds {held} bytes for a {} byte mesh, so the frames went up uncompressed and          the round trip above proved only that raw bytes survive",
+        payload.len()
+    );
+}
+
+#[tokio::test]
+async fn an_encrypted_object_survives_a_bucket_and_is_not_the_object_in_it() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("an asset for a bucket somebody else operates");
+    let oid = oid_of(&payload);
+    let repo = repository("Sealed");
+
+    push(framing(&root, &bucket, None, true), &repo, &oid, &payload).await;
+
+    // What the bucket holds, asked of the server rather than of the bucket: the
+    // figure comes from a HEAD on the content key, so it is the stored length.
+    // Sealing adds a header and a tag per frame, so equal lengths would mean the
+    // plaintext went up untouched.
+    let held = stats(framing(&root, &bucket, None, true), &repo).await;
+    assert!(
+        held > payload.len() as u64,
+        "the bucket holds {held} bytes for a {} byte object, so nothing was sealed on the way in",
+        payload.len()
+    );
+
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/objects/{oid}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = framing(&root, &bucket, None, true)
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        oid_of(
+            &axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+        ),
+        oid,
+        "and it still comes back as the object it is named after"
+    );
+}
+
+async fn stats(app: Router, repo: &str) -> u64 {
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/objects/stats"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+
+    body["bytes"].as_u64().unwrap()
+}
+
+// A range is the case the format exists for: the frames it covers are fetched,
+// not everything before them.
+#[tokio::test]
+async fn a_range_over_a_framed_object_in_a_bucket_lands() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = several_frames("a resumed clone");
+    let oid = oid_of(&payload);
+    push(
+        framing(&root, &bucket, Some(3), true),
+        "Ranged",
+        &oid,
+        &payload,
+    )
+    .await;
+
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/Ranged/objects/{oid}"))
+        .header(axum::http::header::RANGE, "bytes=5000000-5004095")
+        .body(Body::empty())
+        .unwrap();
+    let response = framing(&root, &bucket, Some(3), true)
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(
+        axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+        payload[5_000_000..5_004_096]
+    );
 }

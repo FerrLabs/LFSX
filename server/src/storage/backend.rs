@@ -33,17 +33,15 @@ impl Store {
         Self(Backend::Local(store))
     }
 
-    // The staging store is stripped of compression and encryption rather than
-    // trusted not to have been handed either: each is configured independently
-    // of the bucket, and what they produce together is silent. The frames would
-    // go up under the digest of the plaintext, and every download would hand the
-    // client a zstd or ChaCha20 stream it never asked for. Nothing on the far
-    // side of the upload knows to undo them — that lives in the file the local
-    // store opens, which is the one thing a bucket does not have.
+    // Compression and encryption used to be stripped here, because a framed
+    // object was only readable through the file the codec opened and a bucket key
+    // is not one. The codec now reads from a bucket too, so the frames go up as
+    // they are and come back decoded: the header and the index are three ranged
+    // GETs, which is what the format was shaped for.
     pub fn bucket(bucket: S3Store, staging: LocalStore) -> Self {
         Self(Backend::Bucket {
             bucket: Box::new(bucket),
-            staging: staging.with_compression(None).with_encryption(None),
+            staging,
         })
     }
 
@@ -86,16 +84,36 @@ impl Store {
     pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
         match &self.0 {
             Backend::Local(store) => store.open(ns, oid).await,
-            Backend::Bucket { bucket, .. } => {
+            Backend::Bucket { bucket, staging } => {
+                // The marker is the proof of possession and is checked before
+                // anything is read, exactly as a local open checks the link.
                 if !bucket.exists(ns, oid).await {
                     return Err(Error::NotFound);
                 }
 
-                Ok(Object::Remote {
+                let size = bucket.size_of(oid).await?;
+                let reader = super::codec::Reader::Bucket {
                     bucket: (**bucket).clone(),
                     oid: oid.to_owned(),
-                    size: bucket.size_of(oid).await?,
-                })
+                };
+
+                match super::codec::Framed::open(
+                    reader,
+                    size,
+                    staging.keyring().map(AsRef::as_ref),
+                    oid,
+                )
+                .await?
+                {
+                    Some(framed) => Ok(Object::Framed(framed)),
+                    // Not one of ours: the object is the bytes, and streaming
+                    // them straight through costs no extra round trip.
+                    None => Ok(Object::Remote {
+                        bucket: (**bucket).clone(),
+                        oid: oid.to_owned(),
+                        size,
+                    }),
+                }
             }
         }
     }
@@ -179,8 +197,11 @@ impl Store {
     pub async fn compress(&self, ns: &Namespace, dry_run: bool) -> Result<CompressReport, Error> {
         match &self.0 {
             Backend::Local(store) => store.compress(ns, dry_run).await,
+            // Objects arriving now are compressed if the server is configured to;
+            // rewriting the ones already in the bucket means walking it and
+            // reuploading, which is a different piece of work.
             Backend::Bucket { .. } => Err(Error::Unsupported(
-                "compression is not implemented for a bucket yet",
+                "rewriting objects already in a bucket is not implemented",
             )),
         }
     }

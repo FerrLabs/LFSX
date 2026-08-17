@@ -73,24 +73,12 @@ pub fn app(config: Config) -> Router {
             .expect("the bucket configuration is not usable");
 
             tracing::warn!(
-                "objects and locks are stored in a bucket: collection, deduplication, compression                  and verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"
+                "objects and locks are stored in a bucket: collection, deduplication, rewriting                  and verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"
             );
 
             if *presign {
                 tracing::warn!(
                     "LFSX_S3_PRESIGN=true — downloads are redirected to the bucket, so                      lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
-                );
-            }
-
-            if config.encryption_key_file.is_some() {
-                tracing::warn!(
-                    "LFSX_ENCRYPTION_KEY_FILE is set and objects are stored in a bucket — the                      bucket holds them as they arrive, because an encrypted object is only                      readable through the local file the codec opens"
-                );
-            }
-
-            if config.compression.is_some() {
-                tracing::warn!(
-                    "LFSX_COMPRESSION is set and objects are stored in a bucket — the bucket                      holds them uncompressed, because a compressed object is only readable                      through the local file the codec opens"
                 );
             }
 
