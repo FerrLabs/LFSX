@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.0] - 2026-08-17
+
+### Features
+
+- feat(storage): read the framed format out of a bucket (#120)
+
 ## [0.34.2] - 2026-08-17
 
 ### Bug Fixes

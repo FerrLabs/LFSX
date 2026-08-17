@@ -1,6 +1,6 @@
 {
   "name": "@ferrlabs/lfsx-darwin-arm64",
-  "version": "0.34.2",
+  "version": "0.35.0",
   "description": "lfsx macOS arm64 binary",
   "license": "MPL-2.0",
   "os": [
