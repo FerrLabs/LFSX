@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.34.1] - 2026-08-17
+
+### Bug Fixes
+
+- perf(gc): ask the filesystem how many names an object has (#119)
+
 ## [0.34.0] - 2026-08-17
 
 ### Features
