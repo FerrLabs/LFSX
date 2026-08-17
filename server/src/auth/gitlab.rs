@@ -97,8 +97,9 @@ async fn send(
         StatusCode::OK => Ok(response),
         StatusCode::UNAUTHORIZED => Err(Error::Unauthenticated),
         StatusCode::TOO_MANY_REQUESTS => {
-            tracing::warn!(%url, "forge rate limit hit while resolving permissions");
-            Err(Error::Forge)
+            let retry_after = super::backoff::retry_after(&response);
+            tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
+            Err(Error::RateLimited { retry_after })
         }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => Err(Error::Forbidden),
         status => {

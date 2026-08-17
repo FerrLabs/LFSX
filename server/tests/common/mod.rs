@@ -73,6 +73,14 @@ pub async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> 
             Json(json!({ "message": "Resource not accessible" })),
         )
             .into_response(),
+        // A secondary limit: the forge says how long to wait rather than when the
+        // window resets.
+        "throttled" => (
+            StatusCode::FORBIDDEN,
+            [("retry-after", "42")],
+            Json(json!({ "message": "You have exceeded a secondary rate limit" })),
+        )
+            .into_response(),
         "rate-limited" => (
             StatusCode::FORBIDDEN,
             [("x-ratelimit-remaining", "0")],

@@ -815,8 +815,18 @@ handling and the rejection accounting are shared and provider-blind.
 
 The part worth care is the error mapping, because it is where the two existing providers already
 disagree. GitHub answers `403` when rate-limited, GitLab answers `429`; both mean "ask again
-later" and must map to `Error::Forge`, never to `Forbidden`. Getting that wrong tells a user with
-full rights that they have none.
+later" and must map to `Error::RateLimited`, never to `Forbidden`. Getting that wrong tells a user
+with full rights that they have none.
+
+`Error::RateLimited` and `Error::Forge` are separate on purpose, and a new provider should keep them
+apart. A throttled forge is working: it has said when to come back, and the answer is a `503`
+carrying `Retry-After` so the client waits. `502` reads as a transient upstream failure and git-lfs
+comes straight back, spending another request on the same exhausted quota, which turns one rate
+limit into a CI run's worth of them. The duration comes from `Retry-After` when the forge sends one,
+from `x-ratelimit-reset` when it sends an absolute reset instead, and from a one-minute default when
+it says neither: never from zero. `lfsx_rejections_total{cause="forge_rate_limited"}` counts these
+separately from `forge_unreachable`, because "the forge is throttling us" and "the forge is broken"
+are different afternoons.
 
 Gitea is the obvious third, tracked in [the issues](https://github.com/FerrLabs/LFSX/issues).
 
