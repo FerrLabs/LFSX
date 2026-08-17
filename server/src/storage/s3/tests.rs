@@ -127,14 +127,17 @@ pub(crate) fn redirecting(endpoint: &str) -> S3Store {
 }
 
 fn configured(endpoint: &str, redirect: bool) -> S3Store {
-    S3Store::new(&S3Config {
+    S3Store::new(keyspace(endpoint), redirect)
+}
+
+pub(crate) fn keyspace(endpoint: &str) -> Keyspace {
+    Keyspace::new(&S3Config {
         endpoint: endpoint.to_owned(),
         bucket: "assets".into(),
         region: "us-east-1".into(),
         access_key: "key".into(),
         secret_key: "secret".into(),
         path_style: true,
-        redirect,
         lifetime: Duration::from_secs(1800),
     })
     .unwrap()

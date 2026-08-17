@@ -10,7 +10,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::error::Error;
 use crate::namespace::Namespace;
-use crate::storage::s3::S3Store;
+use crate::storage::s3::Keyspace;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Lock {
@@ -38,7 +38,7 @@ pub struct LockStore {
 
 enum Backend {
     Local { root: PathBuf },
-    Bucket(Box<S3Store>),
+    Bucket(Box<Keyspace>),
 }
 
 impl LockStore {
@@ -46,8 +46,8 @@ impl LockStore {
         Self::over(Backend::Local { root: root.into() })
     }
 
-    pub fn bucket(bucket: S3Store) -> Self {
-        Self::over(Backend::Bucket(Box::new(bucket)))
+    pub fn bucket(keys: Keyspace) -> Self {
+        Self::over(Backend::Bucket(Box::new(keys)))
     }
 
     fn over(backend: Backend) -> Self {
@@ -233,7 +233,7 @@ impl LockStore {
     // figure, answering zero when the store cannot be reached is merely
     // unhelpful; for locks it tells a client every file is free, which is the
     // one answer that loses somebody's work.
-    async fn list_bucket(bucket: &S3Store, ns: &Namespace) -> Result<Vec<Lock>, Error> {
+    async fn list_bucket(bucket: &Keyspace, ns: &Namespace) -> Result<Vec<Lock>, Error> {
         let mut locks = Vec::new();
 
         for key in bucket.keys(&Self::prefix(ns)).await? {
