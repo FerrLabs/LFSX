@@ -42,8 +42,11 @@ pub fn app(config: Config) -> Router {
         .with_compression(config.compression)
         .with_encryption(keys);
 
-    let store = match &config.storage {
-        crate::config::Storage::Local => Store::local(local),
+    let (store, locks) = match &config.storage {
+        crate::config::Storage::Local => (
+            Store::local(local),
+            LockStore::local(config.storage_root.clone()),
+        ),
         crate::config::Storage::Bucket {
             endpoint,
             bucket,
@@ -66,7 +69,7 @@ pub fn app(config: Config) -> Router {
             .expect("the bucket configuration is not usable");
 
             tracing::warn!(
-                "objects are stored in a bucket: collection, deduplication, compression and                  verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes gauges                  are not measured — read capacity from the bucket itself"
+                "objects and locks are stored in a bucket: collection, deduplication, compression                  and verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"
             );
 
             if *presign {
@@ -87,10 +90,15 @@ pub fn app(config: Config) -> Router {
                 );
             }
 
-            Store::bucket(bucket, local)
+            // The locks go with the objects. Left on the volume they would make
+            // the bucket a half measure: capacity would be shared and the one
+            // piece of state a second replica must agree on would not be.
+            (
+                Store::bucket(bucket.clone(), local),
+                LockStore::bucket(bucket),
+            )
         }
     };
-    let locks = LockStore::new(config.storage_root.clone());
     let authorizer = Authorizer::new(&config.auth);
 
     routes::router(Arc::new(AppState {

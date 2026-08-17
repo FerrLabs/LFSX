@@ -258,3 +258,139 @@ async fn two_repositories_sharing_an_asset_store_it_once() {
         );
     }
 }
+
+// The reason locks belong in the bucket at all. Two apps over one bucket are two
+// replicas: they share nothing but the store, which is exactly the deployment
+// `LFSX_STORAGE=s3` exists to make possible.
+fn replicas(bucket: &Bucket) -> (tempfile::TempDir, tempfile::TempDir, Router, Router) {
+    let (first, second) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let one = app(&first, bucket, false);
+    let two = app(&second, bucket, false);
+
+    (first, second, one, two)
+}
+
+async fn lock(app: Router, repo: &str, path: &str) -> (StatusCode, serde_json::Value) {
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/locks"))
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(serde_json::json!({ "path": path }).to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    (status, serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+async fn locks_on(app: Router, repo: &str) -> serde_json::Value {
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/locks"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn scene(what: &str) -> String {
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+
+    format!("assets/{what}-{run}.unity")
+}
+
+#[tokio::test]
+async fn a_lock_taken_on_one_replica_is_refused_on_the_other() {
+    let bucket = bucket_or_skip!();
+    let (_first, _second, one, two) = replicas(&bucket);
+    let path = scene("arena");
+
+    let (taken, _) = lock(one, "Locks", &path).await;
+    assert_eq!(taken, StatusCode::CREATED);
+
+    let (again, body) = lock(two, "Locks", &path).await;
+
+    assert_eq!(
+        again,
+        StatusCode::CONFLICT,
+        "the second replica handed out a scene the first had already given away, which is two          artists editing the same file and one of them losing the afternoon"
+    );
+    assert_eq!(body["lock"]["path"], path.as_str());
+}
+
+#[tokio::test]
+async fn a_lock_is_listed_by_a_replica_that_never_took_it() {
+    let bucket = bucket_or_skip!();
+    let (_first, _second, one, two) = replicas(&bucket);
+    let path = scene("listed");
+
+    lock(one, "Listed", &path).await;
+    let seen = locks_on(two, "Listed").await;
+
+    let paths: Vec<_> = seen["locks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|lock| lock["path"].as_str().unwrap_or_default().to_owned())
+        .collect();
+
+    assert!(
+        paths.contains(&path),
+        "a lock nobody else can see is a lock nobody else respects: {paths:?}"
+    );
+}
+
+#[tokio::test]
+async fn releasing_on_one_replica_frees_it_on_the_other() {
+    let bucket = bucket_or_skip!();
+    let (_first, _second, one, two) = replicas(&bucket);
+    let path = scene("released");
+
+    let (_, created) = lock(one.clone(), "Released", &path).await;
+    let id = created["lock"]["id"].as_str().unwrap().to_owned();
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/Released/locks/{id}/unlock"))
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from("{}"))
+        .unwrap();
+    assert_eq!(one.oneshot(request).await.unwrap().status(), StatusCode::OK);
+
+    let (retaken, _) = lock(two, "Released", &path).await;
+
+    assert_eq!(
+        retaken,
+        StatusCode::CREATED,
+        "a release that only one replica knows about leaves the file locked forever everywhere else"
+    );
+}
+
+// The mutual exclusion the whole design rests on, asked of the store directly.
+// `create_new` gives it on a filesystem; in a bucket it is a conditional write,
+// and a store that ignored the condition would accept both writers silently.
+#[tokio::test]
+async fn the_store_itself_refuses_the_second_writer() {
+    let bucket = bucket_or_skip!();
+    let (_first, _second, one, two) = replicas(&bucket);
+    let path = scene("conditional");
+
+    let (first, _) = lock(one, "Conditional", &path).await;
+    let (second, _) = lock(two, "Conditional", &path).await;
+
+    assert_eq!(
+        (first, second),
+        (StatusCode::CREATED, StatusCode::CONFLICT),
+        "both replicas were told they hold it, so the bucket is not honouring `If-None-Match: *`"
+    );
+}

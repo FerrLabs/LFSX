@@ -371,8 +371,10 @@ Only the owner can release a lock. Anyone else needs `--force`, and force needs 
 the repository — the same person who could rewrite the branch anyway. A colleague on holiday with a
 scene locked is a real situation, and this is the escape hatch for it.
 
-Locks live next to the objects, in `$LFSX_STORAGE_ROOT/.locks/`, so they are covered by the same
-backup and disappear with the repository.
+Locks live next to the objects, under `.locks/`, so they are covered by the same backup and
+disappear with the repository. That means `$LFSX_STORAGE_ROOT/.locks/` on a volume and the same
+prefix in the bucket when objects are in one: whatever holds the objects holds the locks, because a
+second replica has to agree with the first about who is holding what.
 
 ## Reclaiming space
 
@@ -627,6 +629,16 @@ LFSX_S3_BUCKET=assets
 LFSX_S3_ACCESS_KEY=…
 LFSX_S3_SECRET_KEY=…
 ```
+
+**Locks move with the objects.** They are keys under `.locks/` in the same bucket, taken with a
+conditional write — `If-None-Match: *`, so the store itself decides who arrived first and answers
+`412` to everyone after. That is the mutual exclusion `create_new` gives on a filesystem, and it is
+what makes a second replica possible: two servers sharing one bucket and nothing else agree on who
+holds a scene, and a release on either frees it on both. Tested against MinIO rather than assumed,
+including the case where both replicas ask at once.
+
+The volume is still needed as a write buffer for uploads, but it no longer carries state a second
+replica would have to see.
 
 **The layout is the one on disk.** The bytes live once under a key derived from their digest, and a
 repository that holds them owns an empty marker beside it. That marker is the bucket's answer to a
