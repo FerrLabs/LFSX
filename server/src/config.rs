@@ -15,6 +15,10 @@ pub struct Config {
     pub action_lifetime: u32,
     pub gc_grace: Duration,
     pub staging_max_age: Duration,
+    // How long a lock may go untouched before anyone can take it. Unset means
+    // never, which is what happened before this existed and what a team that has
+    // not thought about it yet should keep getting.
+    pub lock_max_age: Option<Duration>,
     pub max_object_size: Option<u64>,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
@@ -134,6 +138,7 @@ impl Config {
             action_lifetime: 1800,
             gc_grace: seconds("LFSX_GC_GRACE").unwrap_or(GC_GRACE),
             staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
+            lock_max_age: seconds("LFSX_LOCK_MAX_AGE"),
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),

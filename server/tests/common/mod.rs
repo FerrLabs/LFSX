@@ -58,6 +58,11 @@ pub async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> 
             Json(json!({ "permissions": { "pull": true, "push": push } })).into_response()
         }
         "reader" => Json(json!({ "permissions": { "pull": true, "push": false } })).into_response(),
+        // A second person who can push and is nobody's administrator, which is
+        // what "taking an abandoned lock needs no admin" has to be tested with.
+        "colleague" => {
+            Json(json!({ "permissions": { "pull": true, "push": true } })).into_response()
+        }
         "stranger" => (
             StatusCode::NOT_FOUND,
             Json(json!({ "message": "Not Found" })),
@@ -90,6 +95,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         action_lifetime: 1800,
         gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
         staging_max_age: Duration::from_secs(86400),
+        lock_max_age: None,
         max_object_size: None,
         repo_quota: None,
         compression: None,

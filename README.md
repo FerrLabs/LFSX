@@ -144,6 +144,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
+| `LFSX_LOCK_MAX_AGE` | never | seconds a lock may go untouched before anyone can take it |
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
 | `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume |
@@ -368,8 +369,29 @@ the person to go and talk to. Taking a lock someone else holds is refused with t
 rather than silently overwritten.
 
 Only the owner can release a lock. Anyone else needs `--force`, and force needs **admin** rights on
-the repository — the same person who could rewrite the branch anyway. A colleague on holiday with a
-scene locked is a real situation, and this is the escape hatch for it.
+the repository — the same person who could rewrite the branch anyway.
+
+`LFSX_LOCK_MAX_AGE` is the answer to the same situation without an administrator in it. Unset, a
+lock lasts until someone releases it, which is what happened before this existed. Set, a lock nobody
+has touched for that long can be taken by anyone who could have taken it in the first place:
+
+```bash
+LFSX_LOCK_MAX_AGE=1209600   # two weeks
+```
+
+**A stale lock is not deleted, it is taken.** Until somebody claims it, it is still listed and still
+names its holder, because the useful answer is not "this is free" but "marie had this and has not
+touched it in three weeks". The takeover is recorded in the log with the previous owner, the new one,
+and how long it had been.
+
+The clock runs from when the lock was taken. Last-touched is closer to what people mean by stale,
+and it would mean guessing which object a path maps to; the claim is the thing this server can
+answer for.
+
+One honest limitation: **`git lfs locks` cannot show you any of this.** The protocol's lock is an id,
+a path, a timestamp and an owner, with nowhere to put a "stale" flag, so no phrasing of the JSON
+would make the client display it. The repository page shows it, which is where somebody goes to ask
+why they cannot take a scene.
 
 Locks live next to the objects, under `.locks/`, so they are covered by the same backup and
 disappear with the repository. That means `$LFSX_STORAGE_ROOT/.locks/` on a volume and the same

@@ -42,7 +42,11 @@ pub fn app(config: Config) -> Router {
         .with_compression(config.compression)
         .with_encryption(keys);
 
-    let (store, locks) = match &config.storage {
+    // The two backends are chosen together and the lock policy is applied once,
+    // to both. Deciding it per arm is how `LFSX_LOCK_MAX_AGE` came to be silently
+    // ignored in bucket mode: the arms are far apart, only one of them had it,
+    // and nothing failed.
+    let (store, lock_backend) = match &config.storage {
         crate::config::Storage::Local => (
             Store::local(local),
             LockStore::local(config.storage_root.clone()),
@@ -99,6 +103,7 @@ pub fn app(config: Config) -> Router {
             )
         }
     };
+    let locks = lock_backend.with_max_age(config.lock_max_age);
     let authorizer = Authorizer::new(&config.auth);
 
     routes::router(Arc::new(AppState {

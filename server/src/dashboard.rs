@@ -1,4 +1,6 @@
-use crate::locks::Lock;
+use std::time::Duration;
+
+use crate::locks::{self, Lock};
 use crate::namespace::Namespace;
 
 pub struct Overview {
@@ -6,6 +8,7 @@ pub struct Overview {
     pub objects: u64,
     pub bytes: u64,
     pub locks: Vec<Lock>,
+    pub lock_max_age: Option<Duration>,
     pub writable: bool,
 }
 
@@ -15,6 +18,7 @@ pub fn render(overview: &Overview) -> String {
         objects,
         bytes,
         locks,
+        lock_max_age,
         writable,
     } = overview;
 
@@ -45,30 +49,59 @@ pub fn render(overview: &Overview) -> String {
 "#,
         human_bytes(*bytes),
         if *writable { "read and write" } else { "read" },
-        locks_table(locks),
+        locks_table(locks, *lock_max_age),
     )
 }
 
-fn locks_table(locks: &[Lock]) -> String {
+// This is the only place a person is told a lock has gone stale. `git lfs locks`
+// prints the path, the owner and the id, and has no field for anything else, so
+// a client cannot be made to show it however the server phrases the JSON.
+fn locks_table(locks: &[Lock], max_age: Option<Duration>) -> String {
     if locks.is_empty() {
         return "<p class=\"empty\">Nothing is locked.</p>".to_owned();
     }
 
     let rows: String = locks
         .iter()
-        .map(|lock| {
-            format!(
+        .map(|lock| match locks::stale_for(lock, max_age) {
+            Some(age) => format!(
+                "<tr class=\"stale\"><td>{}</td><td>{}</td><td>{} (untouched for {}, anyone can take it)</td></tr>",
+                escape(&lock.path),
+                escape(&lock.owner.name),
+                escape(&lock.locked_at),
+                human_age(age)
+            ),
+            None => format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
                 escape(&lock.path),
                 escape(&lock.owner.name),
                 escape(&lock.locked_at)
-            )
+            ),
         })
         .collect();
 
     format!(
         "<table><thead><tr><th>Path</th><th>Held by</th><th>Since</th></tr></thead><tbody>{rows}</tbody></table>"
     )
+}
+
+fn human_age(age: Duration) -> String {
+    const MINUTE: u64 = 60;
+    const HOUR: u64 = 60 * MINUTE;
+    const DAY: u64 = 24 * HOUR;
+
+    let seconds = age.as_secs();
+    let (count, unit) = match seconds {
+        s if s >= 7 * DAY => (s / (7 * DAY), "week"),
+        s if s >= DAY => (s / DAY, "day"),
+        s if s >= HOUR => (s / HOUR, "hour"),
+        s if s >= MINUTE => (s / MINUTE, "minute"),
+        // A short ceiling is a strange thing to configure, but "untouched for 0
+        // minutes" is a strange thing to print.
+        s => (s, "second"),
+    };
+
+    format!("{count} {unit}{}", if count == 1 { "" } else { "s" })
 }
 
 fn human_bytes(bytes: u64) -> String {
@@ -108,7 +141,7 @@ table{width:100%;border-collapse:collapse}\
 th{text-align:left;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;opacity:.65;font-weight:400}\
 th,td{padding:.5rem 0;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}\
 td{font-variant-numeric:tabular-nums}\
-.empty{opacity:.65}\
+.empty{opacity:.65}\n.stale td{color:#b4690e}\
 footer{margin-top:2.5rem;font-size:.85rem;opacity:.65}\
 code{font-family:ui-monospace,monospace;font-size:.85em}";
 

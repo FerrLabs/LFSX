@@ -2,11 +2,16 @@ use super::*;
 use crate::locks::Owner;
 
 fn overview(locks: Vec<Lock>) -> Overview {
+    aged(locks, None)
+}
+
+fn aged(locks: Vec<Lock>, lock_max_age: Option<Duration>) -> Overview {
     Overview {
         namespace: Namespace::new("FerrLabs", "Blastlands").unwrap(),
         objects: 1851,
         bytes: 96_468_992,
         locks,
+        lock_max_age,
         writable: true,
     }
 }
@@ -61,4 +66,36 @@ fn sizes_are_readable_rather_than_exact() {
     assert_eq!(human_bytes(512), "512 B");
     assert_eq!(human_bytes(1024), "1.0 KiB");
     assert_eq!(human_bytes(3_221_225_472), "3.0 GiB");
+}
+
+#[test]
+fn a_stale_lock_says_how_long_it_has_been_and_that_anyone_can_take_it() {
+    let week = Duration::from_secs(7 * 24 * 60 * 60);
+    let mut abandoned = lock("Assets/Scenes/Arena.unity", "marie");
+    abandoned.locked_at = (time::OffsetDateTime::now_utc() - 3 * week)
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+
+    let page = render(&aged(vec![abandoned.clone()], Some(week)));
+
+    assert!(page.contains("untouched for 3 weeks"), "{page}");
+    assert!(page.contains("anyone can take it"));
+    assert!(
+        page.contains("marie"),
+        "who had it is the useful half of the answer"
+    );
+    assert!(page.contains("class=\"stale\""));
+
+    let held = render(&aged(vec![abandoned], None));
+    assert!(
+        !held.contains("anyone can take it"),
+        "with no expiry configured nothing is stale, however old"
+    );
+}
+
+#[test]
+fn an_age_below_a_minute_is_said_in_seconds() {
+    assert_eq!(human_age(Duration::from_secs(40)), "40 seconds");
+    assert_eq!(human_age(Duration::from_secs(1)), "1 second");
+    assert_eq!(human_age(Duration::from_secs(90)), "1 minute");
 }
