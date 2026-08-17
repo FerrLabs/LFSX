@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -30,7 +31,10 @@ pub struct Owner {
 // store on local disk behind a bucket means each replica has its own answer,
 // and an artist told the scene is theirs while another replica hands it to
 // somebody else is worse than no locking at all.
-pub struct LockStore(Backend);
+pub struct LockStore {
+    backend: Backend,
+    max_age: Option<Duration>,
+}
 
 enum Backend {
     Local { root: PathBuf },
@@ -39,11 +43,29 @@ enum Backend {
 
 impl LockStore {
     pub fn local(root: impl Into<PathBuf>) -> Self {
-        Self(Backend::Local { root: root.into() })
+        Self::over(Backend::Local { root: root.into() })
     }
 
     pub fn bucket(bucket: S3Store) -> Self {
-        Self(Backend::Bucket(Box::new(bucket)))
+        Self::over(Backend::Bucket(Box::new(bucket)))
+    }
+
+    fn over(backend: Backend) -> Self {
+        Self {
+            backend,
+            max_age: None,
+        }
+    }
+
+    pub fn with_max_age(mut self, max_age: Option<Duration>) -> Self {
+        self.max_age = max_age;
+        self
+    }
+
+    // How long a lock has gone untouched, once it is past the age an operator
+    // said was too long. None while it is still somebody's.
+    pub fn stale_for(&self, lock: &Lock) -> Option<Duration> {
+        stale_for(lock, self.max_age)
     }
 
     pub fn id_of(path: &str) -> String {
@@ -77,18 +99,7 @@ impl LockStore {
         };
         let encoded = serde_json::to_vec(&lock)?;
 
-        let taken = match &self.0 {
-            Backend::Local { root } => {
-                Self::write_new(&Self::path_in(root, ns, &lock.id), &encoded).await?
-            }
-            Backend::Bucket(bucket) => {
-                bucket
-                    .put_if_absent(&Self::key_of(ns, &lock.id), encoded)
-                    .await?
-            }
-        };
-
-        if taken {
+        if self.take(ns, &lock, &encoded).await? {
             return Ok(lock);
         }
 
@@ -96,9 +107,57 @@ impl LockStore {
         // can race with a release. Naming the caller's own attempt is a worse
         // answer than none, so a lock that vanished underfoot is reported as
         // held by nobody in particular rather than by the caller.
-        match self.get(ns, &lock.id).await? {
-            Some(held) => Err(Error::LockHeld(Box::new(held))),
-            None => Err(Error::LockHeld(Box::new(lock))),
+        let Some(held) = self.get(ns, &lock.id).await? else {
+            return Err(Error::LockHeld(Box::new(lock)));
+        };
+
+        let Some(age) = self.stale_for(&held) else {
+            return Err(Error::LockHeld(Box::new(held)));
+        };
+
+        // Discarding it and taking it conditionally, rather than overwriting in
+        // place, is what stops two replicas both claiming one abandoned lock:
+        // whoever loses the create loses outright and is told who won. Somebody
+        // taking it fresh in the gap wins for the same reason.
+        self.discard(ns, &held.id).await?;
+
+        if !self.take(ns, &lock, &encoded).await? {
+            return match self.get(ns, &lock.id).await? {
+                Some(other) => Err(Error::LockHeld(Box::new(other))),
+                None => Err(Error::LockHeld(Box::new(lock))),
+            };
+        }
+
+        tracing::info!(
+            path = lock.path,
+            previous_owner = held.owner.name,
+            untouched_for_seconds = age.as_secs(),
+            new_owner = lock.owner.name,
+            "a lock nobody had touched was taken over"
+        );
+
+        Ok(lock)
+    }
+
+    async fn take(&self, ns: &Namespace, lock: &Lock, encoded: &[u8]) -> Result<bool, Error> {
+        match &self.backend {
+            Backend::Local { root } => {
+                Self::write_new(&Self::path_in(root, ns, &lock.id), encoded).await
+            }
+            Backend::Bucket(bucket) => {
+                bucket
+                    .put_if_absent(&Self::key_of(ns, &lock.id), encoded.to_vec())
+                    .await
+            }
+        }
+    }
+
+    // Removing something already gone is the normal case here: another replica
+    // may have discarded the same abandoned lock a moment earlier.
+    async fn discard(&self, ns: &Namespace, id: &str) -> Result<(), Error> {
+        match self.remove(ns, id).await {
+            Ok(()) | Err(Error::LockNotFound) => Ok(()),
+            Err(error) => Err(error),
         }
     }
 
@@ -127,7 +186,7 @@ impl LockStore {
             return Ok(None);
         }
 
-        let encoded = match &self.0 {
+        let encoded = match &self.backend {
             Backend::Local { root } => match fs::read(Self::path_in(root, ns, id)).await {
                 Ok(bytes) => Some(bytes),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -140,7 +199,7 @@ impl LockStore {
     }
 
     pub async fn list(&self, ns: &Namespace) -> Result<Vec<Lock>, Error> {
-        let mut locks = match &self.0 {
+        let mut locks = match &self.backend {
             Backend::Local { root } => Self::list_local(&Self::directory_in(root, ns)).await?,
             Backend::Bucket(bucket) => Self::list_bucket(bucket, ns).await?,
         };
@@ -189,7 +248,7 @@ impl LockStore {
             return Err(Error::LockNotFound);
         }
 
-        let removed = match &self.0 {
+        let removed = match &self.backend {
             Backend::Local { root } => match fs::remove_file(Self::path_in(root, ns, id)).await {
                 Ok(()) => true,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
@@ -208,6 +267,19 @@ impl LockStore {
     fn path_in(root: &Path, ns: &Namespace, id: &str) -> PathBuf {
         Self::directory_in(root, ns).join(format!("{id}.json"))
     }
+}
+
+// The clock runs from when the lock was taken, not from the last push to the
+// object it covers. Creation is the claim, and it is the one this server can
+// answer for without guessing which object a path maps to.
+pub fn stale_for(lock: &Lock, max_age: Option<Duration>) -> Option<Duration> {
+    let max_age = max_age?;
+    let taken = OffsetDateTime::parse(&lock.locked_at, &Rfc3339).ok()?;
+
+    // A negative age is a clock that moved, not a lock from the future.
+    let age = Duration::try_from(OffsetDateTime::now_utc() - taken).ok()?;
+
+    (age > max_age).then_some(age)
 }
 
 fn is_well_formed_id(id: &str) -> bool {

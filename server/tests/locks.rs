@@ -287,3 +287,88 @@ async fn verify_pages_over_the_whole_list_so_both_sides_agree() {
     );
     assert!(!page["next_cursor"].as_str().unwrap_or_default().is_empty());
 }
+
+// The thing an artist actually hits on the Monday: the colleague is gone, the
+// scene is theirs, and `git lfs lock` has to work without anyone finding an
+// administrator who is willing to force it.
+#[tokio::test]
+async fn a_scene_abandoned_for_longer_than_the_maximum_age_is_takeable() {
+    let (api_url, _forge) = forge().await;
+    let root = tempfile::tempdir().unwrap();
+    let week = Duration::from_secs(7 * 24 * 60 * 60);
+
+    let expiring = || {
+        lfsx_server::app(lfsx_server::config::Config {
+            lock_max_age: Some(week),
+            ..common::config(&root, &api_url)
+        })
+    };
+
+    assert_eq!(
+        lock(expiring(), "writer", SCENE).await.status(),
+        StatusCode::CREATED
+    );
+
+    // Held by somebody else and still fresh: refused, as it must be.
+    assert_eq!(
+        lock(expiring(), "colleague", SCENE).await.status(),
+        StatusCode::CONFLICT
+    );
+
+    // The same lock, aged past the ceiling by rewriting its own timestamp, which
+    // is the only input the rule reads.
+    age_the_lock(&root, week * 3);
+
+    let response = lock(expiring(), "colleague", SCENE).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::CREATED,
+        "an abandoned scene has to be takeable without admin, or teams stop using locking"
+    );
+
+    let body = read_json(response).await;
+    assert_eq!(body["lock"]["owner"]["name"], "colleague");
+}
+
+#[tokio::test]
+async fn without_a_maximum_age_an_abandoned_scene_stays_locked() {
+    let (api_url, _forge) = forge().await;
+    let root = tempfile::tempdir().unwrap();
+
+    assert_eq!(
+        lock(app(&root, &api_url, Duration::ZERO), "writer", SCENE)
+            .await
+            .status(),
+        StatusCode::CREATED
+    );
+    age_the_lock(&root, Duration::from_secs(400 * 24 * 60 * 60));
+
+    assert_eq!(
+        lock(app(&root, &api_url, Duration::ZERO), "colleague", SCENE)
+            .await
+            .status(),
+        StatusCode::CONFLICT,
+        "unset has to keep meaning never, or an upgrade quietly starts handing out other \
+         people's locks"
+    );
+}
+
+fn age_the_lock(root: &tempfile::TempDir, by: Duration) {
+    let directory = root.path().join(".locks/FerrLabs/Blastlands");
+    for entry in std::fs::read_dir(&directory).unwrap() {
+        let path = entry.unwrap().path();
+        let mut lock: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let taken = time::OffsetDateTime::parse(
+            lock["locked_at"].as_str().unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap();
+        lock["locked_at"] = serde_json::Value::String(
+            (taken - by)
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap(),
+        );
+        std::fs::write(&path, serde_json::to_vec(&lock).unwrap()).unwrap();
+    }
+}

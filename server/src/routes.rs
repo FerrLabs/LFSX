@@ -499,6 +499,7 @@ async fn overview(
         objects,
         bytes,
         locks: state.locks.list(&ns).await?,
+        lock_max_age: state.config.lock_max_age,
         writable: permission.require_write().is_ok(),
     });
 

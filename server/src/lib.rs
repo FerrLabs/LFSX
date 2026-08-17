@@ -45,7 +45,7 @@ pub fn app(config: Config) -> Router {
     let (store, locks) = match &config.storage {
         crate::config::Storage::Local => (
             Store::local(local),
-            LockStore::local(config.storage_root.clone()),
+            LockStore::local(config.storage_root.clone()).with_max_age(config.lock_max_age),
         ),
         crate::config::Storage::Bucket {
             endpoint,

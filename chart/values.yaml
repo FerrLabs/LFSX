@@ -21,6 +21,11 @@ auth:
 gc:
   grace: 1209600
 
+locks:
+  # Seconds a lock may go untouched before anyone can take it. Empty means
+  # never, which is the behaviour from before this existed.
+  maxAge: ""
+
 limits:
   maxObjectSize: ""
   repoQuota: ""

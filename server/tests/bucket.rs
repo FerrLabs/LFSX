@@ -62,6 +62,7 @@ fn app(root: &tempfile::TempDir, bucket: &Bucket, presign: bool) -> Router {
         action_lifetime: 1800,
         gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
         staging_max_age: Duration::from_secs(86400),
+        lock_max_age: None,
         max_object_size: None,
         repo_quota: None,
         compression: None,
