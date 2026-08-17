@@ -58,14 +58,14 @@ impl Cache {
         }
     }
 
-    pub fn get(&self, token: &str, ns: &Namespace) -> Option<Decision> {
+    pub fn get(&self, caller: Caller<'_>, ns: &Namespace) -> Option<Decision> {
         let entries = self.entries.lock().expect("permission cache");
-        let entry = entries.get(&key(token, ns))?;
+        let entry = entries.get(&key(caller, ns))?;
 
         (entry.expires_at > Instant::now()).then_some(entry.decision)
     }
 
-    pub fn insert(&self, token: &str, ns: &Namespace, decision: Decision) {
+    pub fn insert(&self, caller: Caller<'_>, ns: &Namespace, decision: Decision) {
         let now = Instant::now();
         let ttl = match decision {
             Decision::Granted(_) => self.granted_ttl,
@@ -75,7 +75,7 @@ impl Cache {
         let mut entries = self.entries.lock().expect("permission cache");
         entries.retain(|_, entry| entry.expires_at > now);
         entries.insert(
-            key(token, ns),
+            key(caller, ns),
             Entry {
                 decision,
                 expires_at: now + ttl,
@@ -84,8 +84,8 @@ impl Cache {
     }
 }
 
-fn key(token: &str, ns: &Namespace) -> Key {
-    (fingerprint(token), ns.to_string())
+fn key(caller: Caller<'_>, ns: &Namespace) -> Key {
+    (fingerprint(caller), ns.to_string())
 }
 
 pub struct IdentityCache {
@@ -103,7 +103,7 @@ impl IdentityCache {
 
     pub fn get(&self, token: &str) -> Option<String> {
         let entries = self.entries.lock().expect("identity cache");
-        let (login, expires_at) = entries.get(&fingerprint(token))?;
+        let (login, expires_at) = entries.get(&fingerprint(Caller::Token(token)))?;
 
         (*expires_at > Instant::now()).then(|| login.clone())
     }
@@ -113,10 +113,33 @@ impl IdentityCache {
         let mut entries = self.entries.lock().expect("identity cache");
 
         entries.retain(|_, (_, expires_at)| *expires_at > now);
-        entries.insert(fingerprint(token), (login.to_owned(), now + self.ttl));
+        entries.insert(
+            fingerprint(Caller::Token(token)),
+            (login.to_owned(), now + self.ttl),
+        );
     }
 }
 
-fn fingerprint(token: &str) -> [u8; 32] {
-    Sha256::digest(token.as_bytes()).into()
+// Who is asking, for cache purposes. The two are hashed under different domains
+// so an anonymous resolution can never be served to somebody presenting a token,
+// nor the reverse: without the tag, a client sending the sentinel as its own
+// token would collide with it.
+#[derive(Debug, Clone, Copy)]
+pub enum Caller<'a> {
+    Token(&'a str),
+    Anonymous,
+}
+
+fn fingerprint(caller: Caller<'_>) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+
+    match caller {
+        Caller::Token(token) => {
+            hasher.update(b"token:");
+            hasher.update(token.as_bytes());
+        }
+        Caller::Anonymous => hasher.update(b"anonymous"),
+    }
+
+    hasher.finalize().into()
 }

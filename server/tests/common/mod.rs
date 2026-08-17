@@ -41,7 +41,11 @@ pub async fn forge() -> (String, Arc<Forge>) {
     (format!("http://{address}"), forge)
 }
 
-pub async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> Response {
+pub async fn repository(
+    State(forge): State<Arc<Forge>>,
+    axum::extract::Path((_org, repo)): axum::extract::Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
     forge.calls.fetch_add(1, Ordering::SeqCst);
 
     let token = headers
@@ -87,6 +91,17 @@ pub async fn repository(State(forge): State<Arc<Forge>>, headers: HeaderMap) -> 
             Json(json!({ "message": "API rate limit exceeded" })),
         )
             .into_response(),
+        // No credentials at all. GitHub answers 200 for a public repository and
+        // 404 for one it will not admit exists, and the repository in the path is
+        // what decides which.
+        "" if repo == "Public" => {
+            Json(json!({ "permissions": { "pull": true, "push": false } })).into_response()
+        }
+        "" => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "message": "Not Found" })),
+        )
+            .into_response(),
         _ => (
             StatusCode::UNAUTHORIZED,
             Json(json!({ "message": "Bad credentials" })),
@@ -114,12 +129,32 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
 }
 
 fn forge_auth(api_url: &str, cache_ttl: Duration, rejection_ttl: Duration) -> Auth {
+    // Off for the existing suite, which is about what a token buys. The cases
+    // that are about anonymous access turn it on explicitly, so neither set can
+    // pass because of the other's setting.
+    anonymous_forge_auth(api_url, cache_ttl, rejection_ttl, false)
+}
+
+pub fn anonymous_forge_auth(
+    api_url: &str,
+    cache_ttl: Duration,
+    rejection_ttl: Duration,
+    anonymous_read: bool,
+) -> Auth {
     Auth::Forge {
         provider: Provider::Github,
         api_url: api_url.to_owned(),
         cache_ttl,
         rejection_ttl,
+        anonymous_read,
     }
+}
+
+pub fn app_reading_anonymously(root: &tempfile::TempDir, api_url: &str) -> Router {
+    lfsx_server::app(Config {
+        auth: anonymous_forge_auth(api_url, Duration::ZERO, Duration::ZERO, true),
+        ..config(root, api_url)
+    })
 }
 
 pub fn app(root: &tempfile::TempDir, api_url: &str, cache_ttl: Duration) -> Router {

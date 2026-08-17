@@ -55,6 +55,19 @@ pub async fn reclaim(config: &Config) {
 }
 
 fn backends(config: &Config) -> (Store, LockStore) {
+    // Said out loud because it is on by default and it decides who can read the
+    // objects. An operator upgrading into it should see the line rather than
+    // discover the exposure.
+    if let crate::config::Auth::Forge {
+        anonymous_read: true,
+        ..
+    } = config.auth
+    {
+        tracing::info!(
+            "anonymous read is on: a request with no credentials is resolved against the forge, so              objects in a repository the forge serves publicly can be read by anybody. Set              LFSX_ANONYMOUS_READ=false to require a token whatever the repository's visibility"
+        );
+    }
+
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written

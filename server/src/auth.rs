@@ -15,7 +15,7 @@ use crate::config::{Auth, Provider};
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::state::Shared;
-use cache::{Cache, Decision, IdentityCache};
+use cache::{Cache, Caller, Decision, IdentityCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Permission {
@@ -48,6 +48,7 @@ pub enum Authorizer {
         api_url: String,
         cache: Cache,
         identities: IdentityCache,
+        anonymous_read: bool,
     },
     Disabled,
 }
@@ -63,6 +64,7 @@ impl Authorizer {
                 api_url,
                 cache_ttl,
                 rejection_ttl,
+                anonymous_read,
             } => Self::Forge {
                 provider: *provider,
                 client: reqwest::Client::builder()
@@ -73,6 +75,7 @@ impl Authorizer {
                 api_url: api_url.clone(),
                 cache: Cache::new(*cache_ttl, *rejection_ttl),
                 identities: IdentityCache::new(*cache_ttl),
+                anonymous_read: *anonymous_read,
             },
         }
     }
@@ -83,14 +86,38 @@ impl Authorizer {
             client,
             api_url,
             cache,
+            anonymous_read,
             ..
         } = self
         else {
             return Ok(Permission::Admin);
         };
 
-        let token = credentials::token(headers).ok_or(Error::Unauthenticated)?;
-        if let Some(decision) = cache.get(&token, ns) {
+        // A request with no credentials is the one an anonymous `git clone` makes.
+        // The forge already knows whether that should be allowed, so it is asked
+        // rather than refused outright, and the answer is cached under its own
+        // key so it can never be handed to somebody presenting a token.
+        let Some(token) = credentials::token(headers) else {
+            if !*anonymous_read {
+                return Err(Error::Unauthenticated);
+            }
+
+            if let Some(decision) = cache.get(Caller::Anonymous, ns) {
+                return decision.into();
+            }
+
+            let outcome = match provider {
+                Provider::Github => github::public(client, api_url, ns).await,
+                Provider::Gitlab => gitlab::public(client, api_url, ns).await,
+            };
+            if let Some(decision) = Decision::of(&outcome) {
+                cache.insert(Caller::Anonymous, ns, decision);
+            }
+
+            return outcome;
+        };
+
+        if let Some(decision) = cache.get(Caller::Token(&token), ns) {
             return decision.into();
         }
 
@@ -99,7 +126,7 @@ impl Authorizer {
             Provider::Gitlab => gitlab::permission(client, api_url, &token, ns).await,
         };
         if let Some(decision) = Decision::of(&outcome) {
-            cache.insert(&token, ns, decision);
+            cache.insert(Caller::Token(&token), ns, decision);
         }
 
         outcome

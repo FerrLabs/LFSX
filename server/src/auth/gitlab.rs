@@ -64,6 +64,36 @@ pub async fn permission(
     }
 }
 
+// The same question as GitHub's, asked the same way: no credentials, and a
+// project the server will not admit exists answers 404. A private project is a
+// 401 rather than a 403, so git-lfs keeps asking the credential helper.
+pub async fn public(
+    client: &reqwest::Client,
+    api_url: &str,
+    ns: &Namespace,
+) -> Result<Permission, Error> {
+    let url = format!("{api_url}/projects/{}", urlencoding(&ns.to_string()));
+
+    let response = client.get(&url).send().await.map_err(|error| {
+        tracing::warn!(%error, %url, "forge request failed");
+        Error::Forge
+    })?;
+
+    match response.status() {
+        StatusCode::OK => Ok(Permission::Read),
+        StatusCode::NOT_FOUND | StatusCode::UNAUTHORIZED => Err(Error::Unauthenticated),
+        StatusCode::TOO_MANY_REQUESTS => {
+            let retry_after = super::backoff::retry_after(&response);
+            tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
+            Err(Error::RateLimited { retry_after })
+        }
+        status => {
+            tracing::warn!(%status, %url, "unexpected forge response to an anonymous lookup");
+            Err(Error::Unauthenticated)
+        }
+    }
+}
+
 pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Result<String, Error> {
     let url = format!("{api_url}/user");
 

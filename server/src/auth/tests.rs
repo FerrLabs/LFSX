@@ -60,15 +60,22 @@ fn unusable_credentials_yield_no_token() {
 fn a_cached_permission_is_scoped_to_its_token_and_repository() {
     let cache = Cache::new(Duration::from_secs(60), Duration::from_secs(60));
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
-    cache.insert("writer", &ns, Decision::Granted(Permission::Write));
+    cache.insert(
+        Caller::Token("writer"),
+        &ns,
+        Decision::Granted(Permission::Write),
+    );
 
     assert_eq!(
-        cache.get("writer", &ns),
+        cache.get(Caller::Token("writer"), &ns),
         Some(Decision::Granted(Permission::Write))
     );
-    assert_eq!(cache.get("someone-else", &ns), None);
+    assert_eq!(cache.get(Caller::Token("someone-else"), &ns), None);
     assert_eq!(
-        cache.get("writer", &Namespace::new("FerrLabs", "Other").unwrap()),
+        cache.get(
+            Caller::Token("writer"),
+            &Namespace::new("FerrLabs", "Other").unwrap()
+        ),
         None
     );
 }
@@ -77,11 +84,15 @@ fn a_cached_permission_is_scoped_to_its_token_and_repository() {
 fn a_cached_permission_stops_being_served_once_it_expires() {
     let cache = Cache::new(Duration::from_millis(20), Duration::from_millis(20));
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
-    cache.insert("writer", &ns, Decision::Granted(Permission::Write));
+    cache.insert(
+        Caller::Token("writer"),
+        &ns,
+        Decision::Granted(Permission::Write),
+    );
 
     sleep(Duration::from_millis(40));
 
-    assert_eq!(cache.get("writer", &ns), None);
+    assert_eq!(cache.get(Caller::Token("writer"), &ns), None);
 }
 
 #[test]
@@ -94,18 +105,22 @@ fn only_write_permission_satisfies_a_write() {
 fn a_rejection_expires_sooner_than_a_grant() {
     let cache = Cache::new(Duration::from_secs(60), Duration::from_millis(20));
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
-    cache.insert("granted", &ns, Decision::Granted(Permission::Read));
-    cache.insert("refused", &ns, Decision::Forbidden);
+    cache.insert(
+        Caller::Token("granted"),
+        &ns,
+        Decision::Granted(Permission::Read),
+    );
+    cache.insert(Caller::Token("refused"), &ns, Decision::Forbidden);
 
     sleep(Duration::from_millis(40));
 
     assert_eq!(
-        cache.get("granted", &ns),
+        cache.get(Caller::Token("granted"), &ns),
         Some(Decision::Granted(Permission::Read)),
         "a grant must outlive the shorter rejection window"
     );
     assert_eq!(
-        cache.get("refused", &ns),
+        cache.get(Caller::Token("refused"), &ns),
         None,
         "a rejection must lapse quickly so newly granted access is picked up"
     );
