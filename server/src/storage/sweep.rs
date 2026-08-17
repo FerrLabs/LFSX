@@ -43,6 +43,12 @@ impl LocalStore {
             ..SweepReport::default()
         };
 
+        // Resolved once. The set of repositories does not change while a sweep
+        // runs, and listing every organisation again for each object made
+        // collection cost objects times repositories: invisible on a small store,
+        // and the whole runtime on the one where an operator finally needs it.
+        let elsewhere = self.other_repositories(ns).await;
+
         for found in walk.objects {
             if retained.contains(&found.oid) {
                 continue;
@@ -54,8 +60,14 @@ impl LocalStore {
                 continue;
             }
 
-            self.collect(&found.path, &found.oid, metadata.len(), ns, &mut report)
-                .await?;
+            self.collect(
+                &found.path,
+                &found.oid,
+                metadata.len(),
+                &elsewhere,
+                &mut report,
+            )
+            .await?;
         }
 
         if !dry_run {
@@ -74,13 +86,15 @@ impl LocalStore {
         path: &Path,
         oid: &str,
         held: u64,
-        ns: &Namespace,
+        elsewhere: &[PathBuf],
         report: &mut SweepReport,
     ) -> Result<(), Error> {
         report.swept += 1;
 
         if report.dry_run {
-            if !self.referenced_elsewhere(oid, ns).await {
+            // This repository's link is still there, so it is one of the ones the
+            // count includes.
+            if !self.referenced_elsewhere(oid, elsewhere, 1).await {
                 report.bytes += held;
             }
 
@@ -89,7 +103,7 @@ impl LocalStore {
 
         fs::remove_file(path).await?;
 
-        if self.referenced_elsewhere(oid, ns).await {
+        if self.referenced_elsewhere(oid, elsewhere, 0).await {
             return Ok(());
         }
 
@@ -111,11 +125,35 @@ impl LocalStore {
     }
 
     // Is this object still linked from a repository other than the one being
-    // swept? Reads the tree rather than the link count, because nlink is not
-    // portable and the number of repositories is small.
-    async fn referenced_elsewhere(&self, oid: &str, sweeping: &Namespace) -> bool {
+    // swept? `ours` is how many of the links belong to the repository being
+    // swept: one before its link is removed, none after.
+    //
+    // The filesystem already keeps this count, so on Unix it is one stat rather
+    // than a walk of the store: the shared entry under .content, plus one link
+    // per repository holding the object.
+    async fn referenced_elsewhere(&self, oid: &str, elsewhere: &[PathBuf], ours: u64) -> bool {
+        if let Some(links) = links_to(&self.content_path(oid)).await {
+            return links > 1 + ours;
+        }
+
+        // No shared entry to count, which is what an object written before the
+        // shared store looks like, or a platform without link counts. Probing the
+        // repositories resolved at the start of the sweep is what is left.
+        for repo in elsewhere {
+            let candidate = repo.join(&oid[0..2]).join(&oid[2..4]).join(oid);
+            if fs::metadata(candidate).await.is_ok() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    // Every repository in the store except the one being swept, as directories.
+    async fn other_repositories(&self, sweeping: &Namespace) -> Vec<PathBuf> {
+        let mut out = Vec::new();
         let Ok(mut orgs) = fs::read_dir(&self.root).await else {
-            return false;
+            return out;
         };
 
         while let Ok(Some(org)) = orgs.next_entry().await {
@@ -134,15 +172,29 @@ impl LocalStore {
                     continue;
                 }
 
-                let candidate = repo.path().join(&oid[0..2]).join(&oid[2..4]).join(oid);
-                if fs::metadata(candidate).await.is_ok() {
-                    return true;
-                }
+                out.push(repo.path());
             }
         }
 
-        false
+        out
     }
+}
+
+// How many names the bytes have. None where the filesystem cannot say, which is
+// every non-Unix target and any object with no shared entry to count from.
+#[cfg(unix)]
+async fn links_to(content: &Path) -> Option<u64> {
+    use std::os::unix::fs::MetadataExt;
+
+    fs::metadata(content)
+        .await
+        .ok()
+        .map(|shared| shared.nlink())
+}
+
+#[cfg(not(unix))]
+async fn links_to(_content: &Path) -> Option<u64> {
+    None
 }
 
 pub(super) fn age(metadata: &std::fs::Metadata) -> Duration {
