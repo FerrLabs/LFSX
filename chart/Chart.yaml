@@ -2,8 +2,8 @@ apiVersion: v2
 name: lfsx
 description: Git LFS server storing each object once across repositories, compressed at rest
 type: application
-version: 0.38.0
-appVersion: "0.38.0"
+version: 0.38.1
+appVersion: "0.38.1"
 home: https://github.com/FerrLabs/LFSX
 sources:
   - https://github.com/FerrLabs/LFSX
@@ -36,4 +36,4 @@ annotations:
       url: https://github.com/FerrLabs/LFSX/blob/main/chart/README.md
   artifacthub.io/images: |
     - name: lfsx
-      image: ghcr.io/ferrlabs/lfsx:0.38.0
+      image: ghcr.io/ferrlabs/lfsx:0.38.1

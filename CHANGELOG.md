@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.1] - 2026-08-17
+
+### Refactoring
+
+- refactor(storage): split the bucket backend and the route handlers by subject (#130)
+
 ## [0.38.0] - 2026-08-17
 
 ### Features
