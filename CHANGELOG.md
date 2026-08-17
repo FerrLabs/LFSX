@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.0] - 2026-08-17
+
+### Features
+
+- feat(storage): let a client upload straight to the bucket, and prove it did (#121)
+
 ## [0.35.0] - 2026-08-17
 
 ### Features
