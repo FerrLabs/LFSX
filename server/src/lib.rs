@@ -22,7 +22,7 @@ use crate::config::Config;
 use crate::locks::LockStore;
 use crate::metrics::Metrics;
 use crate::state::AppState;
-use crate::storage::s3::{S3Config, S3Store};
+use crate::storage::s3::{Keyspace, S3Config, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
@@ -102,14 +102,17 @@ fn backends(config: &Config) -> (Store, LockStore) {
             path_style,
             presign,
         } => {
-            let bucket = S3Store::new(&S3Config {
+            // Built once and shared: the objects and the locks are two ways of
+            // using the same bucket, not two buckets. Signing, the connection
+            // pool and the retry policy are settled here, and neither layer
+            // reaches into the other to get at them.
+            let keys = Keyspace::new(&S3Config {
                 endpoint: endpoint.clone(),
                 bucket: bucket.clone(),
                 region: region.clone(),
                 access_key: access_key.clone(),
                 secret_key: secret_key.clone(),
                 path_style: *path_style,
-                redirect: *presign,
                 lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
             })
             .expect("the bucket configuration is not usable");
@@ -138,8 +141,8 @@ fn backends(config: &Config) -> (Store, LockStore) {
             // the bucket a half measure: capacity would be shared and the one
             // piece of state a second replica must agree on would not be.
             (
-                Store::bucket(bucket.clone(), local),
-                LockStore::bucket(bucket),
+                Store::bucket(S3Store::new(keys.clone(), *presign), local),
+                LockStore::bucket(keys),
             )
         }
     };

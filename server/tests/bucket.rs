@@ -175,6 +175,15 @@ fn several_frames(what: &str) -> Vec<u8> {
         .into_bytes()
 }
 
+// `.incoming/` is one prefix for the whole bucket and the reclaimer sweeps it
+// whole. It has no way to tell an abandoned upload from one still in flight,
+// because in production there is nothing to tell apart: the age window is what
+// protects a live push, and a test sweeping with a zero window has taken that
+// protection away for everybody. So the tests that leave something under that
+// prefix take turns rather than deleting each other's uploads.
+static INCOMING: std::sync::LazyLock<tokio::sync::Mutex<()>> =
+    std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
+
 fn oid_of(payload: &[u8]) -> String {
     hex::encode(Sha256::digest(payload))
 }
@@ -614,6 +623,53 @@ async fn an_encrypted_object_survives_a_bucket_and_is_not_the_object_in_it() {
     );
 }
 
+// A listing answers a page at a time and says whether there is more. Asking for
+// one page and reporting the answer as the whole is how a repository past the
+// page size came to have its capacity silently understated — and understated
+// quietly, because a thousand objects is a plausible number to read.
+//
+// S3 caps a page at a thousand keys, so this pushes past it. It is the slowest
+// test here and it is worth it: nothing smaller distinguishes a listing that
+// follows the continuation token from one that stops.
+#[tokio::test]
+async fn a_repository_past_one_listing_page_is_counted_whole() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Paged");
+    let app = app(&root, &bucket, false);
+
+    let objects = 1_001;
+    for n in 0..objects {
+        let payload = format!("object {n} of {repo}").into_bytes();
+        assert_eq!(
+            push(app.clone(), &repo, &oid_of(&payload), &payload).await,
+            StatusCode::OK
+        );
+    }
+
+    assert_eq!(
+        counted(app, &repo).await,
+        objects,
+        "every object counts, not the first page of them"
+    );
+}
+
+async fn counted(app: Router, repo: &str) -> u64 {
+    let request = Request::builder()
+        .uri(format!("/FerrLabs/{repo}/objects/stats"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+
+    body["objects"].as_u64().unwrap()
+}
+
 async fn stats(app: Router, repo: &str) -> u64 {
     let request = Request::builder()
         .uri(format!("/FerrLabs/{repo}/objects/stats"))
@@ -726,6 +782,7 @@ async fn download(app: Router, repo: &str, oid: &str) -> axum::response::Respons
 #[tokio::test]
 async fn a_client_uploads_straight_to_the_bucket_and_then_owns_the_object() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a presigned upload");
     let oid = oid_of(&payload);
@@ -775,6 +832,7 @@ async fn a_client_uploads_straight_to_the_bucket_and_then_owns_the_object() {
 #[tokio::test]
 async fn the_store_refuses_bytes_that_are_not_the_object() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("the object it claims");
     let oid = oid_of(&payload);
@@ -802,6 +860,7 @@ async fn the_store_refuses_bytes_that_are_not_the_object() {
 #[tokio::test]
 async fn knowing_a_digest_is_not_holding_the_object() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("somebody elses asset");
     let oid = oid_of(&payload);
@@ -829,6 +888,7 @@ async fn knowing_a_digest_is_not_holding_the_object() {
 #[tokio::test]
 async fn a_declared_size_that_does_not_match_what_arrived_is_refused() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a misdeclared object");
     let oid = oid_of(&payload);
@@ -880,6 +940,7 @@ async fn a_keyed_server_does_not_hand_out_upload_urls() {
 #[tokio::test]
 async fn an_upload_nobody_reported_is_reclaimed() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("an abandoned upload");
     let oid = oid_of(&payload);
@@ -911,6 +972,7 @@ async fn an_upload_nobody_reported_is_reclaimed() {
 #[tokio::test]
 async fn an_upload_still_within_the_window_is_left_alone() {
     let bucket = bucket_or_skip!();
+    let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a slow upload");
     let oid = oid_of(&payload);
