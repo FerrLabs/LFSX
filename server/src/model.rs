@@ -79,6 +79,11 @@ pub struct Actions {
 #[derive(Debug, Serialize)]
 pub struct Action {
     pub href: String,
+    // Headers the client must send with the request. Not advice: for a
+    // pre-signed upload the digest is bound into the signature, so an altered or
+    // missing header is a refused request rather than a weaker one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub header: Option<std::collections::BTreeMap<String, String>>,
     pub expires_in: u32,
 }
 

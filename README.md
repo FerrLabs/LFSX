@@ -674,10 +674,33 @@ quota working. A download asks the bucket for exactly the range it wants, so res
 The local volume is still used, as a write buffer: an upload lands there to be hashed and checked
 before anything is sent, and is deleted once it has been.
 
-**`LFSX_S3_PRESIGN=true` redirects downloads instead.** The batch response hands the client a
+**`LFSX_S3_PRESIGN=true` redirects transfers instead.** The batch response hands the client a
 pre-signed URL and the bytes never cross this server, which is what you want when the bucket is
 closer to the clients than the server is, or when the server's egress is the thing you are paying
-for. Uploads are unaffected and still stream through, because that is where the digest is checked.
+for.
+
+Uploads go the same way, and the two things that made that unsafe are both closed rather than
+accepted:
+
+**The digest is bound into the signature.** The URL comes with an `x-amz-checksum-sha256` header the
+client must send, and it is part of what was signed, so the store refuses any body that does not hash
+to the object the URL was cut for. A client holding an upload URL cannot put arbitrary bytes behind
+it.
+
+**The upload goes to a key only that repository was signed for**, under `.incoming/`, not to the
+shared content key. That is what keeps possession meaning something: bytes arriving there prove the
+repository had the object, where a write to the shared key would prove only that somebody with push
+rights knew a digest, which is all a leaked pointer file is. On `verify` the server checks the size
+that actually arrived against the declared one, the object ceiling and the repository's budget, then
+moves the object into the shared keyspace with a copy inside the bucket and writes the marker.
+
+Two consequences worth knowing. `lfsx_uploaded_bytes` does not move for these, because nothing here
+measured them and counting the client's own figure would make that counter mean two different things.
+And **a server with `LFSX_ENCRYPTION_KEY_FILE` set keeps carrying uploads itself**: an object a client
+writes directly arrives as it is, so handing out an upload URL would put plaintext in the bucket while
+the operator believed otherwise. Encryption is a promise about what the storage provider can read, and
+a faster upload is not worth breaking it quietly. The server says so at startup. With compression the
+trade is milder and allowed: objects uploaded directly are simply not compressed.
 
 The permission check does not move. A signature is cut only after the marker says this repository
 holds the object, exactly as a plain download is refused without it, and the URL it signs is scoped

@@ -80,6 +80,16 @@ pub fn app(config: Config) -> Router {
                 tracing::warn!(
                     "LFSX_S3_PRESIGN=true — downloads are redirected to the bucket, so                      lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
                 );
+
+                if config.encryption_key_file.is_some() {
+                    tracing::warn!(
+                        "LFSX_ENCRYPTION_KEY_FILE is set, so uploads keep coming through this                          server rather than going straight to the bucket: an object a client                          writes itself would arrive unencrypted"
+                    );
+                } else if config.compression.is_some() {
+                    tracing::warn!(
+                        "LFSX_COMPRESSION is set, and objects clients upload straight to the                          bucket arrive uncompressed — only what passes through this server is                          compressed"
+                    );
+                }
             }
 
             // The locks go with the objects. Left on the volume they would make

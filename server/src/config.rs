@@ -185,6 +185,15 @@ impl Config {
     pub fn action(&self, href: String) -> Action {
         Action {
             href,
+            header: None,
+            expires_in: self.action_lifetime,
+        }
+    }
+
+    pub fn signed_action(&self, href: String, headers: Vec<(String, String)>) -> Action {
+        Action {
+            href,
+            header: Some(headers.into_iter().collect()),
             expires_in: self.action_lifetime,
         }
     }

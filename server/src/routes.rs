@@ -183,8 +183,32 @@ async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId
         }
     }
 
-    let upload = state.config.object_url(base, ns, &id.oid);
     let verify = state.config.verify_url(base, ns);
+
+    // A pre-signed upload goes to a key only this repository was handed a
+    // signature for, with the object's digest bound into that signature. So the
+    // store refuses anything that does not hash to the object, and the fact that
+    // bytes arrived under this repository's key is what proves it had them. The
+    // shared content key would have taken bytes from anyone allowed to write,
+    // and then nothing would distinguish a repository that has an object from
+    // one that merely knows its digest.
+    if let Some(signed) = state.store.presigned_upload(ns, &id.oid) {
+        return ObjectSpec {
+            id,
+            authenticated: Some(true),
+            actions: Some(Actions {
+                upload: Some(state.config.signed_action(signed.href, signed.headers)),
+                // The client must come back: nothing measured these bytes, so the
+                // size, the ceiling and the budget are checked here, and only
+                // then does the object become this repository's.
+                verify: Some(state.config.action(verify)),
+                ..Actions::default()
+            }),
+            error: None,
+        };
+    }
+
+    let upload = state.config.object_url(base, ns, &id.oid);
     ObjectSpec {
         id,
         authenticated: None,
@@ -305,6 +329,10 @@ fn content_range(start: u64, end: u64, size: u64) -> HeaderValue {
         .unwrap_or_else(|_| HeaderValue::from_static("bytes */0"))
 }
 
+// The client's report that an upload finished. For a transfer that came through
+// this server it confirms what is already known. For a pre-signed one it is the
+// first time the server sees the object at all, so it is where everything the
+// streaming path enforces on the way past has to be enforced instead.
 async fn verify(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
@@ -313,12 +341,49 @@ async fn verify(
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
 
-    state
-        .store
-        .exists(&ns, &id.oid)
-        .await
-        .then_some(StatusCode::OK)
-        .ok_or(Error::NotFound)
+    if state.store.exists(&ns, &id.oid).await {
+        return Ok(StatusCode::OK);
+    }
+
+    let Some(arrived) = state.store.uploaded_size(&ns, &id.oid).await? else {
+        return Err(Error::NotFound);
+    };
+
+    // The digest needs no checking: the store refused every byte that did not
+    // hash to it. The size does, because nothing counted it, and the client
+    // declared it before anything moved.
+    if arrived != id.size {
+        return Err(Error::SizeMismatch {
+            declared: id.size,
+            actual: arrived,
+        });
+    }
+
+    if let Some(limit) = state
+        .config
+        .max_object_size
+        .filter(|limit| arrived > *limit)
+    {
+        return Err(Error::TooLarge { limit });
+    }
+
+    if let Some(limit) = state.config.repo_quota {
+        let (_, used) = state.store.usage_of(&ns).await;
+        let budget = Budget { used, limit };
+
+        if budget.exceeded_by(arrived) {
+            return Err(budget.refusal());
+        }
+    }
+
+    // Every check has passed, so the object becomes this repository's. The bytes
+    // never crossed this server, which is why lfsx_uploaded_bytes does not move:
+    // counting a figure nothing here measured would make that counter mean two
+    // different things.
+    state.store.adopt(&ns, &id.oid).await?;
+    state.metrics.object_size.observe(arrived as f64);
+
+    Ok(StatusCode::OK)
 }
 
 async fn retain(
