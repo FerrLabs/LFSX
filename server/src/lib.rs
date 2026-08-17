@@ -26,6 +26,35 @@ use crate::storage::s3::{S3Config, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
+    let (store, locks) = backends(&config);
+    let authorizer = Authorizer::new(&config.auth);
+
+    routes::router(Arc::new(AppState {
+        store,
+        locks,
+        config,
+        authorizer,
+        metrics: Metrics::new(),
+    }))
+}
+
+// Everything an interrupted upload left behind, wherever it left it: a staging
+// file on the volume, or bytes under an upload key nobody ever reported. Built
+// from the same construction the server uses, so a bucket deployment does not
+// end up sweeping only half of itself.
+pub async fn reclaim(config: &Config) {
+    let reclaimed = backends(config).0.reclaim(config.staging_max_age).await;
+
+    if reclaimed.files > 0 {
+        tracing::info!(
+            files = reclaimed.files,
+            bytes = reclaimed.bytes,
+            "reclaimed what interrupted uploads left behind"
+        );
+    }
+}
+
+fn backends(config: &Config) -> (Store, LockStore) {
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written
@@ -101,14 +130,5 @@ pub fn app(config: Config) -> Router {
             )
         }
     };
-    let locks = lock_backend.with_max_age(config.lock_max_age);
-    let authorizer = Authorizer::new(&config.auth);
-
-    routes::router(Arc::new(AppState {
-        store,
-        locks,
-        config,
-        authorizer,
-        metrics: Metrics::new(),
-    }))
+    (store, lock_backend.with_max_age(config.lock_max_age))
 }

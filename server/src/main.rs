@@ -13,11 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Once at boot, since a crash mid-transfer is exactly what leaves these
     // behind, then hourly so a long-lived process reclaims them too.
-    lfsx_server::storage::reclaim(config.storage_root.clone(), config.staging_max_age).await;
-    tokio::spawn(reclaim_periodically(
-        config.storage_root.clone(),
-        config.staging_max_age,
-    ));
+    lfsx_server::reclaim(&config).await;
+    tokio::spawn(reclaim_periodically(config.clone()));
 
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(bind = %config.bind, root = ?config.storage_root, "lfsx listening");
@@ -29,13 +26,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn reclaim_periodically(root: std::path::PathBuf, older_than: std::time::Duration) {
+async fn reclaim_periodically(config: Config) {
     let mut hourly = tokio::time::interval(std::time::Duration::from_secs(3600));
     hourly.tick().await;
 
     loop {
         hourly.tick().await;
-        lfsx_server::storage::reclaim(root.clone(), older_than).await;
+        lfsx_server::reclaim(&config).await;
     }
 }
 

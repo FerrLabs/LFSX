@@ -9,9 +9,32 @@ use base64::Engine;
 
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::storage::Reclaimed;
 
 const CHECKSUM: &str = "x-amz-checksum-sha256";
 const COPY_SOURCE: &str = "x-amz-copy-source";
+
+// One key as the store describes it.
+struct Entry {
+    key: String,
+    last_modified: String,
+    size: u64,
+}
+
+impl Entry {
+    // None when the store's timestamp cannot be read, which is treated as "too
+    // young to touch": deleting somebody's upload on the strength of a date this
+    // server could not parse is the wrong way to be wrong.
+    fn age(&self) -> Option<Duration> {
+        let written = time::OffsetDateTime::parse(
+            &self.last_modified,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .ok()?;
+
+        Duration::try_from(time::OffsetDateTime::now_utc() - written).ok()
+    }
+}
 
 // An href a client uses directly, and the headers it has to send with it. The
 // headers are part of the signature, so they are not advice.
@@ -469,11 +492,43 @@ impl S3Store {
         Ok(existed)
     }
 
+    // What an interrupted upload leaves behind. A client can negotiate, PUT the
+    // object, and never report it: the bytes sit under its own upload key and
+    // nothing else will ever look at them. The local path has had a reclaimer for
+    // this since the beginning, and a bucket had none, so the cost was unbounded
+    // over time and invisible.
+    pub async fn reclaim_incoming(&self, older_than: Duration) -> Result<Reclaimed, Error> {
+        let mut reclaimed = Reclaimed::default();
+
+        for entry in self.entries(".incoming/").await? {
+            // A slow client on a bad connection is not an abandoned one.
+            if entry.age().is_none_or(|age| age < older_than) {
+                continue;
+            }
+
+            if self.delete(&entry.key).await.is_ok() {
+                reclaimed.files += 1;
+                reclaimed.bytes += entry.size;
+            }
+        }
+
+        Ok(reclaimed)
+    }
+
     // Every key under a prefix, following the continuation token to the end.
     // Stopping at the first page would report a repository holding a thousand
     // locks as holding a thousand and none of the rest, and a lock nobody can
     // see is a lock nobody respects.
     pub(crate) async fn keys(&self, prefix: &str) -> Result<Vec<String>, Error> {
+        Ok(self
+            .entries(prefix)
+            .await?
+            .into_iter()
+            .map(|entry| entry.key)
+            .collect())
+    }
+
+    async fn entries(&self, prefix: &str) -> Result<Vec<Entry>, Error> {
         let mut out = Vec::new();
         let mut token: Option<String> = None;
 
@@ -498,7 +553,11 @@ impl S3Store {
                 )))
             })?;
 
-            out.extend(listing.contents.into_iter().map(|object| object.key));
+            out.extend(listing.contents.into_iter().map(|object| Entry {
+                key: object.key,
+                last_modified: object.last_modified,
+                size: object.size,
+            }));
 
             match listing.next_continuation_token {
                 Some(next) => token = Some(next),

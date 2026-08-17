@@ -52,6 +52,27 @@ impl Store {
         }
     }
 
+    // Everything an interrupted upload can leave behind, wherever it left it. A
+    // bucket deployment still stages locally, so both are swept and the figures
+    // add up to one answer.
+    pub async fn reclaim(&self, older_than: std::time::Duration) -> super::Reclaimed {
+        let mut reclaimed = self.staging().reclaim_staging(older_than).await;
+
+        if let Backend::Bucket { bucket, .. } = &self.0 {
+            match bucket.reclaim_incoming(older_than).await {
+                Ok(theirs) => {
+                    reclaimed.files += theirs.files;
+                    reclaimed.bytes += theirs.bytes;
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "abandoned uploads in the bucket could not be reclaimed");
+                }
+            }
+        }
+
+        reclaimed
+    }
+
     pub async fn writable(&self) -> Result<(), Error> {
         self.staging().writable().await
     }
