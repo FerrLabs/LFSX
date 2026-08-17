@@ -86,13 +86,31 @@ fn built(
     compression: Option<i32>,
     encrypted: bool,
 ) -> Router {
+    lfsx_server::app(bucket_config(
+        root,
+        bucket,
+        presign,
+        lock_max_age,
+        compression,
+        encrypted,
+    ))
+}
+
+fn bucket_config(
+    root: &tempfile::TempDir,
+    bucket: &Bucket,
+    presign: bool,
+    lock_max_age: Option<Duration>,
+    compression: Option<i32>,
+    encrypted: bool,
+) -> Config {
     let encryption_key_file = encrypted.then(|| {
         let key = root.path().join("key");
         std::fs::write(&key, hex::encode([9u8; 32])).unwrap();
         key
     });
 
-    lfsx_server::app(Config {
+    Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         storage_root: root.path().to_path_buf(),
         public_url: Some("https://lfs.example".into()),
@@ -114,7 +132,7 @@ fn built(
             presign,
         },
         auth: Auth::Disabled,
-    })
+    }
 }
 
 // Distinct bytes per test and per run. Per test so nothing here depends on the
@@ -854,4 +872,62 @@ async fn a_keyed_server_does_not_hand_out_upload_urls() {
         "the upload has to come back through this server, which seals it: {answer}"
     );
     assert!(answer["objects"][0]["authenticated"].is_null());
+}
+
+// A client can negotiate, PUT the object, and never report it. Nothing else will
+// ever look at those bytes, and until now nothing removed them either: the local
+// path has had a reclaimer since the beginning and the bucket had none.
+#[tokio::test]
+async fn an_upload_nobody_reported_is_reclaimed() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("an abandoned upload");
+    let oid = oid_of(&payload);
+    let repo = repository("Abandoned");
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &repo, &oid, payload.len()).await;
+    assert!(
+        put_signed(&answer["objects"][0]["actions"]["upload"], payload.clone())
+            .await
+            .is_success()
+    );
+
+    // Nothing reports it. The bytes are in the bucket and belong to nobody.
+    let config = lfsx_server::config::Config {
+        staging_max_age: Duration::ZERO,
+        ..bucket_config(&root, &bucket, true, None, None, false)
+    };
+    lfsx_server::reclaim(&config).await;
+
+    assert_eq!(
+        report(app(&root, &bucket, true), &repo, &oid, payload.len()).await,
+        StatusCode::NOT_FOUND,
+        "the abandoned bytes are gone, so there is nothing left to adopt"
+    );
+}
+
+// A slow client on a bad connection is not an abandoned one, and sweeping it
+// would turn a long push into a failed one.
+#[tokio::test]
+async fn an_upload_still_within_the_window_is_left_alone() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("a slow upload");
+    let oid = oid_of(&payload);
+    let repo = repository("Slow");
+
+    let answer = negotiate_upload(app(&root, &bucket, true), &repo, &oid, payload.len()).await;
+    put_signed(&answer["objects"][0]["actions"]["upload"], payload.clone()).await;
+
+    let config = lfsx_server::config::Config {
+        staging_max_age: Duration::from_secs(3600),
+        ..bucket_config(&root, &bucket, true, None, None, false)
+    };
+    lfsx_server::reclaim(&config).await;
+
+    assert_eq!(
+        report(app(&root, &bucket, true), &repo, &oid, payload.len()).await,
+        StatusCode::OK,
+        "an upload made a moment ago must survive a sweep, or a slow push becomes a failed one"
+    );
 }

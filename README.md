@@ -143,7 +143,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
-| `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an abandoned upload's staging file is reclaimed |
+| `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an interrupted upload's leftovers are reclaimed, on the volume and in the bucket |
 | `LFSX_LOCK_MAX_AGE` | never | seconds a lock may go untouched before anyone can take it |
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
@@ -693,6 +693,11 @@ repository had the object, where a write to the shared key would prove only that
 rights knew a digest, which is all a leaked pointer file is. On `verify` the server checks the size
 that actually arrived against the declared one, the object ceiling and the repository's budget, then
 moves the object into the shared keyspace with a copy inside the bucket and writes the marker.
+
+An upload nobody reports leaves its bytes under that key, and they are swept on the same schedule
+and by the same setting as an interrupted transfer's staging file: once at boot, then hourly, for
+anything older than `LFSX_STAGING_MAX_AGE`. A key written a moment ago is left alone, because a slow
+client on a bad connection is not an abandoned one.
 
 Two consequences worth knowing. `lfsx_uploaded_bytes` does not move for these, because nothing here
 measured them and counting the client's own figure would make that counter mean two different things.
