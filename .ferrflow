@@ -10,18 +10,45 @@
   "package": [
     {
       "name": "lfsx-server",
-      "path": ".",
+      "path": "server",
       "changelog": "CHANGELOG.md",
       "versionedFiles": [
-        { "path": "server/Cargo.toml", "format": "toml" },
-        { "path": "cli/Cargo.toml", "format": "toml" },
-        { "path": "cli/npm/package.json", "format": "json" },
-        { "path": "cli/npm/platforms/linux-x64/package.json", "format": "json" },
-        { "path": "cli/npm/platforms/linux-arm64/package.json", "format": "json" },
-        { "path": "cli/npm/platforms/darwin-x64/package.json", "format": "json" },
-        { "path": "cli/npm/platforms/darwin-arm64/package.json", "format": "json" },
-        { "path": "cli/npm/platforms/win32-x64/package.json", "format": "json" },
-        { "path": "chart/Chart.yaml", "format": "chartyaml" },
+        {
+          "path": "server/Cargo.toml",
+          "format": "toml"
+        },
+        {
+          "path": "cli/Cargo.toml",
+          "format": "toml"
+        },
+        {
+          "path": "cli/npm/package.json",
+          "format": "json"
+        },
+        {
+          "path": "cli/npm/platforms/linux-x64/package.json",
+          "format": "json"
+        },
+        {
+          "path": "cli/npm/platforms/linux-arm64/package.json",
+          "format": "json"
+        },
+        {
+          "path": "cli/npm/platforms/darwin-x64/package.json",
+          "format": "json"
+        },
+        {
+          "path": "cli/npm/platforms/darwin-arm64/package.json",
+          "format": "json"
+        },
+        {
+          "path": "cli/npm/platforms/win32-x64/package.json",
+          "format": "json"
+        },
+        {
+          "path": "chart/Chart.yaml",
+          "format": "chartyaml"
+        },
         {
           "path": "chart/Chart.yaml",
           "format": "txt",
@@ -31,6 +58,32 @@
           "path": "chart/Chart.yaml",
           "format": "txt",
           "selector": "(?m)^      image: ghcr\\.io/ferrlabs/lfsx:(.+)$"
+        }
+      ],
+      "sharedPaths": [
+        "cli",
+        "bench",
+        "chart",
+        "ci",
+        "Cargo.toml",
+        "Cargo.lock",
+        "Dockerfile",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "name": "site",
+      "path": "site",
+      "sharedPaths": [
+        "docs"
+      ],
+      "versioning": "calver",
+      "tagTemplate": "site-v{version}",
+      "changelog": "site/CHANGELOG.md",
+      "versionedFiles": [
+        {
+          "path": "site/package.json",
+          "format": "json"
         }
       ]
     }
