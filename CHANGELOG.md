@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.4] - 2026-08-18
+
+### Bug Fixes
+
+- fix(api): cap a batch and resolve its objects a few at a time (#134)
+
 ## [0.38.3] - 2026-08-18
 
 ### Bug Fixes
