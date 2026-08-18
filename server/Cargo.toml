@@ -1,6 +1,6 @@
 [package]
 name = "lfsx-server"
-version = "0.38.4"
+version = "0.39.0"
 description = "A fast, lightweight, secure Git LFS server"
 license.workspace = true
 edition.workspace = true

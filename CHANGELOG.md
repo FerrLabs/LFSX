@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.39.0] - 2026-08-18
+
+### Features
+
+- feat(site): add the documentation site for lfsx.dev (#135)
+
 ## [0.38.4] - 2026-08-18
 
 ### Bug Fixes
