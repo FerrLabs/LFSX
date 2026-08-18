@@ -44,7 +44,7 @@ importers:
         version: 22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(@angular/platform-browser@22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/ui-foundation':
         specifier: ^5.1.0
-        version: 5.2.0(tailwindcss@4.3.3)
+        version: 5.3.0(tailwindcss@4.3.3)
       '@ferrlabs/ui-ng':
         specifier: ^1.23.0
         version: 1.24.0(04c2ecb415aab541231fc35407705102)
@@ -752,8 +752,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ferrlabs/ui-foundation@5.2.0':
-    resolution: {integrity: sha512-Z6KhvNaiYlDGrTRnTTEU45CW0S9MKz6I+NMY1JCm6TV3Q6Op4xmLHybQgiq/zBQ0a9vBn+mpa1B5b6Xm7gYpeg==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-foundation/5.2.0/7e15b7feffdababe139d586478abf9eb304bcece}
+  '@ferrlabs/ui-foundation@5.3.0':
+    resolution: {integrity: sha512-E61Tjx4+f8wBT0mPFI5DdgWmZfiS6BI2kp6OvM0GYPwdhxY8Od6L/q18fWHkcZ2/FknxlLd2KByryvBuez19Aw==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-foundation/5.3.0/c05043e51ebb8a4d6cc4127bd5504b0ef0c51fa7}
     peerDependencies:
       tailwindcss: ^4.0.0
 
@@ -4551,7 +4551,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@ferrlabs/ui-foundation@5.2.0(tailwindcss@4.3.3)':
+  '@ferrlabs/ui-foundation@5.3.0(tailwindcss@4.3.3)':
     dependencies:
       '@fontsource/dm-mono': 5.3.0
       '@fontsource/fraunces': 5.3.0
