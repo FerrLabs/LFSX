@@ -38,7 +38,7 @@
   --color-rule-strong: color-mix(in srgb, #201e1d 55%, transparent);
 
   /* The accent ramp regenerated at hue 142. The design system ships a red
-     whose own base fails WCAG AA on this ground — 3.76:1 — so the steps were
+     whose own base fails WCAG AA on this ground, 3.76:1, so the steps were
      not merely re-hued: OKLCH lightness and WCAG luminance disagree most
      sharply on green, and a green at the red's lightness lands at 3.18:1,
      worse than what it replaces. The light steps keep their lightness so a
@@ -93,7 +93,7 @@ img.grayscale {
 
 /* The docs stylesheet carries its own radii and leaves body links at text
    colour. Both are its own values rather than tokens, so they cannot be
-   reached by overriding a variable — they are overridden here, scoped to the
+   reached by overriding a variable. They are overridden here, scoped to the
    rendered markdown, rather than by forking the shared package. */
 analog-markdown pre,
 analog-markdown code,
