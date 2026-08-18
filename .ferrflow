@@ -2,10 +2,7 @@
   "$schema": "https://ferrflow.com/schema/ferrflow.json",
   "workspace": {
     "versioning": "zerover",
-    "tagTemplate": "v{version}",
-    "hooks": {
-      "postBump": "cargo update -p lfsx-server -p lfsx"
-    }
+    "tagTemplate": "v{version}"
   },
   "package": [
     {
@@ -69,7 +66,10 @@
         "Cargo.lock",
         "Dockerfile",
         "rust-toolchain.toml"
-      ]
+      ],
+      "hooks": {
+        "postBump": "cargo update -p lfsx-server -p lfsx"
+      }
     },
     {
       "name": "site",
