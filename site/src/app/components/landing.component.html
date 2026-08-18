@@ -1,0 +1,36 @@
+<section class="hero">
+  <h1 class="hero__title" i18n="@@landing.h1">Your assets, your disk.</h1>
+
+  <p class="hero__sub" i18n="@@landing.sub">
+    LFSX is a Git LFS server for the large binaries a repository cannot keep: game assets, textures,
+    models, video. Your code stays on GitHub or GitLab. Only the LFS transfer comes to you, so the
+    metered storage and bandwidth stop being someone else's line item.
+  </p>
+
+  <div class="hero__actions">
+    <a class="hero__cta" href="/docs/quickstart" i18n="@@landing.cta">Quick start</a>
+    <a class="hero__link" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener">GitHub</a>
+  </div>
+
+  <pre class="hero__run" translate="no"><code>{{ run }}</code></pre>
+</section>
+
+<section class="properties">
+  @for (property of properties; track property.key) {
+    <article class="property">
+      <h2 class="property__title">{{ property.title }}</h2>
+      <p class="property__body">{{ property.body }}</p>
+    </article>
+  }
+</section>
+
+<section class="access">
+  <h2 class="access__title" i18n="@@landing.access.title">No accounts to manage</h2>
+  <p class="access__body" i18n="@@landing.access.body">
+    A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what that
+    token is allowed to do. There is no user table, no invitations, and nothing to revoke twice.
+  </p>
+  <a class="access__link" href="/docs/authentication" i18n="@@landing.access.link"
+    >How authentication works</a
+  >
+</section>

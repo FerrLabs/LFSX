@@ -1,0 +1,20 @@
+packages:
+  - 'site'
+
+allowBuilds:
+  '@parcel/watcher': false
+  esbuild: true
+  lmdb: false
+  msgpackr-extract: false
+  sharp: true
+
+# @analogjs/vite-plugin-nitro imports tinyglobby without declaring it, so
+# pnpm's isolated layout leaves it unresolvable and `vite build` dies while
+# loading vite.config.ts. Declare it on the package's behalf.
+packageExtensions:
+  '@analogjs/vite-plugin-nitro':
+    dependencies:
+      tinyglobby: ^0.2.14
+
+minimumReleaseAgeExclude:
+  - '@ferrlabs/*'
