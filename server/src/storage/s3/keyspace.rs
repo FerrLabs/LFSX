@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use futures_util::Stream;
-use rusty_s3::actions::{DeleteObject, GetObject, HeadObject, ListObjectsV2, PutObject, S3Action};
+use rusty_s3::actions::{
+    DeleteObject, GetObject, HeadBucket, HeadObject, ListObjectsV2, PutObject, S3Action,
+};
 use rusty_s3::{Bucket, Credentials, UrlStyle};
 
 use crate::error::Error;
@@ -109,6 +111,23 @@ impl Keyspace {
             client: reqwest::Client::new(),
             lifetime: config.lifetime,
         })
+    }
+
+    // Whether this server can reach the store at all, which is one HEAD on the
+    // bucket. Only the status is reported: the store says why in a body that
+    // names the bucket, and readiness is answered to whoever asks.
+    pub(crate) async fn reachable(&self) -> Result<(), Error> {
+        let action = HeadBucket::new(&self.bucket, Some(&self.credentials));
+        let response = read_retrying(self.client.head(action.sign(self.lifetime))).await?;
+
+        if !response.status().is_success() {
+            return Err(Error::Storage(std::io::Error::other(format!(
+                "the object store answered {} for the bucket",
+                response.status()
+            ))));
+        }
+
+        Ok(())
     }
 
     // A signature handed to a client so it reads the key straight from the store.

@@ -79,6 +79,10 @@ impl S3Store {
         )
     }
 
+    pub async fn reachable(&self) -> Result<(), Error> {
+        self.keys.reachable().await
+    }
+
     pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
         if crate::storage::LocalStore::validate_oid(oid).is_err() {
             return false;

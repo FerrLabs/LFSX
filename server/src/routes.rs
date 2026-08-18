@@ -74,12 +74,8 @@ async fn ready(State(state): State<Shared>) -> Response {
     match state.store.writable().await {
         Ok(()) => "ready".into_response(),
         Err(error) => {
-            tracing::error!(%error, "storage root is not writable");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "storage root is not writable",
-            )
-                .into_response()
+            tracing::error!(%error, "this instance cannot serve and is answering not ready");
+            (StatusCode::SERVICE_UNAVAILABLE, error.to_string()).into_response()
         }
     }
 }

@@ -73,8 +73,25 @@ impl Store {
         reclaimed
     }
 
+    // Readiness has to ask the backend that actually serves. Once the objects
+    // live in a bucket the volume is a write buffer, and an instance whose
+    // credentials were rotated or whose bucket is gone passes a probe that only
+    // proves its scratch disk works — then fails every transfer it is handed.
+    //
+    // So both are asked, either failing takes the instance out, and they are
+    // named apart: a full disk and a rotated key are not the same afternoon.
     pub async fn writable(&self) -> Result<(), Error> {
-        self.staging().writable().await
+        self.staging().writable().await.map_err(|error| {
+            Error::Storage(std::io::Error::other(format!(
+                "the staging volume is not writable: {error}"
+            )))
+        })?;
+
+        if let Backend::Bucket { bucket, .. } = &self.0 {
+            bucket.reachable().await?;
+        }
+
+        Ok(())
     }
 
     pub fn scans(&self) -> u64 {
