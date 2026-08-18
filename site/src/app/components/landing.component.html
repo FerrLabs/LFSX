@@ -1,15 +1,19 @@
 <section class="hero">
-  <h1 class="hero__title" i18n="@@landing.h1">Your assets, your disk.</h1>
+  <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
+
+  <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
 
   <p class="hero__sub" i18n="@@landing.sub">
-    LFSX is a Git LFS server for the large binaries a repository cannot keep: game assets, textures,
-    models, video. Your code stays on GitHub or GitLab. Only the LFS transfer comes to you, so the
-    metered storage and bandwidth stop being someone else's line item.
+    LFSX stores the large binaries of a Git repository, game assets, textures, models and video, so
+    they never touch your host's LFS quota. Your repository stays on GitHub or GitLab. Only the LFS
+    transfer is redirected to your own server.
   </p>
 
   <div class="hero__actions">
     <a class="hero__cta" href="/docs/quickstart" i18n="@@landing.cta">Quick start</a>
-    <a class="hero__link" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener">GitHub</a>
+    <a class="hero__repo" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
+      >github.com/FerrLabs/LFSX</a
+    >
   </div>
 
   <pre class="hero__run" translate="no"><code>{{ run }}</code></pre>
