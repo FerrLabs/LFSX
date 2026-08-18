@@ -161,7 +161,7 @@ async fn an_object_at_the_limit_is_accepted() {
         .await;
 
     assert_eq!(
-        written.unwrap(),
+        written.unwrap().bytes,
         CHUNK as u64,
         "the limit is a ceiling, not a value to stay under"
     );
@@ -184,5 +184,5 @@ async fn without_a_limit_a_large_object_still_goes_through() {
         )
         .await;
 
-    assert_eq!(written.unwrap(), 64 * CHUNK as u64);
+    assert_eq!(written.unwrap().bytes, 64 * CHUNK as u64);
 }

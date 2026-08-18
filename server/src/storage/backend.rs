@@ -13,7 +13,10 @@ use std::time::Duration;
 // price of the things a filesystem gave for nothing — hard links, a directory
 // walk, and a rename that is atomic. Each of those is answered here or refused
 // out loud; none of them is quietly skipped.
-pub struct Store(Backend);
+pub struct Store {
+    backend: Backend,
+    usage: super::usage::Usage,
+}
 
 enum Backend {
     Local(LocalStore),
@@ -30,7 +33,7 @@ enum Backend {
 
 impl Store {
     pub fn local(store: LocalStore) -> Self {
-        Self(Backend::Local(store))
+        Self::over(Backend::Local(store))
     }
 
     // Compression and encryption used to be stripped here, because a framed
@@ -39,14 +42,21 @@ impl Store {
     // they are and come back decoded: the header and the index are three ranged
     // GETs, which is what the format was shaped for.
     pub fn bucket(bucket: S3Store, staging: LocalStore) -> Self {
-        Self(Backend::Bucket {
+        Self::over(Backend::Bucket {
             bucket: Box::new(bucket),
             staging,
         })
     }
 
+    fn over(backend: Backend) -> Self {
+        Self {
+            backend,
+            usage: super::usage::Usage::default(),
+        }
+    }
+
     fn staging(&self) -> &LocalStore {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(store) => store,
             Backend::Bucket { staging, .. } => staging,
         }
@@ -58,7 +68,7 @@ impl Store {
     pub async fn reclaim(&self, older_than: std::time::Duration) -> super::Reclaimed {
         let mut reclaimed = self.staging().reclaim_staging(older_than).await;
 
-        if let Backend::Bucket { bucket, .. } = &self.0 {
+        if let Backend::Bucket { bucket, .. } = &self.backend {
             match bucket.reclaim_incoming(older_than).await {
                 Ok(theirs) => {
                     reclaimed.files += theirs.files;
@@ -87,7 +97,7 @@ impl Store {
             )))
         })?;
 
-        if let Backend::Bucket { bucket, .. } = &self.0 {
+        if let Backend::Bucket { bucket, .. } = &self.backend {
             bucket.reachable().await?;
         }
 
@@ -99,7 +109,7 @@ impl Store {
     }
 
     pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(store) => store.exists(ns, oid).await,
             Backend::Bucket { bucket, .. } => bucket.exists(ns, oid).await,
         }
@@ -113,7 +123,7 @@ impl Store {
     // The caller is responsible for having established that this repository
     // holds the object. This hands out a signature, not a permission.
     pub fn redirect(&self, oid: &str) -> Option<String> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(_) => None,
             Backend::Bucket { bucket, .. } => bucket.presigned_download(oid),
         }
@@ -123,7 +133,7 @@ impl Store {
     // this server. None for a local store and for a bucket the operator has not
     // asked to redirect.
     pub fn presigned_upload(&self, ns: &Namespace, oid: &str) -> Option<super::s3::Presigned> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(_) => None,
             // A client uploading straight to the bucket writes the object as it
             // is, so a configured key would never touch it and the bucket would
@@ -140,7 +150,7 @@ impl Store {
     // when there is nothing waiting, which is every local deployment and every
     // client that has not used its URL.
     pub async fn uploaded_size(&self, ns: &Namespace, oid: &str) -> Result<Option<u64>, Error> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(_) => Ok(None),
             Backend::Bucket { bucket, .. } => Ok(bucket.uploaded_size(ns, oid).await.ok()),
         }
@@ -149,17 +159,25 @@ impl Store {
     // Take an upload this repository made into the shared keyspace. Only reachable
     // for a bucket, because only there does a client write anywhere this server
     // did not.
-    pub async fn adopt(&self, ns: &Namespace, oid: &str) -> Result<(), Error> {
-        match &self.0 {
+    pub async fn adopt(&self, ns: &Namespace, oid: &str, arrived: u64) -> Result<(), Error> {
+        let outcome = match &self.backend {
             Backend::Local(_) => Err(Error::Unsupported(
                 "objects are written through this server, so there is nothing to adopt",
             )),
             Backend::Bucket { bucket, .. } => bucket.adopt(ns, oid).await,
+        };
+
+        // Same reason as a write: verify is called once per object, so dropping
+        // what is remembered here would make every one of them re-measure.
+        if outcome.is_ok() {
+            self.usage.stored(ns, arrived).await;
         }
+
+        outcome
     }
 
     pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(store) => store.open(ns, oid).await,
             Backend::Bucket { bucket, staging } => {
                 // The marker is the proof of possession and is checked before
@@ -207,9 +225,16 @@ impl Store {
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
     {
-        match &self.0 {
-            Backend::Local(store) => store.write(ns, oid, expected_size, budget, chunks).await,
+        let written = match &self.backend {
+            Backend::Local(store) => store.write(ns, oid, expected_size, budget, chunks).await?,
             Backend::Bucket { bucket, staging } => {
+                // Asked of the bucket, because the staging store answers about a
+                // local layout a bucket deployment never fills in: it would call
+                // every upload fresh, and re-pushing an object the repository
+                // already holds would grow what is remembered without anything
+                // being stored.
+                let fresh = !bucket.exists(ns, oid).await;
+
                 let staged = staging
                     .stage(ns, oid, expected_size, budget, chunks)
                     .await?;
@@ -220,9 +245,22 @@ impl Store {
                 let _ = tokio::fs::remove_file(&staged.path).await;
                 outcome?;
 
-                Ok(staged.written)
+                super::Written {
+                    bytes: staged.written,
+                    fresh,
+                }
             }
+        };
+
+        // Added to what is remembered rather than dropping it: a client pushing
+        // a hundred objects would otherwise make the next negotiation measure
+        // the repository again, which on a bucket is what this cache exists to
+        // avoid.
+        if written.fresh {
+            self.usage.stored(ns, written.bytes).await;
         }
+
+        Ok(written.bytes)
     }
 
     // None rather than zero: a bucket has no cheap answer for what the whole
@@ -231,17 +269,29 @@ impl Store {
     // dashboard that averages it, which is the one lie this seam otherwise
     // refuses to tell — everything else it cannot do answers 501.
     pub async fn capacity(&self) -> Option<(u64, u64)> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(store) => Some(store.usage().await),
             Backend::Bucket { .. } => None,
         }
     }
 
+    // Measured at most once a minute per repository, whichever backend is
+    // behind it. A bucket answers this by listing the repository's markers and
+    // asking the size of each, so one uncached call per object in a batch made
+    // a hundred-object push cost a hundred listings — the product, not the sum.
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        match &self.0 {
-            Backend::Local(store) => store.usage_of(ns).await,
-            Backend::Bucket { bucket, .. } => bucket.usage_of(ns).await,
+        if let Some(cached) = self.usage.cached(ns).await {
+            return cached;
         }
+
+        let measured = match &self.backend {
+            Backend::Local(store) => store.measure_of(ns).await,
+            Backend::Bucket { bucket, .. } => bucket.usage_of(ns).await,
+        };
+
+        self.usage.remember(ns, measured.0, measured.1).await;
+
+        measured
     }
 
     pub async fn sweep(
@@ -251,8 +301,17 @@ impl Store {
         grace: std::time::Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
-        match &self.0 {
-            Backend::Local(store) => store.sweep(ns, retained, grace, dry_run).await,
+        match &self.backend {
+            Backend::Local(store) => {
+                let report = store.sweep(ns, retained, grace, dry_run).await;
+
+                // Freeing gigabytes and then answering the next quota check from
+                // the figure measured before is how a client is refused space it
+                // has just been told it reclaimed.
+                self.usage.forget(ns).await;
+
+                report
+            }
             Backend::Bucket { .. } => Err(Error::Unsupported(
                 "collection is not implemented for a bucket yet",
             )),
@@ -260,8 +319,17 @@ impl Store {
     }
 
     pub async fn dedupe(&self, ns: &Namespace, dry_run: bool) -> Result<DedupeReport, Error> {
-        match &self.0 {
-            Backend::Local(store) => store.dedupe(ns, dry_run).await,
+        match &self.backend {
+            Backend::Local(store) => {
+                let report = store.dedupe(ns, dry_run).await;
+
+                // Freeing gigabytes and then answering the next quota check from
+                // the figure measured before is how a client is refused space it
+                // has just been told it reclaimed.
+                self.usage.forget(ns).await;
+
+                report
+            }
             // Content addressing already gives this: two repositories pushing the
             // same object write the same key, and each holds a marker beside it.
             // There is nothing left to fold in.
@@ -272,8 +340,17 @@ impl Store {
     }
 
     pub async fn compress(&self, ns: &Namespace, dry_run: bool) -> Result<CompressReport, Error> {
-        match &self.0 {
-            Backend::Local(store) => store.compress(ns, dry_run).await,
+        match &self.backend {
+            Backend::Local(store) => {
+                let report = store.compress(ns, dry_run).await;
+
+                // Freeing gigabytes and then answering the next quota check from
+                // the figure measured before is how a client is refused space it
+                // has just been told it reclaimed.
+                self.usage.forget(ns).await;
+
+                report
+            }
             // Objects arriving now are compressed if the server is configured to;
             // rewriting the ones already in the bucket means walking it and
             // reuploading, which is a different piece of work.
@@ -284,7 +361,7 @@ impl Store {
     }
 
     pub async fn verify(&self, ns: &Namespace) -> Result<VerifyReport, Error> {
-        match &self.0 {
+        match &self.backend {
             Backend::Local(store) => store.verify(ns).await,
             Backend::Bucket { .. } => Err(Error::Unsupported(
                 "verification is not implemented for a bucket yet",

@@ -56,7 +56,7 @@ impl LocalStore {
         }
 
         if !dry_run && (report.adopted > 0 || report.linked > 0) {
-            self.forget(ns).await;
+            self.forget_capacity().await;
         }
 
         Ok(report)
