@@ -78,7 +78,7 @@
         "docs"
       ],
       "versioning": "calver",
-      "tagTemplate": "site-v{version}",
+      "tagTemplate": "site@{version}",
       "changelog": "site/CHANGELOG.md",
       "versionedFiles": [
         {
