@@ -17,8 +17,11 @@ concurrency:
 jobs:
   site:
     name: Check Site
-    # The Analog prerender of every doc page outgrows the default runner's heap.
-    runs-on: ferrlabs-k8s-large
+    # Every other job here is GitHub-hosted, and the self-hosted scale sets are
+    # not available to this repository: pinning this one to them left it queued
+    # forever, so the gate never ran at all. The prerender needs heap, not a
+    # bigger machine, and NODE_OPTIONS below gives it that.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
