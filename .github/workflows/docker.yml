@@ -10,6 +10,7 @@ on:
   pull_request:
     paths:
       - Dockerfile
+      - site/Dockerfile
       - .github/workflows/docker.yml
   workflow_dispatch:
     inputs:
@@ -75,6 +76,38 @@ jobs:
         echo "::error::the image never answered /health"
         exit 1
 
+  # Le site de lfsx.dev est une image distincte du serveur : même dépôt, même
+  # version, mais un Dockerfile, un registre de paquets et une cible de
+  # déploiement à lui (namespace `lfsx` du cluster). Il n'a pas de sccache —
+  # rien de Rust ne s'y compile — et reste amd64 : c'est la seule architecture
+  # du cluster, et un build arm64 doublerait le temps pour personne.
+  site:
+    name: Build & Push Site
+    needs: meta
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@fb1b42e10ae85ecfcfa2a00e4a40cd81e3d4237e # main
+    with:
+      image-name: ghcr.io/ferrlabs/lfsx/site
+      tag: ${{ needs.meta.outputs.version }}
+      ref: ${{ needs.meta.outputs.ref }}
+      context: .
+      dockerfile: site/Dockerfile
+      platforms: linux/amd64
+      extra-tags: ghcr.io/ferrlabs/lfsx/site:${{ needs.meta.outputs.major_minor }}
+      smoke-test-cmd: |
+        podman run -d --name lfsx-site-smoke -p 18081:8080 "$SMOKE_IMAGE"
+        trap 'podman logs lfsx-site-smoke; podman rm -f lfsx-site-smoke >/dev/null' EXIT
+        for _ in $(seq 30); do
+          if curl -fsS -o /dev/null http://127.0.0.1:18081/; then
+            echo "site ok"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::the site image never served /"
+        exit 1
+    secrets:
+      packages-read: ${{ secrets.FERRFLOW_PACKAGES_READ || secrets.GITHUB_TOKEN }}
+
   verify:
     name: Build without publishing
     if: github.event_name == 'pull_request'
@@ -87,3 +120,17 @@ jobs:
       platforms: linux/amd64
       sccache-gha: true
       push: false
+
+  verify-site:
+    name: Build the site without publishing
+    if: github.event_name == 'pull_request'
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@fb1b42e10ae85ecfcfa2a00e4a40cd81e3d4237e # main
+    with:
+      image-name: ghcr.io/ferrlabs/lfsx/site
+      tag: pr-${{ github.event.pull_request.number }}
+      context: .
+      dockerfile: site/Dockerfile
+      platforms: linux/amd64
+      push: false
+    secrets:
+      packages-read: ${{ secrets.FERRFLOW_PACKAGES_READ || secrets.GITHUB_TOKEN }}
