@@ -53,7 +53,7 @@ impl LocalStore {
         }
 
         if !dry_run && report.compressed > 0 {
-            self.forget(ns).await;
+            self.forget_capacity().await;
         }
 
         Ok(report)

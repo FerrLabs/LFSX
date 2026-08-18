@@ -709,6 +709,41 @@ async fn readiness(app: Router) -> StatusCode {
     app.oneshot(request).await.unwrap().status()
 }
 
+// What a repository holds is remembered for a minute so a quota check does not
+// list the bucket on every negotiation. Remembering it means adding to it when
+// something is stored, and that arithmetic has to agree with the bucket: an
+// object the repository already holds costs it no room, and counting it twice
+// refuses space that was never used.
+#[tokio::test]
+async fn re_pushing_an_object_does_not_grow_what_the_repository_is_said_to_hold() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Repushed");
+    let payload = payload("an object pushed twice");
+    let oid = oid_of(&payload);
+    let app = app(&root, &bucket, false);
+
+    assert_eq!(
+        push(app.clone(), &repo, &oid, &payload).await,
+        StatusCode::OK
+    );
+    let once = stats(app.clone(), &repo).await;
+    assert_eq!(once, payload.len() as u64, "one object, its own size");
+
+    // A retried push, an interrupted clone resumed, a second machine with the
+    // same asset: all of them send bytes the repository already has.
+    assert_eq!(
+        push(app.clone(), &repo, &oid, &payload).await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        stats(app, &repo).await,
+        once,
+        "nothing was stored, so nothing was gained"
+    );
+}
+
 async fn stats(app: Router, repo: &str) -> u64 {
     let request = Request::builder()
         .uri(format!("/FerrLabs/{repo}/objects/stats"))

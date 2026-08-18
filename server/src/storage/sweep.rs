@@ -71,7 +71,7 @@ impl LocalStore {
         }
 
         if !dry_run {
-            self.forget(ns).await;
+            self.forget_capacity().await;
         }
 
         Ok(report)
@@ -223,40 +223,18 @@ impl LocalStore {
         measured
     }
 
-    pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        let key = ns.to_string();
-        let mut cached = self.per_namespace.lock().await;
-
-        if let Some((measured_at, objects, bytes)) = cached.get(&key)
-            && measured_at.elapsed() < USAGE_TTL
-        {
-            return (*objects, *bytes);
-        }
-
-        let measured = self.walk(self.root.join(ns.org()).join(ns.repo())).await;
-        cached.insert(key, (Instant::now(), measured.0, measured.1));
-
-        measured
+    // Uncached on purpose: what a repository holds right now. Remembering it is
+    // the seam's job, because a bucket needs exactly the same policy and used
+    // to go without.
+    pub(super) async fn measure_of(&self, ns: &Namespace) -> (u64, u64) {
+        self.walk(self.root.join(ns.org()).join(ns.repo())).await
     }
 
-    // A quota is checked on every negotiation, so the figure behind it can
-    // afford neither a walk each time nor a minute of staleness: stale in one
-    // direction lets a repository push past its budget, and in the other it
-    // refuses space the client has just freed. A stored object adds to the
-    // cached figure, and a collection drops it so the next reader measures what
-    // is really left rather than trusting arithmetic across hard links.
-    pub async fn stored(&self, ns: &Namespace, bytes: u64) {
-        if let Some((_, objects, held)) = self.per_namespace.lock().await.get_mut(&ns.to_string()) {
-            *objects += 1;
-            *held += bytes;
-        }
-    }
-
-    // Both figures, because both just became wrong. Freeing gigabytes and then
-    // reporting the old total for another minute is how an operator concludes
-    // the collection — or the migration — did nothing.
-    pub async fn forget(&self, ns: &Namespace) {
-        self.per_namespace.lock().await.remove(&ns.to_string());
+    // The whole-store figure, because it just became wrong. Freeing gigabytes
+    // and then reporting the old total for another minute is how an operator
+    // concludes the collection — or the migration — did nothing. What the
+    // repository holds is remembered a layer up and dropped there.
+    pub(super) async fn forget_capacity(&self) {
         *self.usage.lock().await = None;
     }
 

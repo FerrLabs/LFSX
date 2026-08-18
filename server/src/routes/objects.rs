@@ -30,11 +30,24 @@ pub(super) async fn batch(
 
     let base = state.config.base_url(&headers);
 
+    // Read once for the whole batch rather than once per object. Nothing is
+    // written until the client uploads, so the figure cannot change during the
+    // loop in any way that matters — and asking per object made a batch cost
+    // what the repository holds times what the batch asks for, which against a
+    // bucket is a listing and a request per object, every time.
+    let budget = match state.config.repo_quota {
+        Some(limit) if request.operation == Operation::Upload => {
+            let (_, used) = state.store.usage_of(&ns).await;
+            Some(Budget { used, limit })
+        }
+        _ => None,
+    };
+
     let mut objects = Vec::with_capacity(request.objects.len());
     for id in request.objects {
         objects.push(match request.operation {
             Operation::Download => resolve_download(&state, &base, &ns, id).await,
-            Operation::Upload => resolve_upload(&state, &base, &ns, id).await,
+            Operation::Upload => resolve_upload(&state, &base, &ns, id, budget).await,
         });
     }
 
@@ -88,7 +101,13 @@ async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: Object
     }
 }
 
-async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+async fn resolve_upload(
+    state: &Shared,
+    base: &str,
+    ns: &Namespace,
+    id: ObjectId,
+    budget: Option<Budget>,
+) -> ObjectSpec {
     // The size is declared before a single byte moves, so an object over the
     // ceiling is refused here rather than after the client has spent an hour
     // uploading it. The error rides on the object, not the batch: the rest of
@@ -112,12 +131,8 @@ async fn resolve_upload(state: &Shared, base: &str, ns: &Namespace, id: ObjectId
         };
     }
 
-    if let Some(limit) = state.config.repo_quota {
-        let (_, used) = state.store.usage_of(ns).await;
-
-        if used + id.size > limit {
-            return ObjectSpec::over_quota(id, used, limit);
-        }
+    if let Some(budget) = budget.filter(|budget| budget.exceeded_by(id.size)) {
+        return ObjectSpec::over_quota(id, budget.used, budget.limit);
     }
 
     let verify = state.config.verify_url(base, ns);
@@ -317,7 +332,7 @@ pub(super) async fn verify(
     // never crossed this server, which is why lfsx_uploaded_bytes does not move:
     // counting a figure nothing here measured would make that counter mean two
     // different things.
-    state.store.adopt(&ns, &id.oid).await?;
+    state.store.adopt(&ns, &id.oid, arrived).await?;
     state.metrics.object_size.observe(arrived as f64);
 
     Ok(StatusCode::OK)

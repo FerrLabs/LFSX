@@ -6,13 +6,13 @@ mod rewrite;
 pub mod s3;
 mod staging;
 mod sweep;
+mod usage;
 mod verify;
 mod walk;
 
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -144,11 +144,19 @@ impl Budget {
     }
 }
 
+// What a write did, which the caller needs and the byte count alone does not
+// say: an object the repository already held costs it no room, so counting it
+// again would push a repository over a quota it never grew into.
+#[derive(Debug)]
+pub struct Written {
+    pub bytes: u64,
+    pub fresh: bool,
+}
+
 pub struct LocalStore {
     root: PathBuf,
     counter: AtomicU64,
     usage: Mutex<Option<(Instant, u64, u64)>>,
-    per_namespace: Mutex<HashMap<String, (Instant, u64, u64)>>,
     scans: AtomicU64,
     max_object_size: Option<u64>,
     compression: Option<i32>,
@@ -163,7 +171,6 @@ impl LocalStore {
             root: root.into(),
             counter: AtomicU64::new(0),
             usage: Mutex::new(None),
-            per_namespace: Mutex::new(HashMap::new()),
             scans: AtomicU64::new(0),
             max_object_size: None,
             compression: None,
@@ -347,7 +354,7 @@ impl LocalStore {
         expected_size: Option<u64>,
         budget: Option<Budget>,
         chunks: S,
-    ) -> Result<u64, Error>
+    ) -> Result<Written, Error>
     where
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
@@ -357,11 +364,10 @@ impl LocalStore {
         self.link_or_move(&staged.path, &staged.destination, oid)
             .await?;
 
-        if staged.fresh {
-            self.stored(ns, staged.written).await;
-        }
-
-        Ok(staged.written)
+        Ok(Written {
+            bytes: staged.written,
+            fresh: staged.fresh,
+        })
     }
 
     fn staging_path(&self, parent: &Path, oid: &str) -> PathBuf {
