@@ -12,6 +12,10 @@ const LOGO_SVG = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
 export function lfsxChrome(): SiteChromeConfig {
   return {
     origin: 'https://lfsx.dev',
+    // English only, so the navbar shows no language switcher and the shell
+    // emits no hreflang alternates. Both would point at a /fr/ that was never
+    // built, and an alternate is a promise a crawler follows.
+    locales: ['en'],
     logoSvg: LOGO_SVG,
     wordmark: 'lfsx',
     navLinks: [
