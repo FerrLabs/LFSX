@@ -47,6 +47,33 @@ In CI, the token the workflow already holds is enough — no secret to provision
     git lfs pull
 ```
 
+### In CI
+
+`actions/checkout` with `lfs: true` runs its LFS fetch against the endpoint the remote implies —
+GitHub's own — and never reads `.lfsconfig`, which is only honoured by git-lfs invoked afterwards
+against a working tree that already contains it. So the fetch has to be its own step:
+
+```yaml
+- uses: actions/checkout@v5
+  with:
+    lfs: false
+
+- name: Fetch LFS objects
+  env:
+    LFS_TOKEN: ${{ github.token }}
+  run: |
+    git config --global credential.helper '!f() { echo username=x; echo "password=$LFS_TOKEN"; }; f'
+    git lfs pull
+```
+
+`github.token` is enough to **read**. It is a GitHub App installation token, and the forge hands
+this server a repository with no permissions block for one — the answer arriving at all is the
+proof of access, since the forge returns 404 to a token that cannot see the repository.
+
+It is not enough to **push**. Nothing in that answer says the token may write, and this server will
+not assume it. A job that uploads objects needs a personal access token with write access to the
+repository, kept in a secret and passed the same way.
+
 ### Adding a forge
 
 Two providers exist, so the shape is settled rather than guessed. A provider is one module under
