@@ -48,6 +48,9 @@ importers:
       '@ferrlabs/ui-ng':
         specifier: ^1.23.0
         version: 1.24.0(04c2ecb415aab541231fc35407705102)
+      '@fontsource/archivo':
+        specifier: ^5.3.0
+        version: 5.3.0
       front-matter:
         specifier: ^4.0.2
         version: 4.0.2
@@ -765,6 +768,9 @@ packages:
       '@angular/core': ^22.0.0
       '@angular/forms': ^22.0.0
       '@angular/platform-browser': ^22.0.0
+
+  '@fontsource/archivo@5.3.0':
+    resolution: {integrity: sha512-5DIMgPVJRi62OqdOVoogCFxP73EkNM/E0YVTSDIQlDEJfDbxqZduwM/YoNZwC9Sx1CDgpKinqf8ckRY1QNIecw==}
 
   '@fontsource/dm-mono@5.3.0':
     resolution: {integrity: sha512-OINjI8C1S/wpchhQxl7njZdMn4+hnDCpQ4YtvvOpKNARo+0J8O1x1IcrChxNjHOhfVv1by8C/FQoy3hXK+C1Ug==}
@@ -4565,6 +4571,8 @@ snapshots:
       '@angular/forms': 22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(@angular/platform-browser@22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/platform-browser': 22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))
       tslib: 2.8.1
+
+  '@fontsource/archivo@5.3.0': {}
 
   '@fontsource/dm-mono@5.3.0': {}
 
