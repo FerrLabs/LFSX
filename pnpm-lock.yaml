@@ -46,7 +46,7 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(tailwindcss@4.3.3)
       '@ferrlabs/ui-ng':
-        specifier: ^1.10.0
+        specifier: ^1.23.0
         version: 1.23.0(04c2ecb415aab541231fc35407705102)
       front-matter:
         specifier: ^4.0.2
