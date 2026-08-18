@@ -33,13 +33,13 @@ permissions:
 jobs:
   meta:
     name: Resolve build parameters
-    # The server releases as `v0.40.0` and the site as `site-v2026.8.18`, so the
+    # The server releases as `v0.40.0` and the site as `site@2026.8.18`, so the
     # tag says which image to build. Matching only `v` meant a site release built
     # nothing at all, and a server release rebuilt the site under the server's
     # version.
     if: |
       startsWith(github.event.release.tag_name, 'v') ||
-      startsWith(github.event.release.tag_name, 'site-v') ||
+      startsWith(github.event.release.tag_name, 'site@') ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
@@ -55,7 +55,7 @@ jobs:
             KIND="${{ inputs.target }}"
             VERSION="${{ inputs.version }}"
             if [ "${KIND}" = "site" ]; then
-              REF="refs/tags/site-v${VERSION}"
+              REF="refs/tags/site@${VERSION}"
             else
               REF="refs/tags/v${VERSION}"
             fi
@@ -63,7 +63,7 @@ jobs:
             TAG="${{ github.event.release.tag_name }}"
             REF="refs/tags/${TAG}"
             case "${TAG}" in
-              site-v*) KIND=site;   VERSION="${TAG#site-v}" ;;
+              site@*) KIND=site;   VERSION="${TAG#site@}" ;;
               v*)      KIND=server; VERSION="${TAG#v}" ;;
               *)       echo "::error::unrecognised release tag ${TAG}"; exit 1 ;;
             esac
