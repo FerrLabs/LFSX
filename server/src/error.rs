@@ -20,6 +20,11 @@ pub enum Error {
     #[error("object exceeds the {limit} byte limit this server accepts")]
     TooLarge { limit: u64 },
 
+    #[error(
+        "a batch asks about {asked} objects, and this server answers at most {limit} at a time"
+    )]
+    BatchTooLarge { asked: usize, limit: usize },
+
     #[error("this repository holds {used} bytes of its {limit} byte budget")]
     OverQuota { used: u64, limit: u64 },
 
@@ -85,7 +90,8 @@ impl Error {
             | Self::MalformedLockPath
             | Self::MalformedNamespace
             | Self::OidMismatch { .. }
-            | Self::SizeMismatch { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            | Self::SizeMismatch { .. }
+            | Self::BatchTooLarge { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
             Self::CompressionDisabled => StatusCode::CONFLICT,
@@ -117,6 +123,7 @@ impl Error {
             Self::OidMismatch { .. } => "oid_mismatch",
             Self::SizeMismatch { .. } => "size_mismatch",
             Self::TooLarge { .. } => "too_large",
+            Self::BatchTooLarge { .. } => "batch_too_large",
             Self::OverQuota { .. } => "over_quota",
             Self::CompressionDisabled => "compression_disabled",
             Self::NotDecryptable => "not_decryptable",
