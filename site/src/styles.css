@@ -8,6 +8,8 @@
 @import '@fontsource/archivo/500.css';
 @import '@fontsource/archivo/600.css';
 @import '@fontsource/archivo/700.css';
+@import '@fontsource/archivo/400-italic.css';
+@import '@fontsource/archivo/600-italic.css';
 
 /* The Modernist direction, reached by overriding the tokens the shared
    components already read rather than by forking them. Flat, architectural,
@@ -21,7 +23,7 @@
 @theme static {
   --font-sans: 'Archivo', system-ui, sans-serif;
   --font-display: 'Archivo', system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --color-paper: #f3f2f2;
   --color-paper-2: #eae9e9;
