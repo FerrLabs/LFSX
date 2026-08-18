@@ -4,7 +4,7 @@ description: Git LFS server storing each object once across repositories, compre
 type: application
 version: 0.39.0
 appVersion: "0.39.0"
-home: https://github.com/FerrLabs/LFSX
+home: https://lfsx.dev
 sources:
   - https://github.com/FerrLabs/LFSX
 keywords:
@@ -28,10 +28,12 @@ annotations:
   artifacthub.io/category: storage
   artifacthub.io/license: MPL-2.0
   artifacthub.io/links: |
+    - name: Documentation
+      url: https://lfsx.dev
     - name: Source
       url: https://github.com/FerrLabs/LFSX
     - name: Operations guide
-      url: https://github.com/FerrLabs/LFSX/blob/main/docs/operations.md
+      url: https://lfsx.dev/docs/operations
     - name: Chart values
       url: https://github.com/FerrLabs/LFSX/blob/main/chart/README.md
   artifacthub.io/images: |
