@@ -15,8 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (without v prefix)'
+        description: 'Version (without the v prefix)'
         required: true
+      target:
+        description: 'Which image to build'
+        type: choice
+        options: [server, site]
+        default: server
 
 permissions:
   contents: read
@@ -28,31 +33,52 @@ permissions:
 jobs:
   meta:
     name: Resolve build parameters
-    if: startsWith(github.event.release.tag_name, 'v') || github.event_name == 'workflow_dispatch'
+    # The server releases as `v0.40.0` and the site as `site-v2026.8.18`, so the
+    # tag says which image to build. Matching only `v` meant a site release built
+    # nothing at all, and a server release rebuilt the site under the server's
+    # version.
+    if: |
+      startsWith(github.event.release.tag_name, 'v') ||
+      startsWith(github.event.release.tag_name, 'site-v') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
       major_minor: ${{ steps.meta.outputs.major_minor }}
       ref: ${{ steps.meta.outputs.ref }}
+      kind: ${{ steps.meta.outputs.kind }}
     steps:
       - id: meta
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            KIND="${{ inputs.target }}"
             VERSION="${{ inputs.version }}"
+            if [ "${KIND}" = "site" ]; then
+              REF="refs/tags/site-v${VERSION}"
+            else
+              REF="refs/tags/v${VERSION}"
+            fi
           else
             TAG="${{ github.event.release.tag_name }}"
-            VERSION="${TAG#v}"
+            REF="refs/tags/${TAG}"
+            case "${TAG}" in
+              site-v*) KIND=site;   VERSION="${TAG#site-v}" ;;
+              v*)      KIND=server; VERSION="${TAG#v}" ;;
+              *)       echo "::error::unrecognised release tag ${TAG}"; exit 1 ;;
+            esac
           fi
           {
+            echo "kind=${KIND}"
             echo "version=${VERSION}"
             echo "major_minor=$(echo "${VERSION}" | cut -d. -f1-2)"
-            echo "ref=refs/tags/v${VERSION}"
+            echo "ref=${REF}"
           } >> "$GITHUB_OUTPUT"
 
   build:
     name: Build & Push LFSX
     needs: meta
+    if: needs.meta.outputs.kind == 'server'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@fb1b42e10ae85ecfcfa2a00e4a40cd81e3d4237e # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
@@ -76,14 +102,16 @@ jobs:
         echo "::error::the image never answered /health"
         exit 1
 
-  # Le site de lfsx.dev est une image distincte du serveur : même dépôt, même
-  # version, mais un Dockerfile, un registre de paquets et une cible de
-  # déploiement à lui (namespace `lfsx` du cluster). Il n'a pas de sccache —
+  # The lfsx.dev site is a separate image from the server: same repository, but
+  # its own Dockerfile, its own package registry, its own deployment target (the
+  # cluster's `lfsx` namespace) — and since the release config split, its own
+  # version, on a calendar clock. Il n'a pas de sccache —
   # rien de Rust ne s'y compile — et reste amd64 : c'est la seule architecture
   # du cluster, et un build arm64 doublerait le temps pour personne.
   site:
     name: Build & Push Site
     needs: meta
+    if: needs.meta.outputs.kind == 'site'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@fb1b42e10ae85ecfcfa2a00e4a40cd81e3d4237e # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
