@@ -670,6 +670,45 @@ async fn counted(app: Router, repo: &str) -> u64 {
     body["objects"].as_u64().unwrap()
 }
 
+// Readiness exists so an orchestrator stops sending traffic to an instance that
+// cannot serve. Once the objects live in a bucket, the volume is a write buffer
+// and says nothing about whether this server can reach them.
+#[tokio::test]
+async fn an_instance_that_cannot_reach_its_bucket_is_not_ready() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+
+    assert_eq!(
+        readiness(app(&root, &bucket, false)).await,
+        StatusCode::OK,
+        "a bucket it can reach is a bucket it can serve from"
+    );
+
+    // What a deleted bucket or a rotated key looks like from here: the staging
+    // volume is untouched and perfectly writable, and every transfer this
+    // instance is handed will still fail.
+    let gone = Bucket {
+        bucket: format!("{}-gone", bucket.bucket),
+        ..bucket
+    };
+    let root = tempfile::tempdir().unwrap();
+
+    assert_eq!(
+        readiness(app(&root, &gone, false)).await,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "a scratch disk that works is not the question readiness is asking"
+    );
+}
+
+async fn readiness(app: Router) -> StatusCode {
+    let request = Request::builder()
+        .uri("/ready")
+        .body(Body::empty())
+        .unwrap();
+
+    app.oneshot(request).await.unwrap().status()
+}
+
 async fn stats(app: Router, repo: &str) -> u64 {
     let request = Request::builder()
         .uri(format!("/FerrLabs/{repo}/objects/stats"))

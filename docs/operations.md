@@ -59,13 +59,17 @@ once the store passes a few terabytes, where walking it costs more than copying 
 
 2. **Check ownership.** The container runs as uid 65532, and a restore performed as root leaves a
    store the server cannot write to. That is what `/ready` is for: it probes the root by writing to
-   it, so a broken restore takes the instance out of rotation instead of failing every push.
+   it, so a broken restore takes the instance out of rotation instead of failing every push. On a
+   bucket deployment the volume is still staging, so that probe still matters and still runs.
 
    ```bash
    chown -R 65532:65532 /var/lib/lfsx
    ```
 
-3. **Ask the server.** `/ready` covers the volume; `lfsx doctor` covers the deployment around it,
+3. **Ask the server.** `/ready` covers the storage the instance actually serves from: the volume
+   always, and with `LFSX_STORAGE=s3` the bucket as well, so a rotated key or a bucket that is gone
+   takes the instance out instead of failing every transfer with a 500. The response says which of
+   the two answered. `lfsx doctor` covers the deployment around it,
    including the public URL, which is the setting that makes negotiation succeed and every transfer
    fail:
 
