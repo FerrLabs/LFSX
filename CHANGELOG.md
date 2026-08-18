@@ -4,6 +4,18 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.40.0] - 2026-08-18
+
+### Features
+
+- feat(site): declare the site as English-only (#144)
+
+### Bug Fixes
+
+- fix(auth): accept a forge token that carries no permissions block (#147)
+- fix(ci): keep the server publish workflows off site releases (#145)
+- fix(ci): build the site image from the site's own release tag (#143)
+
 ## [0.39.0] - 2026-08-18
 
 ### Features
