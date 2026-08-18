@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.2] - 2026-08-18
+
+### Bug Fixes
+
+- fix(storage): ask the bucket whether this instance can serve before answering ready (#132)
+
 ## [0.38.1] - 2026-08-17
 
 ### Refactoring
