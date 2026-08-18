@@ -61,6 +61,99 @@ async fn batch(app: Router, body: serde_json::Value) -> (StatusCode, serde_json:
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
+// The object count is the client's to choose, and each one costs a round trip
+// against storage the operator pays per request for. No client sends anything
+// near this, so a batch that does is refused rather than served slowly.
+#[tokio::test]
+async fn a_batch_past_the_ceiling_is_refused_and_says_so() {
+    let root = tempfile::tempdir().unwrap();
+
+    let objects: Vec<_> = (0..1_001)
+        .map(|n| serde_json::json!({ "oid": oid_of(format!("object {n}").as_bytes()), "size": 1 }))
+        .collect();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "download",
+            "transfers": ["basic"],
+            "objects": objects
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("1000"),
+        "refusing without naming the ceiling leaves the client nothing to do about it: {body}"
+    );
+}
+
+// A thousand is the ceiling, so a thousand is served. A backstop that refuses
+// what a client might legitimately send would be a policy nobody chose.
+#[tokio::test]
+async fn a_batch_at_the_ceiling_is_answered() {
+    let root = tempfile::tempdir().unwrap();
+
+    let objects: Vec<_> = (0..1_000)
+        .map(|n| serde_json::json!({ "oid": oid_of(format!("object {n}").as_bytes()), "size": 1 }))
+        .collect();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "download",
+            "transfers": ["basic"],
+            "objects": objects
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["objects"].as_array().unwrap().len(), 1_000);
+}
+
+// The objects are resolved a few at a time, so the answers do not arrive in the
+// order they were asked for. They have to be returned in it.
+#[tokio::test]
+async fn a_batch_answers_in_the_order_it_was_asked() {
+    let root = tempfile::tempdir().unwrap();
+
+    let asked: Vec<String> = (0..200)
+        .map(|n| oid_of(format!("object {n} of an ordered batch").as_bytes()))
+        .collect();
+    let objects: Vec<_> = asked
+        .iter()
+        .map(|oid| serde_json::json!({ "oid": oid, "size": 1 }))
+        .collect();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "download",
+            "transfers": ["basic"],
+            "objects": objects
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let answered: Vec<&str> = body["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|object| object["oid"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(
+        answered, asked,
+        "a reordered batch is a batch a client cannot match up"
+    );
+}
+
 #[tokio::test]
 async fn stored_object_comes_back_byte_for_byte() {
     let root = tempfile::tempdir().unwrap();

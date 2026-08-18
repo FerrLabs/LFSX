@@ -17,6 +17,23 @@ use crate::storage::Budget;
 // what it gets back. Everything here is driven by a client running `git push`
 // or `git pull` and nothing else calls it.
 
+// A backstop rather than a policy. git-lfs sends at most a hundred and every
+// other client is in the same range, so nothing legitimate comes near this —
+// but the count is the client's to choose, and axum's body limit leaves room for
+// tens of thousands of entries in one request. Each entry costs a round trip
+// against storage the operator pays per request for, so an authenticated
+// contributor could otherwise make one request spend an hour.
+//
+// Refused rather than truncated: answering for the first thousand of two
+// thousand objects would tell a client the rest do not exist, and it would
+// upload them again.
+const BATCH_CEILING: usize = 1_000;
+
+// Enough to hide the round trips a bucket charges for without becoming a burst
+// the store answers with 503. The work per object is one `HEAD` and no state, so
+// the only reason to bound it at all is the store on the other end.
+const RESOLVE_AT_ONCE: usize = 16;
+
 pub(super) async fn batch(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
@@ -26,6 +43,13 @@ pub(super) async fn batch(
 ) -> Result<Json<BatchResponse>, Error> {
     if request.operation == Operation::Upload {
         permission.require_write()?;
+    }
+
+    if request.objects.len() > BATCH_CEILING {
+        return Err(Error::BatchTooLarge {
+            asked: request.objects.len(),
+            limit: BATCH_CEILING,
+        });
     }
 
     let base = state.config.base_url(&headers);
@@ -43,13 +67,25 @@ pub(super) async fn batch(
         _ => None,
     };
 
-    let mut objects = Vec::with_capacity(request.objects.len());
-    for id in request.objects {
-        objects.push(match request.operation {
-            Operation::Download => resolve_download(&state, &base, &ns, id).await,
-            Operation::Upload => resolve_upload(&state, &base, &ns, id, budget).await,
-        });
-    }
+    // Resolved a few at a time rather than one after another: each object costs
+    // a `HEAD` against a bucket, and a hundred of those in series is a hundred
+    // round trips the client waits through before it can upload anything.
+    // `buffered` keeps the answers in the order they were asked for.
+    let objects: Vec<ObjectSpec> = futures_util::stream::iter(request.objects)
+        .map(|id| {
+            let state = &state;
+            let base = &base;
+            let ns = &ns;
+            async move {
+                match request.operation {
+                    Operation::Download => resolve_download(state, base, ns, id).await,
+                    Operation::Upload => resolve_upload(state, base, ns, id, budget).await,
+                }
+            }
+        })
+        .buffered(RESOLVE_AT_ONCE)
+        .collect()
+        .await;
 
     Ok(Json(BatchResponse {
         transfer: negotiate(&request.transfers),
