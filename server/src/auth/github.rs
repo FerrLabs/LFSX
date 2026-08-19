@@ -81,7 +81,10 @@ pub async fn permission(
         Some(Permissions { push: true, .. }) => Ok(Permission::Write),
         Some(Permissions { pull: true, .. }) => Ok(Permission::Read),
         Some(_) => {
-            tracing::debug!(%url, "the forge grants this token no access to this repository");
+            tracing::info!(
+                %url,
+                "the forge sent a permissions block granting this token nothing"
+            );
             Err(Error::Forbidden)
         }
         // A GitHub App installation token — which is what `GITHUB_TOKEN` is
@@ -94,7 +97,7 @@ pub async fn permission(
         // That is read, and only read — nothing here says the token may write,
         // and inferring it would let a job push objects it was never granted.
         None => {
-            tracing::debug!(
+            tracing::info!(
                 %url,
                 "the forge sent no permissions block, reading it as read-only access"
             );
@@ -130,7 +133,19 @@ pub async fn public(
 
     match response.status() {
         StatusCode::OK => Ok(Permission::Read),
-        StatusCode::NOT_FOUND | StatusCode::UNAUTHORIZED => Err(Error::Unauthenticated),
+        // Split apart because they mean different things to whoever is reading
+        // the log. A 404 is the ordinary answer for a repository the forge will
+        // not admit to a caller with no credentials, which is most of them. A
+        // 401 means the forge rejected this server's unauthenticated call
+        // itself, which points at the endpoint rather than at the repository.
+        StatusCode::NOT_FOUND => {
+            tracing::info!(%url, "the forge will not admit this repository anonymously");
+            Err(Error::Unauthenticated)
+        }
+        StatusCode::UNAUTHORIZED => {
+            tracing::warn!(%url, "the forge refused this server's anonymous lookup");
+            Err(Error::Unauthenticated)
+        }
         StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
             if let Some(retry_after) = super::backoff::rate_limited(&response) =>
         {
@@ -171,7 +186,10 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
             tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
             return Err(Error::RateLimited { retry_after });
         }
-        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
+        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
+            tracing::info!(%url, "the forge will not say who this token belongs to");
+            return Err(Error::Forbidden);
+        }
         status => {
             tracing::warn!(%status, %url, "unexpected forge response");
             return Err(Error::Forge);
