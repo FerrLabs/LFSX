@@ -47,7 +47,7 @@ importers:
         version: 5.3.1(tailwindcss@4.3.3)
       '@ferrlabs/ui-ng':
         specifier: ^1.23.0
-        version: 1.24.0(04c2ecb415aab541231fc35407705102)
+        version: 1.24.1(04c2ecb415aab541231fc35407705102)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -760,8 +760,8 @@ packages:
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@ferrlabs/ui-ng@1.24.0':
-    resolution: {integrity: sha512-aGCc9kyps2HVxiAfYJpmINl4vlDJYtApTMB4dK0kD1Rt6QB1+zt+grMukHj1+/GpHJZLZ7kh87qnRfQUBnu26g==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-ng/1.24.0/f10c1c3106451f855800c31663fd1a6625b7c3de}
+  '@ferrlabs/ui-ng@1.24.1':
+    resolution: {integrity: sha512-tmVClaYyQW8kgJ8xSpVXDhVQP5c3tMQglQXk/KaDaBwIy8ooeq4ZWL49hQt5bVBTbJQE5oic1LteCABf9MukZQ==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-ng/1.24.1/30dfd7c814dca8722d12dddd92f482e467a3e833}
     peerDependencies:
       '@angular/cdk': ^22.0.0
       '@angular/common': ^22.0.0
@@ -4563,7 +4563,7 @@ snapshots:
       '@fontsource/fraunces': 5.3.0
       tailwindcss: 4.3.3
 
-  '@ferrlabs/ui-ng@1.24.0(04c2ecb415aab541231fc35407705102)':
+  '@ferrlabs/ui-ng@1.24.1(04c2ecb415aab541231fc35407705102)':
     dependencies:
       '@angular/cdk': 22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(@angular/platform-browser@22.1.2(@angular/common@22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.1.2(@angular/core@22.1.2(@angular/compiler@22.1.2)(rxjs@7.8.2))(rxjs@7.8.2)
