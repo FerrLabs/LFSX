@@ -17,26 +17,44 @@ REPO_ROOT="$(cd "${NPM_DIR}/../.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# Refused rather than attempted. Without a token npm publishes anonymously and
-# the registry answers 404 for a scoped package, which reads as "the package does
-# not exist" and sends you hunting for a name that is plainly there.
-if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-	echo "::error::NODE_AUTH_TOKEN is empty: the NPM_TOKEN secret is missing. Publishing without it is answered with a 404 that looks like a missing package." >&2
+# Two ways in, and the workflow decides which by whether it granted `id-token`.
+#
+# Trusted publishing is the one to prefer: GitHub mints a short-lived OIDC token
+# for this exact workflow, npm checks it against the publisher configured on each
+# package, and nothing long-lived exists to expire or to leak. It also sidesteps
+# the account's 2FA, which is all an automation token ever bought.
+#
+# A token stays as the fallback, for running this outside Actions.
+if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+	NEED="11.5.1"
+	HAVE="$(npm --version)"
+	if [ "$(printf '%s
+%s
+' "$NEED" "$HAVE" | sort -V | head -1)" != "$NEED" ]; then
+		echo "::error::npm ${HAVE} cannot do trusted publishing; ${NEED} or newer is required. Pin it with actions/setup-node." >&2
+		exit 1
+	fi
+
+	# Any token here would take precedence over the OIDC exchange and quietly put
+	# publishing back on a credential that expires.
+	unset NODE_AUTH_TOKEN NPM_TOKEN
+	echo "publishing with trusted publishing, npm ${HAVE}"
+elif [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+	printf '//registry.npmjs.org/:_authToken=%s
+' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
+	export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
+
+	# Asked before five archives are downloaded and five packages assembled, so a
+	# token that expired costs a second rather than the whole job.
+	if ! WHO="$(npm whoami 2>&1)"; then
+		echo "::error::npm will not accept this token (${WHO}). It has most likely expired: npm tokens do. Prefer trusted publishing; failing that, generate an automation token, the only kind that bypasses the account's 2FA, and update the NPM_TOKEN secret." >&2
+		exit 1
+	fi
+	echo "authenticated to npm as ${WHO}"
+else
+	echo "::error::no id-token permission and no NODE_AUTH_TOKEN. Publishing anonymously is answered with a 404 that looks like a missing package." >&2
 	exit 1
 fi
-
-printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
-export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
-
-# Asked before five archives are downloaded and five packages are assembled, so a
-# token that expired costs a second rather than the whole job. npm answers 404 to
-# a write it will not allow, so this is the last point where "no rights" and "no
-# package" can still be told apart.
-if ! WHO="$(npm whoami 2>&1)"; then
-	echo "::error::npm will not accept this token (${WHO}). It has most likely expired: npm tokens do. Generate an automation token, or a granular one with read and write on the @ferrlabs scope, and update the NPM_TOKEN secret." >&2
-	exit 1
-fi
-echo "authenticated to npm as ${WHO}"
 
 publish_if_new() {
   if npm view "$1@${VERSION}" version >/dev/null 2>&1; then
