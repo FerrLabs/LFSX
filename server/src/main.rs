@@ -17,7 +17,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(reclaim_periodically(config.clone()));
 
     let listener = TcpListener::bind(config.bind).await?;
-    tracing::info!(bind = %config.bind, root = ?config.storage_root, "lfsx listening");
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        bind = %config.bind,
+        root = ?config.storage_root,
+        "lfsx listening"
+    );
 
     axum::serve(listener, lfsx_server::app(config))
         .with_graceful_shutdown(shutdown())
