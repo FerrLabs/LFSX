@@ -296,7 +296,13 @@ impl S3Store {
                 continue;
             }
 
-            if entry.key.starts_with(".incoming/") {
+            // Locks live at `.locks/{org}/{repo}/{id}`, so they never match the
+            // marker prefix and are never swept. Skipped explicitly all the same:
+            // falling through would file every lock id in the claimed set, and an
+            // object whose digest happened to equal a lock id would then never be
+            // collected. The odds are absurd today and the line costs nothing,
+            // but the code should not depend on ids and digests never colliding.
+            if entry.key.starts_with(".incoming/") || entry.key.starts_with(".locks/") {
                 continue;
             }
 

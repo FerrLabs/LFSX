@@ -754,6 +754,30 @@ async fn re_pushing_an_object_does_not_grow_what_the_repository_is_said_to_hold(
     );
 }
 
+// Locks share the bucket with the objects, so a sweep walks past them. It must
+// leave them alone: a collection that released a lock would hand an artist a
+// scene somebody else is editing.
+#[tokio::test]
+async fn collecting_a_repository_leaves_its_locks_alone() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Locked");
+    let app = collecting(&root, &bucket);
+
+    let taken = lock(app.clone(), &repo, "scenes/arena.unity").await;
+    assert_eq!(taken.0, StatusCode::CREATED, "{:?}", taken.1);
+
+    let report = retain(app.clone(), &repo, &[], false).await;
+    assert_eq!(report["swept"], 0, "there was nothing to collect: {report}");
+
+    let locks = locks_on(app, &repo).await;
+    assert_eq!(
+        locks["locks"].as_array().map(Vec::len),
+        Some(1),
+        "the sweep released a lock it had no business touching: {locks}"
+    );
+}
+
 async fn retain(app: Router, repo: &str, oids: &[&str], dry_run: bool) -> serde_json::Value {
     let body = serde_json::json!({ "oids": oids, "dry_run": dry_run });
     let request = Request::builder()
