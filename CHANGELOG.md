@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-08-19
+
+### Features
+
+- feat(storage): collect objects in a bucket (#160)
+
 ## [1.0.2] - 2026-08-19
 
 ### Bug Fixes
