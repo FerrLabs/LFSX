@@ -48,17 +48,39 @@ async fn a_permissions_block_decides_the_level() {
     }
 }
 
-// A block that grants nothing is a refusal, and stays one: the caller was told
-// about this repository and told it may do nothing with it.
+// The exact payload a GitHub App installation token receives, captured from a
+// real Actions run on a private repository: every field false, for a token that
+// had just been handed the repository. That block reports the authenticated
+// user's permissions and an installation token has no user, so it says nothing
+// about what the token may do. Believing it refused every CI job.
 #[tokio::test]
-async fn a_block_granting_nothing_is_still_refused() {
-    let refused = asked(
+async fn the_block_an_installation_token_receives_still_grants_read() {
+    let granted = asked(
         StatusCode::OK,
-        r#"{"permissions":{"admin":false,"push":false,"pull":false}}"#,
+        r#"{"private":true,"permissions":{"admin":false,"maintain":false,"push":false,"triage":false,"pull":false}}"#,
     )
     .await;
 
-    assert!(matches!(refused, Err(Error::Forbidden)), "{refused:?}");
+    assert_eq!(
+        granted.unwrap(),
+        Permission::Read,
+        "the forge answers 404 to a token that cannot see the repository, so a body at all is proof of read"
+    );
+}
+
+// And it grants read only. Nothing in a block of falses says the token may
+// write, and a job pushing objects it was never granted is the failure worth
+// keeping impossible.
+#[tokio::test]
+async fn the_block_an_installation_token_receives_never_grants_write() {
+    let granted = asked(
+        StatusCode::OK,
+        r#"{"private":true,"permissions":{"admin":false,"push":false,"pull":false}}"#,
+    )
+    .await
+    .unwrap();
+
+    assert!(granted.require_write().is_err(), "{granted:?}");
 }
 
 // What `GITHUB_TOKEN` looks like from here: a GitHub App installation token gets

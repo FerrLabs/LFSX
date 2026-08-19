@@ -66,9 +66,11 @@ against a working tree that already contains it. So the fetch has to be its own 
     git lfs pull
 ```
 
-`github.token` is enough to **read**. It is a GitHub App installation token, and the forge hands
-this server a repository with no permissions block for one — the answer arriving at all is the
-proof of access, since the forge returns 404 to a token that cannot see the repository.
+`github.token` is enough to **read**. It is a GitHub App installation token, and the forge reports
+`{"admin":false,"push":false,"pull":false}` for one however much access it actually has, because
+that field describes the authenticated user's permissions and an installation token has no user
+behind it. So this server does not read it as a refusal: the answer arriving at all is the proof of
+access, since the forge returns 404 to a token that cannot see the repository.
 
 It is not enough to **push**. Nothing in that answer says the token may write, and this server will
 not assume it. A job that uploads objects needs a personal access token with write access to the
