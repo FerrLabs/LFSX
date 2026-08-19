@@ -312,9 +312,15 @@ impl Store {
 
                 report
             }
-            Backend::Bucket { .. } => Err(Error::Unsupported(
-                "collection is not implemented for a bucket yet",
-            )),
+            Backend::Bucket { bucket, .. } => {
+                let report = bucket.sweep(ns, retained, grace, dry_run).await;
+
+                if report.is_ok() && !dry_run {
+                    self.usage.forget(ns).await;
+                }
+
+                report
+            }
         }
     }
 
@@ -521,16 +527,20 @@ mod tests {
             store.dedupe(&ns, true).await.err(),
             store.compress(&ns, true).await.err(),
             store.verify(&ns).await.err(),
-            store
-                .sweep(&ns, &std::collections::HashSet::new(), Duration::ZERO, true)
-                .await
-                .err(),
         ] {
             assert!(
                 matches!(outcome, Some(Error::Unsupported(_))),
-                "an operator running collection against a bucket has to be told it did nothing, \
-                 not handed an empty report that reads like success: {outcome:?}"
+                "an operator running one of these against a bucket has to be told it did nothing,                  not handed an empty report that reads like success: {outcome:?}"
             );
         }
+
+        // Collection is the one that no longer belongs in that list.
+        assert!(
+            store
+                .sweep(&ns, &std::collections::HashSet::new(), Duration::ZERO, true)
+                .await
+                .is_ok(),
+            "collection is implemented for a bucket and must not answer Unsupported"
+        );
     }
 }

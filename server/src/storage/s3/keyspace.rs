@@ -13,6 +13,12 @@ use crate::storage::s3::S3Config;
 const COPY_SOURCE: &str = "x-amz-copy-source";
 
 // One key as the store describes it.
+// Everything a listing found, and whether it ran out before the end.
+pub(crate) struct Listing {
+    pub(crate) entries: Vec<Entry>,
+    pub(crate) complete: bool,
+}
+
 pub(crate) struct Entry {
     pub(crate) key: String,
     last_modified: String,
@@ -357,6 +363,26 @@ impl Keyspace {
             .into_iter()
             .map(|entry| entry.key)
             .collect())
+    }
+
+    // A listing that says whether it finished. Collection needs the difference:
+    // concluding "no marker anywhere references this object" from a listing that
+    // stopped halfway is how a sweep deletes bytes another repository still
+    // holds. Everything else wants the strict form and gets `entries`.
+    pub(crate) async fn listing(&self, prefix: &str) -> Listing {
+        match self.entries(prefix).await {
+            Ok(entries) => Listing {
+                entries,
+                complete: true,
+            },
+            Err(error) => {
+                tracing::warn!(%error, prefix, "the listing could not be finished");
+                Listing {
+                    entries: Vec::new(),
+                    complete: false,
+                }
+            }
+        }
     }
 
     pub(crate) async fn entries(&self, prefix: &str) -> Result<Vec<Entry>, Error> {
