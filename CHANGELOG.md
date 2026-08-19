@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1] - 2026-08-19
+
+### Bug Fixes
+
+- fix(auth): tell apart the two ways an anonymous GitLab lookup is refused (#164)
+
 ## [1.1.0] - 2026-08-19
 
 ### Features
