@@ -48,6 +48,13 @@ pub async fn permission(
         Error::Forge
     })?;
 
+    // Kept apart from a block that grants too little, because they are different
+    // afternoons for whoever is reading the log: one is the forge saying no, the
+    // other is the forge saying nothing. GitHub answers with no block at all for
+    // an app installation token, and this shape would refuse the same request.
+    // Whether GitLab does the same for a CI job token is untested, so the
+    // decision is left alone and only the cause is written down.
+    let declared = project.permissions.is_some();
     let level = project
         .permissions
         .map(|permissions| {
@@ -60,7 +67,14 @@ pub async fn permission(
         level if level >= MAINTAINER => Ok(Permission::Admin),
         level if level >= DEVELOPER => Ok(Permission::Write),
         level if level >= REPORTER => Ok(Permission::Read),
-        _ => Err(Error::Forbidden),
+        _ if declared => {
+            tracing::info!(%url, level, "the forge grants this token too little for this project");
+            Err(Error::Forbidden)
+        }
+        _ => {
+            tracing::info!(%url, "the forge sent no permissions block for this project");
+            Err(Error::Forbidden)
+        }
     }
 }
 

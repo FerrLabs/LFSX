@@ -59,7 +59,10 @@ pub async fn permission(
             // a readable repository with an unreadable permissions block
             // produces, and an operator staring at a failing CI job has nothing
             // else to tell them apart.
-            tracing::debug!(%url, "the forge will not admit this repository to this token");
+            tracing::info!(
+                %url,
+                "the forge will not admit this repository to this token"
+            );
             return Err(Error::Forbidden);
         }
         status => {
