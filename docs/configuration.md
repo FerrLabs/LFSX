@@ -10,7 +10,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
 | `LFSX_GITLAB_API_URL` | `https://gitlab.com/api/v4` | API root, point it at your self-managed GitLab |
-| `LFSX_ANONYMOUS_READ` | `true` | `false` to require a token even for a repository the forge serves publicly |
+| `LFSX_ANONYMOUS_READ` | `false` | `true` to let a request with no credentials read a repository the forge serves publicly |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
