@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.2] - 2026-08-19
+
+### Bug Fixes
+
+- fix(cli): refuse to publish without a usable npm token (#159)
+
 ## [1.0.1] - 2026-08-19
 
 ### Bug Fixes
