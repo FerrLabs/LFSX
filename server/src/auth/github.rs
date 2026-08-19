@@ -133,7 +133,19 @@ pub async fn public(
 
     match response.status() {
         StatusCode::OK => Ok(Permission::Read),
-        StatusCode::NOT_FOUND | StatusCode::UNAUTHORIZED => Err(Error::Unauthenticated),
+        // Split apart because they mean different things to whoever is reading
+        // the log. A 404 is the ordinary answer for a repository the forge will
+        // not admit to a caller with no credentials, which is most of them. A
+        // 401 means the forge rejected this server's unauthenticated call
+        // itself, which points at the endpoint rather than at the repository.
+        StatusCode::NOT_FOUND => {
+            tracing::info!(%url, "the forge will not admit this repository anonymously");
+            Err(Error::Unauthenticated)
+        }
+        StatusCode::UNAUTHORIZED => {
+            tracing::warn!(%url, "the forge refused this server's anonymous lookup");
+            Err(Error::Unauthenticated)
+        }
         StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
             if let Some(retry_after) = super::backoff::rate_limited(&response) =>
         {
