@@ -119,7 +119,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
             .expect("the bucket configuration is not usable");
 
             tracing::warn!(
-                "objects and locks are stored in a bucket: collection, deduplication, rewriting                  and verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"
+                "objects and locks are stored in a bucket: deduplication, rewriting and verification                  answer 501, and the lfsx_objects_stored and lfsx_store_bytes gauges are not                  measured, so read capacity from the bucket itself"
             );
 
             if *presign {

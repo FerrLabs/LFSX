@@ -9,7 +9,7 @@ use base64::Engine;
 
 use crate::error::Error;
 use crate::namespace::Namespace;
-use crate::storage::Reclaimed;
+use crate::storage::{Reclaimed, SweepReport};
 
 pub use keyspace::{Keyspace, Presigned};
 
@@ -286,6 +286,135 @@ impl S3Store {
             .filter_map(|key| key.rsplit('/').next().map(str::to_owned))
             .filter(|oid| crate::storage::LocalStore::validate_oid(oid).is_ok())
             .collect()
+    }
+}
+
+impl S3Store {
+    // Collection, with the marker keyspace standing in for the link count a
+    // filesystem keeps. A repository's markers are its claim on the bytes; the
+    // bytes go when the last claim anywhere does.
+    //
+    // The expensive question is that "anywhere". A filesystem answers it with one
+    // stat, because it counts links itself. A bucket has to be asked, and asking
+    // per object would cost objects times repositories, which is the shape the
+    // local sweep was rewritten to avoid. So every marker in the bucket is listed
+    // once, into the set of oids somebody else still claims, and each candidate
+    // is then decided in memory.
+    //
+    // Cost, for a sweep of one repository: one listing of that repository's
+    // markers, one listing of every marker in the bucket, then per object freed a
+    // HEAD for its size and two deletes. Listings page a thousand keys at a time,
+    // so the whole thing is linear in what the bucket holds rather than in the
+    // product, and nothing is held in memory but the oids.
+    pub async fn sweep(
+        &self,
+        ns: &Namespace,
+        retained: &std::collections::HashSet<String>,
+        grace: Duration,
+        dry_run: bool,
+    ) -> Result<SweepReport, Error> {
+        let mut report = SweepReport {
+            dry_run,
+            ..SweepReport::default()
+        };
+
+        let prefix = format!("{}/{}/", ns.org(), ns.repo());
+        let mine = self.keys.entries(&prefix).await?;
+
+        let mut candidates = Vec::new();
+        for entry in mine {
+            let Some(oid) = entry.key.rsplit('/').next() else {
+                continue;
+            };
+            if crate::storage::LocalStore::validate_oid(oid).is_err() || retained.contains(oid) {
+                continue;
+            }
+
+            // A slow client on a bad connection is not an abandoned one, and the
+            // same goes for an object pushed a moment ago by somebody whose
+            // retained set was built before it existed.
+            if entry.age().is_none_or(|age| age < grace) {
+                report.within_grace += 1;
+                continue;
+            }
+
+            candidates.push((entry.key.clone(), oid.to_owned()));
+        }
+
+        if candidates.is_empty() {
+            return Ok(report);
+        }
+
+        // Only asked when something is actually going, so a sweep that frees
+        // nothing costs one listing rather than two.
+        let elsewhere = self.claimed_elsewhere(&prefix).await;
+
+        for (marker, oid) in candidates {
+            report.swept += 1;
+
+            let last_claim = match &elsewhere {
+                Some(claimed) => !claimed.contains(&oid),
+                // The listing could not be finished, so nothing can be proven
+                // about who else holds this object. The marker still goes, which
+                // is this repository's own business; the bytes stay, because
+                // deleting them on an incomplete answer is how a sweep takes an
+                // asset another project was still using.
+                None => false,
+            };
+
+            if dry_run {
+                if last_claim {
+                    report.bytes += self.size_of(&oid).await.unwrap_or_default();
+                }
+                continue;
+            }
+
+            self.keys.delete(&marker).await?;
+
+            if !last_claim {
+                continue;
+            }
+
+            let size = self.size_of(&oid).await.unwrap_or_default();
+
+            // Counted only when this call is the one that removed them, so two
+            // repositories dropping their last claim at once cannot both report
+            // the same space.
+            if self
+                .keys
+                .delete(&Self::content_key(&oid))
+                .await
+                .unwrap_or(false)
+            {
+                report.bytes += size;
+            }
+        }
+
+        report.incomplete = elsewhere.is_none();
+
+        Ok(report)
+    }
+
+    // Every oid still claimed by a repository other than the one being swept.
+    // None when the listing could not be finished, which is not the same as
+    // nobody claiming anything and must not be read as it.
+    async fn claimed_elsewhere(&self, mine: &str) -> Option<std::collections::HashSet<String>> {
+        let entries = match self.keys.entries("").await {
+            Ok(entries) => entries,
+            Err(error) => {
+                tracing::warn!(%error, "the markers could not be listed, so no content is collected");
+                return None;
+            }
+        };
+
+        Some(
+            entries
+                .into_iter()
+                .filter(|entry| !entry.key.starts_with('.') && !entry.key.starts_with(mine))
+                .filter_map(|entry| entry.key.rsplit('/').next().map(str::to_owned))
+                .filter(|oid| crate::storage::LocalStore::validate_oid(oid).is_ok())
+                .collect(),
+        )
     }
 }
 

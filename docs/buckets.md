@@ -81,10 +81,25 @@ a request per object on every scrape. The gauges are left alone rather than pinn
 dashboard would average as an empty store, and the server says so at startup. Read capacity from the
 bucket itself. Per-repository figures still work, since a repository is a prefix.
 
-**Four things do not apply, and say so** rather than reporting an empty success. Collection,
-compression and verification are not implemented against a bucket yet and answer `501`.
-Deduplication answers `501` too, for a different reason: content addressing already stores each
-object once, so there is nothing left to fold in.
+**Collection works here.** A bucket keeps no link count, so the marker keyspace stands in for one:
+a repository's markers are its claim on the bytes, and the bytes go when the last claim anywhere
+does. Answering "anywhere" is the expensive part, and it is answered by listing every marker in the
+bucket once per sweep rather than once per object, which is what keeps the cost linear in what the
+bucket holds instead of in the product of objects and repositories.
+
+If that listing cannot be finished, the sweep still drops this repository's markers, which are its
+own business, but frees no bytes and reports `incomplete`. Deleting shared content on an incomplete
+answer is how a collection takes an asset another project was still using.
+
+Measured against MinIO on localhost, a repository of 200 objects in a bucket holding 400 markers:
+a sweep that frees nothing costs **44 ms**, because the second listing is only taken when something
+is actually going; a sweep that collects all 200 costs **2.2 s**, or about **11 ms per object**,
+which is the three round trips each one needs — its size, its marker, its content.
+
+**Three things do not apply, and say so** rather than reporting an empty success. Compression and
+verification are not implemented against a bucket yet and answer `501`. Deduplication answers `501`
+too, for a different reason: content addressing already stores each object once, so there is nothing
+left to fold in.
 
 **Compression and encryption work here too.** They were refused against a bucket at first, because a
 framed object was only readable through the file the codec opened. The codec reads from a bucket as

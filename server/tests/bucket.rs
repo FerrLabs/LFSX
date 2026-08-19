@@ -744,6 +744,225 @@ async fn re_pushing_an_object_does_not_grow_what_the_repository_is_said_to_hold(
     );
 }
 
+// Collection, which is the one operation that removes bytes, so these check what
+// survives at least as hard as what goes.
+fn collecting(root: &tempfile::TempDir, bucket: &Bucket, grace: Duration) -> Router {
+    lfsx_server::app(Config {
+        gc_grace: grace,
+        ..bucket_config(root, bucket, false, None, None, false)
+    })
+}
+
+async fn retain(app: Router, repo: &str, oids: &[&str], dry_run: bool) -> serde_json::Value {
+    let body = serde_json::json!({ "oids": oids, "dry_run": dry_run });
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/retain"))
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "collection was refused");
+
+    serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn an_object_nobody_retains_is_collected() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Collected");
+    let body = payload("a collected object");
+    let oid = oid_of(&body);
+
+    assert_eq!(
+        push(
+            collecting(&root, &bucket, Duration::ZERO),
+            &repo,
+            &oid,
+            &body
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    let report = retain(
+        collecting(&root, &bucket, Duration::ZERO),
+        &repo,
+        &[],
+        false,
+    )
+    .await;
+
+    assert_eq!(report["swept"], 1, "{report}");
+    assert_eq!(report["bytes"], body.len() as u64, "the bytes it freed");
+    assert_eq!(
+        download(collecting(&root, &bucket, Duration::ZERO), &repo, &oid)
+            .await
+            .status(),
+        StatusCode::NOT_FOUND,
+        "collected means gone, not merely unreported"
+    );
+}
+
+#[tokio::test]
+async fn a_retained_object_is_left_where_it_is() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Retained");
+    let body = payload("a retained object");
+    let oid = oid_of(&body);
+
+    push(
+        collecting(&root, &bucket, Duration::ZERO),
+        &repo,
+        &oid,
+        &body,
+    )
+    .await;
+
+    let report = retain(
+        collecting(&root, &bucket, Duration::ZERO),
+        &repo,
+        &[&oid],
+        false,
+    )
+    .await;
+
+    assert_eq!(report["swept"], 0, "{report}");
+    assert_eq!(
+        download(collecting(&root, &bucket, Duration::ZERO), &repo, &oid)
+            .await
+            .status(),
+        StatusCode::OK
+    );
+}
+
+// An object pushed a moment ago may be one the client's retained set was built
+// before it existed. Collecting it would delete something nobody had a chance to
+// mention.
+#[tokio::test]
+async fn an_object_still_within_the_grace_period_is_counted_not_collected() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("Grace");
+    let body = payload("a young object");
+    let oid = oid_of(&body);
+    let grace = Duration::from_secs(3600);
+
+    push(collecting(&root, &bucket, grace), &repo, &oid, &body).await;
+
+    let report = retain(collecting(&root, &bucket, grace), &repo, &[], false).await;
+
+    assert_eq!(report["within_grace"], 1, "{report}");
+    assert_eq!(report["swept"], 0, "nothing swept");
+    assert_eq!(
+        download(collecting(&root, &bucket, grace), &repo, &oid)
+            .await
+            .status(),
+        StatusCode::OK
+    );
+}
+
+// The one that loses data if it is wrong. The bytes live once and each repository
+// holding them owns a marker beside them, so dropping one repository's claim must
+// not take an asset another project is still using.
+#[tokio::test]
+async fn an_object_another_repository_still_holds_survives_collection() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let mine = repository("Sharer");
+    let theirs = repository("Sharee");
+    let body = payload("an asset pack two projects share");
+    let oid = oid_of(&body);
+
+    for repo in [&mine, &theirs] {
+        assert_eq!(
+            push(
+                collecting(&root, &bucket, Duration::ZERO),
+                repo,
+                &oid,
+                &body
+            )
+            .await,
+            StatusCode::OK
+        );
+    }
+
+    let report = retain(
+        collecting(&root, &bucket, Duration::ZERO),
+        &mine,
+        &[],
+        false,
+    )
+    .await;
+
+    assert_eq!(report["swept"], 1, "our claim is dropped: {report}");
+    assert_eq!(
+        report["bytes"], 0,
+        "nothing was freed, because the other project still holds it"
+    );
+
+    assert_eq!(
+        download(collecting(&root, &bucket, Duration::ZERO), &theirs, &oid)
+            .await
+            .status(),
+        StatusCode::OK,
+        "the other project can still read what it never gave up"
+    );
+
+    // And once the last claim goes, so do the bytes.
+    let report = retain(
+        collecting(&root, &bucket, Duration::ZERO),
+        &theirs,
+        &[],
+        false,
+    )
+    .await;
+
+    assert_eq!(
+        report["bytes"],
+        body.len() as u64,
+        "the last claim frees it"
+    );
+}
+
+#[tokio::test]
+async fn a_dry_run_reports_what_it_would_free_and_frees_nothing() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository("DryRun");
+    let body = payload("an object a dry run only looks at");
+    let oid = oid_of(&body);
+
+    push(
+        collecting(&root, &bucket, Duration::ZERO),
+        &repo,
+        &oid,
+        &body,
+    )
+    .await;
+
+    let report = retain(collecting(&root, &bucket, Duration::ZERO), &repo, &[], true).await;
+
+    assert_eq!(report["dry_run"], true, "{report}");
+    assert_eq!(report["swept"], 1);
+    assert_eq!(report["bytes"], body.len() as u64, "what it would free");
+    assert_eq!(
+        download(collecting(&root, &bucket, Duration::ZERO), &repo, &oid)
+            .await
+            .status(),
+        StatusCode::OK,
+        "a dry run that deleted something would be a bug with no undo"
+    );
+}
+
 async fn stats(app: Router, repo: &str) -> u64 {
     let request = Request::builder()
         .uri(format!("/FerrLabs/{repo}/objects/stats"))
