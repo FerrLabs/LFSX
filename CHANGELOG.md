@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.0] - 2026-08-19
+
+### Breaking Changes
+
+- feat(auth)!: require a credential unless anonymous read is asked for (#156)
+
 ## [0.41.0] - 2026-08-19
 
 ### Features
