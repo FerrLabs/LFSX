@@ -4,6 +4,19 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.41.0] - 2026-08-19
+
+### Features
+
+- feat(site): scale the landing to the Poster composition (#153)
+- feat(site): give the landing the Poster hero (#151)
+- feat(site): restyle the documentation site to the Modernist direction (#149)
+
+### Bug Fixes
+
+- fix(auth): make a refused forge lookup visible at the default log level (#155)
+- fix(site): serve the code font and give Archivo its italics (#152)
+
 ## [0.40.0] - 2026-08-18
 
 ### Features
