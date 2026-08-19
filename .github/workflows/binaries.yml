@@ -107,15 +107,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # What npm exchanges for a publish. Nothing long-lived is involved, which
+      # is the point: the NPM_TOKEN this replaces expired after ninety days and
+      # took six releases with it before anybody noticed.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
 
+      # Pinned rather than inherited from the runner image: trusted publishing
+      # needs npm 11.5.1 or newer, and the image's version is not ours to
+      # promise. No registry-url here, which would write an .npmrc expecting a
+      # token and defeat the exchange.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+
       - name: Publish the wrapper and its platform packages
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: bash cli/npm/scripts/publish.sh "${TAG#v}"
