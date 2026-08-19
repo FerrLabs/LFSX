@@ -254,6 +254,109 @@ impl S3Store {
         Ok(reclaimed)
     }
 
+    // Collection, with the marker keyspace standing in for the link count a
+    // filesystem keeps. A repository's marker is its claim on the bytes, and the
+    // bytes go when the last claim does.
+    //
+    // One listing of the whole bucket answers all three questions at once: which
+    // markers this repository holds, which oids any other repository still
+    // claims, and how big each content object is. Asked separately they would
+    // cost a request per object, which on a bucket is the difference between a
+    // collection an operator runs and one they read about.
+    //
+    // A listing that did not finish is the dangerous case. It cannot be used to
+    // conclude that nothing references an object, because the reference may sit
+    // in the pages that never arrived. So an incomplete listing still drops this
+    // repository's markers, which the retained set alone decides, and leaves
+    // every content key exactly where it is.
+    pub async fn sweep(
+        &self,
+        ns: &Namespace,
+        retained: &std::collections::HashSet<String>,
+        grace: Duration,
+        dry_run: bool,
+    ) -> Result<crate::storage::SweepReport, Error> {
+        let listing = self.keys.listing("").await;
+        let mut report = crate::storage::SweepReport {
+            dry_run,
+            incomplete: !listing.complete,
+            ..Default::default()
+        };
+
+        let ours = format!("{}/{}/", ns.org(), ns.repo());
+        let mut mine = Vec::new();
+        let mut claimed_elsewhere = std::collections::HashSet::new();
+        let mut sizes = std::collections::HashMap::new();
+
+        for entry in listing.entries {
+            if let Some(rest) = entry.key.strip_prefix(".content/") {
+                if let Some(oid) = rest.rsplit('/').next() {
+                    sizes.insert(oid.to_owned(), entry.size);
+                }
+                continue;
+            }
+
+            // Locks live at `.locks/{org}/{repo}/{id}`, so they never match the
+            // marker prefix and are never swept. Skipped explicitly all the same:
+            // falling through would file every lock id in the claimed set, and an
+            // object whose digest happened to equal a lock id would then never be
+            // collected. The odds are absurd today and the line costs nothing,
+            // but the code should not depend on ids and digests never colliding.
+            if entry.key.starts_with(".incoming/") || entry.key.starts_with(".locks/") {
+                continue;
+            }
+
+            let Some(oid) = entry.key.rsplit('/').next().map(str::to_owned) else {
+                continue;
+            };
+
+            if entry.key.starts_with(&ours) {
+                mine.push((entry, oid));
+            } else {
+                claimed_elsewhere.insert(oid);
+            }
+        }
+
+        for (entry, oid) in mine {
+            if retained.contains(&oid) {
+                continue;
+            }
+
+            // A slow push is not an abandoned object: the same window the local
+            // store honours.
+            if entry.age().is_none_or(|age| age < grace) {
+                report.within_grace += 1;
+                continue;
+            }
+
+            report.swept += 1;
+
+            // Only what this call actually frees is counted. Another repository
+            // holding the same bytes means dropping this marker frees nothing,
+            // and a dry run that said otherwise would promise space it cannot
+            // deliver.
+            let frees = listing.complete && !claimed_elsewhere.contains(&oid);
+            let size = sizes.get(&oid).copied().unwrap_or_default();
+
+            if dry_run {
+                if frees {
+                    report.bytes += size;
+                }
+                continue;
+            }
+
+            self.keys.delete(&entry.key).await?;
+
+            // Counted only when this call is the one that removed them, so two
+            // repositories letting go at once cannot each claim the same space.
+            if frees && self.keys.delete(&Self::content_key(&oid)).await? {
+                report.bytes += size;
+            }
+        }
+
+        Ok(report)
+    }
+
     // What the bucket holds for this repository, counted from its markers and
     // the content they point at. The markers are empty, so their own size says
     // nothing — this is a listing plus one head per object, which is why the
