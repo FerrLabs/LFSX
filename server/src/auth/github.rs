@@ -81,7 +81,10 @@ pub async fn permission(
         Some(Permissions { push: true, .. }) => Ok(Permission::Write),
         Some(Permissions { pull: true, .. }) => Ok(Permission::Read),
         Some(_) => {
-            tracing::debug!(%url, "the forge grants this token no access to this repository");
+            tracing::info!(
+                %url,
+                "the forge sent a permissions block granting this token nothing"
+            );
             Err(Error::Forbidden)
         }
         // A GitHub App installation token — which is what `GITHUB_TOKEN` is
@@ -94,7 +97,7 @@ pub async fn permission(
         // That is read, and only read — nothing here says the token may write,
         // and inferring it would let a job push objects it was never granted.
         None => {
-            tracing::debug!(
+            tracing::info!(
                 %url,
                 "the forge sent no permissions block, reading it as read-only access"
             );
@@ -171,7 +174,10 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
             tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
             return Err(Error::RateLimited { retry_after });
         }
-        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Err(Error::Forbidden),
+        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
+            tracing::info!(%url, "the forge will not admit this repository anonymously");
+            return Err(Error::Forbidden);
+        }
         status => {
             tracing::warn!(%status, %url, "unexpected forge response");
             return Err(Error::Forge);
