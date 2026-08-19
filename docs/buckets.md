@@ -81,10 +81,22 @@ a request per object on every scrape. The gauges are left alone rather than pinn
 dashboard would average as an empty store, and the server says so at startup. Read capacity from the
 bucket itself. Per-repository figures still work, since a repository is a prefix.
 
-**Four things do not apply, and say so** rather than reporting an empty success. Collection,
-compression and verification are not implemented against a bucket yet and answer `501`.
-Deduplication answers `501` too, for a different reason: content addressing already stores each
-object once, so there is nothing left to fold in.
+**Collection works here.** A repository's markers are its claims on the bytes, so a sweep drops the
+markers the client no longer retains and removes a content object once no marker anywhere still
+references it. One listing of the bucket answers all of that at once: which markers this repository
+holds, which objects any other repository still claims, and how big each one is. Asked per object it
+would cost a request each, which is the difference between a collection you run and one you read
+about.
+
+A listing that could not be finished is reported as `incomplete`, and when that happens no content
+object is removed at all. The reference that would have saved it may sit in the pages that never
+arrived, and freeing bytes another repository is still serving is the one mistake collection must
+never make.
+
+**Three things do not apply, and say so** rather than reporting an empty success. Compression
+rewriting and verification are not implemented against a bucket yet and answer `501`. Deduplication
+answers `501` too, for a different reason: content addressing already stores each object once, so
+there is nothing left to fold in.
 
 **Compression and encryption work here too.** They were refused against a bucket at first, because a
 framed object was only readable through the file the codec opened. The codec reads from a bucket as
