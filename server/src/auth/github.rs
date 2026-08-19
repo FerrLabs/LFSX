@@ -10,10 +10,10 @@ struct Repository {
     permissions: Option<Permissions>,
 }
 
+// No `pull`. Read is settled by the response arriving at all, so the only thing
+// this block is consulted for is whether to grant more than that.
 #[derive(Deserialize)]
 struct Permissions {
-    #[serde(default)]
-    pull: bool,
     #[serde(default)]
     push: bool,
     #[serde(default)]
@@ -76,33 +76,29 @@ pub async fn permission(
         Error::Forge
     })?;
 
+    // The answer arriving at all is the proof of read access: the forge returns
+    // 404 to a token it will not admit the repository to, and a public
+    // repository is readable by anyone regardless. So the block below only ever
+    // raises the level, and can never be the thing that refuses.
+    //
+    // That is not a convenience. A GitHub App installation token, which is what
+    // `GITHUB_TOKEN` is inside Actions, receives a block with every field false:
+    //
+    //     {"admin":false,"maintain":false,"push":false,"triage":false,"pull":false}
+    //
+    // because that field reports the authenticated *user's* permissions and an
+    // installation token has no user behind it. Read literally it says "no
+    // access" about a token that had just been handed the repository. Believing
+    // it refused every CI job on a private repository, with a message about
+    // credentials that were correct.
+    //
+    // Write is still only ever granted by the block saying so. Nothing here
+    // infers it, because a job that uploads objects it was never granted is the
+    // failure worth keeping impossible.
     match repository.permissions {
         Some(Permissions { admin: true, .. }) => Ok(Permission::Admin),
         Some(Permissions { push: true, .. }) => Ok(Permission::Write),
-        Some(Permissions { pull: true, .. }) => Ok(Permission::Read),
-        Some(_) => {
-            tracing::info!(
-                %url,
-                "the forge sent a permissions block granting this token nothing"
-            );
-            Err(Error::Forbidden)
-        }
-        // A GitHub App installation token — which is what `GITHUB_TOKEN` is
-        // inside Actions — gets a repository payload with no permissions block
-        // at all. Refusing it made every CI job on a private repository fail
-        // with a message about credentials, while the credentials were fine.
-        //
-        // The answer arriving at all is the proof: the forge returns 404 to a
-        // token that cannot see the repository, so a 200 means this one can.
-        // That is read, and only read — nothing here says the token may write,
-        // and inferring it would let a job push objects it was never granted.
-        None => {
-            tracing::info!(
-                %url,
-                "the forge sent no permissions block, reading it as read-only access"
-            );
-            Ok(Permission::Read)
-        }
+        _ => Ok(Permission::Read),
     }
 }
 
