@@ -175,7 +175,7 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
             return Err(Error::RateLimited { retry_after });
         }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
-            tracing::info!(%url, "the forge will not admit this repository anonymously");
+            tracing::info!(%url, "the forge will not say who this token belongs to");
             return Err(Error::Forbidden);
         }
         status => {
