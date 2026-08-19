@@ -14,9 +14,9 @@ config:
 auth:
   mode: github
   # Resolve a request with no credentials against the forge, so a repository it
-  # serves publicly can be cloned without a token. Set false to require one
-  # whatever the repository's visibility.
-  anonymousRead: true
+  # serves publicly can be cloned without a token. Off by default: it costs you
+  # the bandwidth of anyone who finds the endpoint. Set true to open it.
+  anonymousRead: false
   githubApiUrl: https://api.github.com
   gitlabApiUrl: https://gitlab.com/api/v4
   cacheTtl: 60

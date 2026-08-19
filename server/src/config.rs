@@ -203,6 +203,21 @@ impl Config {
     }
 }
 
+// Opt in, not opt out. Serving objects to a caller with no credentials at all is
+// a decision an operator should make on purpose: it costs them the bandwidth of
+// anyone who finds the endpoint, on a server whose whole job is to move files
+// measured in gigabytes. Nothing confidential is at stake, since a request with
+// no credentials is still resolved against the forge and a private repository is
+// still refused, but "anyone may pull from you" is not a sensible thing to
+// inherit by default.
+//
+// Only the exact string opens it. A typo, an empty value or a `1` leaves it
+// closed, because the failure that matters here is the one that opens the door
+// when nobody meant to.
+fn anonymous_read(value: Option<&str>) -> bool {
+    value == Some("true")
+}
+
 impl Auth {
     fn from_env() -> Self {
         if std::env::var("LFSX_AUTH").as_deref() == Ok("disabled") {
@@ -227,7 +242,7 @@ impl Auth {
             api_url,
             cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
-            anonymous_read: std::env::var("LFSX_ANONYMOUS_READ").as_deref() != Ok("false"),
+            anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
         }
     }
 }
@@ -276,3 +291,6 @@ fn seconds(variable: &str) -> Option<Duration> {
         .and_then(|raw| raw.parse().ok())
         .map(Duration::from_secs)
 }
+
+#[cfg(test)]
+mod tests;

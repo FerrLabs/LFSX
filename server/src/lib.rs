@@ -55,16 +55,17 @@ pub async fn reclaim(config: &Config) {
 }
 
 fn backends(config: &Config) -> (Store, LockStore) {
-    // Said out loud because it is on by default and it decides who can read the
-    // objects. An operator upgrading into it should see the line rather than
-    // discover the exposure.
+    // Said out loud because it decides who can read the objects. It is off unless
+    // asked for, so this line means somebody asked: it belongs in the log so a
+    // deployment that inherited the flag from an older chart sees it rather than
+    // discovers it.
     if let crate::config::Auth::Forge {
         anonymous_read: true,
         ..
     } = config.auth
     {
         tracing::info!(
-            "anonymous read is on: a request with no credentials is resolved against the forge, so              objects in a repository the forge serves publicly can be read by anybody. Set              LFSX_ANONYMOUS_READ=false to require a token whatever the repository's visibility"
+            "anonymous read is on: a request with no credentials is resolved against the forge, so              objects in a repository the forge serves publicly can be read by anybody, and the              bandwidth is yours. Unset LFSX_ANONYMOUS_READ to require a token whatever the              repository's visibility"
         );
     }
 
