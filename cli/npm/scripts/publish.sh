@@ -20,6 +20,19 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
 	printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
 	export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
+elif [ "${CI:-}" = "true" ]; then
+	echo "::error::NODE_AUTH_TOKEN is empty. An unauthenticated publish is answered with 404 on a scoped package rather than a refusal, so this fails now instead of confusingly later." >&2
+	exit 1
+fi
+
+# Asked before anything is published, because npm masks a rejected token as a
+# 404 on the first PUT: "'@ferrlabs/lfsx-linux-x64@1.0.0' is not in this
+# registry" for a package that plainly is. An expired token then reads as a
+# missing package, which is an afternoon lost. npm tokens expire, so this will
+# happen again.
+if [ -n "${NODE_AUTH_TOKEN:-}" ] && ! npm whoami >/dev/null 2>&1; then
+	echo "::error::the npm registry does not accept this token, most likely expired. Rotate the NPM_TOKEN secret." >&2
+	exit 1
 fi
 
 publish_if_new() {
