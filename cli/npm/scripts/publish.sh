@@ -17,10 +17,26 @@ REPO_ROOT="$(cd "${NPM_DIR}/../.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-	printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
-	export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
+# Refused rather than attempted. Without a token npm publishes anonymously and
+# the registry answers 404 for a scoped package, which reads as "the package does
+# not exist" and sends you hunting for a name that is plainly there.
+if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+	echo "::error::NODE_AUTH_TOKEN is empty: the NPM_TOKEN secret is missing. Publishing without it is answered with a 404 that looks like a missing package." >&2
+	exit 1
 fi
+
+printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >"${WORK_DIR}/.npmrc"
+export NPM_CONFIG_USERCONFIG="${WORK_DIR}/.npmrc"
+
+# Asked before five archives are downloaded and five packages are assembled, so a
+# token that expired costs a second rather than the whole job. npm answers 404 to
+# a write it will not allow, so this is the last point where "no rights" and "no
+# package" can still be told apart.
+if ! WHO="$(npm whoami 2>&1)"; then
+	echo "::error::npm will not accept this token (${WHO}). It has most likely expired: npm tokens do. Generate an automation token, or a granular one with read and write on the @ferrlabs scope, and update the NPM_TOKEN secret." >&2
+	exit 1
+fi
+echo "authenticated to npm as ${WHO}"
 
 publish_if_new() {
   if npm view "$1@${VERSION}" version >/dev/null 2>&1; then
