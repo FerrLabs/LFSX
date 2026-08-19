@@ -54,6 +54,16 @@ macro_rules! bucket_or_skip {
     };
 }
 
+// Collection honours a grace window, and everything a test pushes is seconds
+// old, so a sweep with the deployment default would only ever report
+// within_grace. These tests are about what happens once the window has passed.
+fn collecting(root: &tempfile::TempDir, bucket: &Bucket) -> Router {
+    lfsx_server::app(lfsx_server::config::Config {
+        gc_grace: Duration::ZERO,
+        ..bucket_config(root, bucket, false, None, None, false)
+    })
+}
+
 fn app(root: &tempfile::TempDir, bucket: &Bucket, presign: bool) -> Router {
     expiring(root, bucket, presign, None)
 }
@@ -741,6 +751,152 @@ async fn re_pushing_an_object_does_not_grow_what_the_repository_is_said_to_hold(
         stats(app, &repo).await,
         once,
         "nothing was stored, so nothing was gained"
+    );
+}
+
+async fn retain(app: Router, repo: &str, oids: &[&str], dry_run: bool) -> serde_json::Value {
+    let body = serde_json::json!({ "oids": oids, "dry_run": dry_run });
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/retain"))
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+// The case that loses data if it is wrong. Two repositories holding the same
+// bytes each own a marker, and the first to let go must free nothing, because
+// the second still has a claim. A sweep that counted the shared object as freed
+// would delete bytes the other repository is still serving.
+#[tokio::test]
+async fn collecting_one_repository_leaves_an_object_another_still_holds() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let shared = payload("an asset pack two projects use");
+    let oid = oid_of(&shared);
+    let (first, second) = (repository("Sharing"), repository("Sharing2"));
+    let app = collecting(&root, &bucket);
+
+    for repo in [&first, &second] {
+        assert_eq!(push(app.clone(), repo, &oid, &shared).await, StatusCode::OK);
+    }
+
+    let report = retain(app.clone(), &first, &[], true).await;
+    assert_eq!(report["swept"], 1, "the marker is collectable: {report}");
+    assert_eq!(
+        report["bytes"], 0,
+        "the other repository still holds the bytes, so nothing is freed: {report}"
+    );
+
+    let report = retain(app.clone(), &first, &[], false).await;
+    assert_eq!(report["bytes"], 0, "{report}");
+
+    assert_eq!(
+        download(app, &second, &oid).await.status(),
+        StatusCode::OK,
+        "collecting one repository took bytes another was still holding"
+    );
+}
+
+// And when the last claim goes, the bytes go with it.
+#[tokio::test]
+async fn the_last_repository_to_let_go_frees_the_bytes() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("an asset only one project uses");
+    let oid = oid_of(&payload);
+    let repo = repository("Alone");
+    let app = collecting(&root, &bucket);
+
+    assert_eq!(
+        push(app.clone(), &repo, &oid, &payload).await,
+        StatusCode::OK
+    );
+
+    let report = retain(app.clone(), &repo, &[], false).await;
+    assert_eq!(report["swept"], 1, "{report}");
+    assert_eq!(
+        report["bytes"],
+        payload.len(),
+        "the last claim went, so the bytes are freed: {report}"
+    );
+
+    assert_eq!(
+        download(app, &repo, &oid).await.status(),
+        StatusCode::NOT_FOUND,
+        "the object was collected"
+    );
+}
+
+// What the client still references is what survives, which is the contract of
+// the endpoint.
+#[tokio::test]
+async fn a_retained_object_is_not_collected() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let kept = payload("still referenced by a branch");
+    let dropped = payload("no longer referenced by anything");
+    let (kept_oid, dropped_oid) = (oid_of(&kept), oid_of(&dropped));
+    let repo = repository("Retained");
+    let app = collecting(&root, &bucket);
+
+    assert_eq!(
+        push(app.clone(), &repo, &kept_oid, &kept).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        push(app.clone(), &repo, &dropped_oid, &dropped).await,
+        StatusCode::OK
+    );
+
+    let report = retain(app.clone(), &repo, &[&kept_oid], false).await;
+    assert_eq!(report["swept"], 1, "only the unreferenced one: {report}");
+
+    assert_eq!(
+        download(app.clone(), &repo, &kept_oid).await.status(),
+        StatusCode::OK,
+        "a retained object must survive"
+    );
+    assert_eq!(
+        download(app, &repo, &dropped_oid).await.status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+// A dry run promises. It must not deliver.
+#[tokio::test]
+async fn a_dry_run_reports_without_removing_anything() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("a dry run must not touch this");
+    let oid = oid_of(&payload);
+    let repo = repository("DryRun");
+    let app = collecting(&root, &bucket);
+
+    assert_eq!(
+        push(app.clone(), &repo, &oid, &payload).await,
+        StatusCode::OK
+    );
+
+    let report = retain(app.clone(), &repo, &[], true).await;
+    assert_eq!(report["dry_run"], true, "{report}");
+    assert_eq!(report["swept"], 1, "{report}");
+    assert_eq!(report["bytes"], payload.len(), "{report}");
+
+    assert_eq!(
+        download(app, &repo, &oid).await.status(),
+        StatusCode::OK,
+        "a dry run that removed the object is not a dry run"
     );
 }
 
