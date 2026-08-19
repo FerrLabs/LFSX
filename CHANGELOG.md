@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.1] - 2026-08-19
+
+### Bug Fixes
+
+- fix(auth): log every forge decision at the default level (#157)
+
 ## [1.0.0] - 2026-08-19
 
 ### Breaking Changes
