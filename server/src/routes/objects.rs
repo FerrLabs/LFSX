@@ -180,7 +180,7 @@ async fn resolve_upload(
     // shared content key would have taken bytes from anyone allowed to write,
     // and then nothing would distinguish a repository that has an object from
     // one that merely knows its digest.
-    if let Some(signed) = state.store.presigned_upload(ns, &id.oid) {
+    if let Some(signed) = state.store.presigned_upload(ns, &id.oid, id.size) {
         return ObjectSpec {
             id,
             authenticated: Some(true),

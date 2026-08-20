@@ -38,6 +38,17 @@ quota working. A download asks the bucket for exactly the range it wants, so res
 The local volume is still used, as a write buffer: an upload lands there to be hashed and checked
 before anything is sent, and is deleted once it has been.
 
+**An object over 5 GiB goes up in parts.** S3 caps a single `PutObject` there, which for packaged
+assets and captured footage is a ceiling reached rather than a theoretical one. Above it the object
+is sent in parts of 64 MiB, grown when ten thousand of them would not cover it, and the store
+assembles them: the key appears whole or not at all. A part that fails takes the upload with it and
+the upload is abandoned explicitly, because parts of an incomplete upload are charged for and appear
+in no listing, so nothing else would ever find them.
+
+Each part is streamed out of the staging file rather than read into memory. The whole storage layer
+is built on holding a few megabytes of an object at a time, and a part size does not get to change
+that.
+
 **`LFSX_S3_PRESIGN=true` redirects transfers instead.** The batch response hands the client a
 pre-signed URL and the bytes never cross this server, which is what you want when the bucket is
 closer to the clients than the server is, or when the server's egress is the thing you are paying
@@ -73,6 +84,13 @@ repository had the object, where a write to the shared key would prove only that
 rights knew a digest, which is all a leaked pointer file is. On `verify` the server checks the size
 that actually arrived against the declared one, the object ceiling and the repository's budget, then
 moves the object into the shared keyspace with a copy inside the bucket and writes the marker.
+
+**An object over 5 GiB is not given an upload URL**, and comes through this server instead. A
+pre-signed upload is one PUT to one href, because that is all the `basic` transfer adapter can do,
+so the ceiling multipart removes for the streamed path is permanent for this one. Withholding the
+URL is not a refusal: the push goes through, over the path that can send it in parts. It also keeps
+`adopt` honest, since `CopyObject` stops at the same 5 GiB and nothing can now reach `.incoming/`
+above it.
 
 An upload nobody reports leaves its bytes under that key, and they are swept on the same schedule
 and by the same setting as an interrupted transfer's staging file: once at boot, then hourly, for

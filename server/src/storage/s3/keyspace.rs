@@ -141,6 +141,22 @@ impl Keyspace {
     // rather than the way this server does: the checksum probe puts a body
     // against a URL it was handed, and it has to do it over the configured
     // client so that the TLS, the proxy and the timeouts are the real ones.
+    // What it takes to sign an action this module does not itself perform. A
+    // multipart upload is four different actions sharing one upload id, which is
+    // a sequence rather than a key operation, so it lives beside this rather than
+    // inside it and borrows the signing material.
+    pub(crate) fn bucket(&self) -> &Bucket {
+        &self.bucket
+    }
+
+    pub(crate) fn credentials(&self) -> &Credentials {
+        &self.credentials
+    }
+
+    pub(crate) fn lifetime(&self) -> Duration {
+        self.lifetime
+    }
+
     pub(crate) fn client(&self) -> &reqwest::Client {
         &self.client
     }
@@ -437,7 +453,7 @@ impl Keyspace {
         Ok(out)
     }
 
-    async fn expect_success(
+    pub(crate) async fn expect_success(
         &self,
         response: reqwest::Response,
         what: &str,
