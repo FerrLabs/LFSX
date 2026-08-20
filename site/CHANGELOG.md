@@ -4,6 +4,20 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.20] - 2026-08-20
+
+### Features
+
+- feat(storage): collect objects in a bucket (#160)
+
+### Bug Fixes
+
+- perf(storage): answer the elsewhere-claim question from a claim index (#169)
+- fix(auth): stop reading an installation token's empty permissions as a refusal (#167)
+- fix(auth): tell apart the two ways an anonymous GitLab lookup is refused (#164)
+- fix(cli): refuse to publish without a usable npm token (#159)
+- fix(auth): log every forge decision at the default level (#157)
+
 ## [2026.8.19] - 2026-08-19
 
 ### Breaking Changes
