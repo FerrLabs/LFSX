@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1] - 2026-08-20
+
+### Bug Fixes
+
+- fix(storage): give up pre-signing unless the bucket proves it verifies checksums (#181)
+
 ## [1.2.0] - 2026-08-20
 
 ### Features
