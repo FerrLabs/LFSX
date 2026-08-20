@@ -1,4 +1,5 @@
 pub(crate) mod keyspace;
+pub(crate) mod refs;
 
 use std::time::Duration;
 
@@ -77,6 +78,10 @@ impl S3Store {
             &oid[0..2],
             &oid[2..4]
         )
+    }
+
+    fn own_prefix(ns: &Namespace) -> String {
+        format!("{}/{}/", ns.org(), ns.repo())
     }
 
     pub async fn reachable(&self) -> Result<(), Error> {
@@ -173,6 +178,12 @@ impl S3Store {
             self.keys.copy(&incoming, &content).await?;
         }
 
+        // Before the marker, always. The marker is the claim and the ref is the
+        // index of it, so a crash between the two has to leave a ref nobody
+        // claims rather than a claim nothing indexes: the first leaks an object,
+        // the second lets a later sweep free bytes this repository holds.
+        refs::write(&self.keys, ns, oid).await?;
+
         self.keys
             .put(
                 &Self::marker_key(ns, oid),
@@ -222,6 +233,8 @@ impl S3Store {
                 .await?;
         }
 
+        refs::write(&self.keys, ns, oid).await?;
+
         self.keys
             .put(
                 &Self::marker_key(ns, oid),
@@ -258,6 +271,115 @@ impl S3Store {
     // filesystem keeps. A repository's marker is its claim on the bytes, and the
     // bytes go when the last claim does.
     //
+    // Everything hard here is one question: does any *other* repository still
+    // claim this object? A marker is `{org}/{repo}/.../{oid}`, so the oid is the
+    // suffix and the org and repo that would make a prefix are exactly what is
+    // unknown. The claim index turns that into one prefix listing per object. A
+    // bucket that predates the index has to be read whole instead, and that pass
+    // builds the index as it goes, so it is paid once rather than every sweep.
+    pub async fn sweep(
+        &self,
+        ns: &Namespace,
+        retained: &std::collections::HashSet<String>,
+        grace: Duration,
+        dry_run: bool,
+    ) -> Result<crate::storage::SweepReport, Error> {
+        if refs::ready(&self.keys).await {
+            self.sweep_indexed(ns, retained, grace, dry_run).await
+        } else {
+            self.sweep_whole_bucket(ns, retained, grace, dry_run).await
+        }
+    }
+
+    // The markers this repository is allowed to drop. Retained is what the client
+    // says it still needs; the grace window is what keeps a push still in flight
+    // from being read as an abandoned object.
+    fn droppable(
+        mine: Vec<(keyspace::Entry, String)>,
+        retained: &std::collections::HashSet<String>,
+        grace: Duration,
+        report: &mut crate::storage::SweepReport,
+    ) -> Vec<(keyspace::Entry, String)> {
+        mine.into_iter()
+            .filter(|(entry, oid)| {
+                if retained.contains(oid) {
+                    return false;
+                }
+
+                if entry.age().is_none_or(|age| age < grace) {
+                    report.within_grace += 1;
+                    return false;
+                }
+
+                report.swept += 1;
+                true
+            })
+            .collect()
+    }
+
+    // The cost this exists to avoid: one listing of this repository's own prefix,
+    // then one listing of a short index prefix per object actually being dropped.
+    // Nothing here is proportional to the size of the bucket.
+    async fn sweep_indexed(
+        &self,
+        ns: &Namespace,
+        retained: &std::collections::HashSet<String>,
+        grace: Duration,
+        dry_run: bool,
+    ) -> Result<crate::storage::SweepReport, Error> {
+        let listing = self.keys.listing(&Self::own_prefix(ns)).await;
+        let mut report = crate::storage::SweepReport {
+            dry_run,
+            incomplete: !listing.complete,
+            ..Default::default()
+        };
+
+        let mine = listing
+            .entries
+            .into_iter()
+            .filter_map(|entry| {
+                let oid = entry.key.rsplit('/').next()?.to_owned();
+                crate::storage::LocalStore::validate_oid(&oid).ok()?;
+                Some((entry, oid))
+            })
+            .collect();
+
+        for (entry, oid) in Self::droppable(mine, retained, grace, &mut report) {
+            let frees = !refs::claimed_by_another(&self.keys, ns, &oid).await;
+
+            if dry_run {
+                if frees {
+                    report.bytes += self.size_of(&oid).await.unwrap_or_default();
+                }
+                continue;
+            }
+
+            self.keys.delete(&entry.key).await?;
+
+            // After the marker, never before. A failure between the two has to
+            // leave a ref with no claim behind it, which costs an object nobody
+            // reads, rather than a claim with no ref, which would let the next
+            // sweep free bytes this repository still holds.
+            if let Err(error) = self.keys.delete(&refs::key(ns, &oid)).await {
+                tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
+            }
+
+            if frees {
+                // Asked before the delete, because afterwards there is nothing
+                // left to ask.
+                let size = self.size_of(&oid).await.unwrap_or_default();
+
+                if self.keys.delete(&Self::content_key(&oid)).await? {
+                    report.bytes += size;
+                }
+            }
+        }
+
+        Ok(report)
+    }
+
+    // What a bucket with no index costs, and what builds one.
+    //
     // One listing of the whole bucket answers all three questions at once: which
     // markers this repository holds, which oids any other repository still
     // claims, and how big each content object is. Asked separately they would
@@ -269,7 +391,7 @@ impl S3Store {
     // in the pages that never arrived. So an incomplete listing still drops this
     // repository's markers, which the retained set alone decides, and leaves
     // every content key exactly where it is.
-    pub async fn sweep(
+    async fn sweep_whole_bucket(
         &self,
         ns: &Namespace,
         retained: &std::collections::HashSet<String>,
@@ -283,7 +405,8 @@ impl S3Store {
             ..Default::default()
         };
 
-        let ours = format!("{}/{}/", ns.org(), ns.repo());
+        let ours = Self::own_prefix(ns);
+        let mut markers = Vec::new();
         let mut mine = Vec::new();
         let mut claimed_elsewhere = std::collections::HashSet::new();
         let mut sizes = std::collections::HashMap::new();
@@ -302,13 +425,22 @@ impl S3Store {
             // object whose digest happened to equal a lock id would then never be
             // collected. The odds are absurd today and the line costs nothing,
             // but the code should not depend on ids and digests never colliding.
-            if entry.key.starts_with(".incoming/") || entry.key.starts_with(".locks/") {
+            //
+            // The index is skipped for a sharper reason than caution:
+            // `.refs/{oid}/{org}/{repo}` ends in a repository name, so reading one
+            // as a marker would file that name as an oid somebody claims.
+            if entry.key.starts_with(".incoming/")
+                || entry.key.starts_with(".locks/")
+                || entry.key.starts_with(".refs/")
+            {
                 continue;
             }
 
             let Some(oid) = entry.key.rsplit('/').next().map(str::to_owned) else {
                 continue;
             };
+
+            markers.push(entry.key.clone());
 
             if entry.key.starts_with(&ours) {
                 mine.push((entry, oid));
@@ -317,20 +449,26 @@ impl S3Store {
             }
         }
 
-        for (entry, oid) in mine {
-            if retained.contains(&oid) {
-                continue;
-            }
+        // Before anything is deleted, so the index never gains a ref for a marker
+        // this sweep is about to drop. Built from the listing already paid for,
+        // and only when that listing finished: an index built from half a bucket
+        // would be missing holders, which is the one direction it must never
+        // drift in.
+        //
+        // A failure is not fatal. The listing above has already answered the
+        // question correctly on its own, so collection proceeds and the next
+        // sweep reads the bucket again.
+        if !dry_run
+            && listing.complete
+            && let Err(error) = refs::backfill(&self.keys, &markers).await
+        {
+            tracing::warn!(
+                %error,
+                "the claim index could not be built, so the next sweep reads the bucket again"
+            );
+        }
 
-            // A slow push is not an abandoned object: the same window the local
-            // store honours.
-            if entry.age().is_none_or(|age| age < grace) {
-                report.within_grace += 1;
-                continue;
-            }
-
-            report.swept += 1;
-
+        for (entry, oid) in Self::droppable(mine, retained, grace, &mut report) {
             // Only what this call actually frees is counted. Another repository
             // holding the same bytes means dropping this marker frees nothing,
             // and a dry run that said otherwise would promise space it cannot
@@ -347,6 +485,10 @@ impl S3Store {
 
             self.keys.delete(&entry.key).await?;
 
+            if let Err(error) = self.keys.delete(&refs::key(ns, &oid)).await {
+                tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
+            }
+
             // Counted only when this call is the one that removed them, so two
             // repositories letting go at once cannot each claim the same space.
             if frees && self.keys.delete(&Self::content_key(&oid)).await? {
@@ -362,7 +504,7 @@ impl S3Store {
     // nothing — this is a listing plus one head per object, which is why the
     // figure is cached the same way the local one is.
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        let prefix = format!("{}/{}/", ns.org(), ns.repo());
+        let prefix = Self::own_prefix(ns);
         let mut objects = 0;
         let mut bytes = 0;
 
