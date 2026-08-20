@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-08-20
+
+### Features
+
+- feat(storage): send an object over 5 GiB to a bucket in parts (#183)
+
 ## [1.2.2] - 2026-08-20
 
 ### Bug Fixes
