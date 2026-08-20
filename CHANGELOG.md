@@ -4,6 +4,13 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.2] - 2026-08-20
+
+### Bug Fixes
+
+- fix(storage): draw a fresh key for every startup probe (#189)
+- fix(ci): drop socket.yml triggerPaths (#188)
+
 ## [1.3.1] - 2026-08-20
 
 ### Bug Fixes
