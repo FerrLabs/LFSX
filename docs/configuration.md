@@ -23,7 +23,7 @@ All configuration is by environment variable.
 | `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | — | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | — | credentials for it, required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
-| `LFSX_S3_PRESIGN` | `false` | `true` to redirect downloads to the bucket instead of streaming them through the server, unless compression or encryption is configured |
+| `LFSX_S3_PRESIGN` | `false` | `true` to hand transfers to the bucket instead of streaming them through the server, ignored for downloads when compression or encryption is configured, and ignored entirely if the bucket does not prove it verifies upload checksums |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | — | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |

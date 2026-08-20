@@ -8,8 +8,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    let config = Config::from_env();
+    let mut config = Config::from_env();
     tokio::fs::create_dir_all(&config.storage_root).await?;
+
+    // Before anything is served, because it decides whether a client is ever
+    // handed a write URL, and a store that will not prove it checks what comes
+    // back through one cannot be given that job.
+    lfsx_server::verify_presign(&mut config).await;
+    let config = config;
 
     // Once at boot, since a crash mid-transfer is exactly what leaves these
     // behind, then hourly so a long-lived process reclaims them too.

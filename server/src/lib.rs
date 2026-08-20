@@ -54,6 +54,84 @@ pub async fn reclaim(config: &Config) {
     }
 }
 
+// Ask the bucket, once, whether it really refuses an upload whose body does not
+// match the checksum its URL was signed for, and give up pre-signing if it does
+// not say yes.
+//
+// Handing a client a write URL is safe only because of that refusal. Without it,
+// anyone with push rights to any repository can put chosen bytes under a chosen
+// digest, and objects are shared: bytes live once at `.content/{oid}`, so every
+// repository that later pushes that digest gets a marker pointing at them and
+// uploads nothing. One store that ignores the header decides what an object is
+// for everybody.
+//
+// Losing pre-signing costs throughput and nothing else, because transfers fall
+// back to coming through this server, which hashes what it is sent. That is why
+// a store which cannot be asked loses it too: the question guards data, and an
+// unanswered question is not a yes.
+pub async fn verify_presign(config: &mut Config) {
+    use crate::storage::s3::probe::{Checksums, checksums};
+
+    let crate::config::Storage::Bucket { presign: true, .. } = &config.storage else {
+        return;
+    };
+
+    let Some(keys) = keyspace(config) else {
+        return;
+    };
+
+    let refusal = match checksums(&keys).await {
+        Checksums::Enforced => return,
+        Checksums::Ignored => {
+            "this object store accepted an upload whose body did not match the checksum its own \
+             signature named. A store that does not verify that header lets a client with push \
+             rights put chosen bytes under a chosen digest, and every repository that later pushes \
+             that digest would get a marker pointing at them"
+        }
+        Checksums::Unknown => {
+            "this object store could not be asked whether it verifies upload checksums. Handing out \
+             a write URL is only safe if the store refuses a body that does not match it, and that \
+             has not been established"
+        }
+    };
+
+    tracing::error!(
+        "{refusal}, so LFSX_S3_PRESIGN is being ignored and uploads keep coming through this server"
+    );
+
+    if let crate::config::Storage::Bucket { presign, .. } = &mut config.storage {
+        *presign = false;
+    }
+}
+
+fn keyspace(config: &Config) -> Option<Keyspace> {
+    let crate::config::Storage::Bucket {
+        endpoint,
+        bucket,
+        region,
+        access_key,
+        secret_key,
+        path_style,
+        ..
+    } = &config.storage
+    else {
+        return None;
+    };
+
+    Some(
+        Keyspace::new(&S3Config {
+            endpoint: endpoint.clone(),
+            bucket: bucket.clone(),
+            region: region.clone(),
+            access_key: access_key.clone(),
+            secret_key: secret_key.clone(),
+            path_style: *path_style,
+            lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
+        })
+        .expect("the bucket configuration is not usable"),
+    )
+}
+
 fn backends(config: &Config) -> (Store, LockStore) {
     // Said out loud because it decides who can read the objects. It is off unless
     // asked for, so this line means somebody asked: it belongs in the log so a
@@ -94,29 +172,12 @@ fn backends(config: &Config) -> (Store, LockStore) {
             Store::local(local),
             LockStore::local(config.storage_root.clone()),
         ),
-        crate::config::Storage::Bucket {
-            endpoint,
-            bucket,
-            region,
-            access_key,
-            secret_key,
-            path_style,
-            presign,
-        } => {
+        crate::config::Storage::Bucket { presign, .. } => {
             // Built once and shared: the objects and the locks are two ways of
             // using the same bucket, not two buckets. Signing, the connection
             // pool and the retry policy are settled here, and neither layer
             // reaches into the other to get at them.
-            let keys = Keyspace::new(&S3Config {
-                endpoint: endpoint.clone(),
-                bucket: bucket.clone(),
-                region: region.clone(),
-                access_key: access_key.clone(),
-                secret_key: secret_key.clone(),
-                path_style: *path_style,
-                lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
-            })
-            .expect("the bucket configuration is not usable");
+            let keys = keyspace(config).expect("a bucket keyspace for a bucket store");
 
             tracing::warn!(
                 "objects and locks are stored in a bucket: deduplication, rewriting and                  verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"

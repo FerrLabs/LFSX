@@ -1,4 +1,5 @@
 pub(crate) mod keyspace;
+pub(crate) mod probe;
 pub(crate) mod refs;
 
 use std::time::Duration;
@@ -432,6 +433,7 @@ impl S3Store {
             if entry.key.starts_with(".incoming/")
                 || entry.key.starts_with(".locks/")
                 || entry.key.starts_with(".refs/")
+                || entry.key.starts_with(".probe/")
             {
                 continue;
             }
