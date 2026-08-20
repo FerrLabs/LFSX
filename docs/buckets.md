@@ -160,6 +160,19 @@ object is removed at all. The reference that would have saved it may sit in the 
 arrived, and freeing bytes another repository is still serving is the one mistake collection must
 never make.
 
+**A claim can arrive while a sweep is deciding**, and the index gets the last word because of it. A
+repository pushing a digest that is already in the bucket writes a marker and uploads nothing, so a
+sweep that worked out an object was unclaimed and then deleted it would leave that repository
+holding a marker pointing at nothing, which its client meets as a missing object on the next pull.
+So the question is asked once more, immediately before the bytes go, and a push writes its ref
+before it so much as looks at whether the content is there. A claim that landed at any point before
+that last question is one the sweep sees.
+
+What is left is the width of a single request, between reading that answer and the delete already on
+its way. Closing it completely needs a lease the deleting side takes and every push waits on, which
+spends a round trip on the hot path to buy back a window this narrow. If it does happen, the object
+is missing rather than wrong: `lfsx doctor` finds it and pushing again puts it back.
+
 **Three things do not apply, and say so** rather than reporting an empty success. Compression
 rewriting and verification are not implemented against a bucket yet and answer `501`. Deduplication
 answers `501` too, for a different reason: content addressing already stores each object once, so
