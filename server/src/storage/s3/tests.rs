@@ -18,7 +18,7 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 // the authentication tests run against — a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
-    stub(true).await
+    stub(true, true).await
 }
 
 // The store the checksum probe exists to find: it takes the header, stores the
@@ -26,10 +26,17 @@ pub(crate) async fn bucket() -> (String, Objects) {
 // accept `x-amz-checksum-*` this way, which is why the server asks rather than
 // assumes.
 pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
-    stub(false).await
+    stub(false, true).await
 }
 
-async fn stub(enforces_checksums: bool) -> (String, Objects) {
+// And the one the locking probe exists to find: it accepts `If-None-Match: *`
+// and writes anyway, so two callers racing for the same lock are both told they
+// took it.
+pub(crate) async fn bucket_ignoring_conditions() -> (String, Objects) {
+    stub(true, false).await
+}
+
+async fn stub(enforces_checksums: bool, enforces_conditions: bool) -> (String, Objects) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
 
     let app = Router::new()
@@ -66,6 +73,18 @@ async fn stub(enforces_checksums: bool) -> (String, Objects) {
                             if enforces_checksums && !matches(&headers, &bytes) {
                                 return (StatusCode::BAD_REQUEST, "XAmzContentChecksumMismatch")
                                     .into_response();
+                            }
+
+                            // `If-None-Match: *` is the whole of lock uniqueness
+                            // against a bucket: the store is the only thing that
+                            // can say which of two callers arrived second. A
+                            // store without it answers success twice, which is
+                            // what `enforces_conditions` stands in for.
+                            if enforces_conditions
+                                && headers.contains_key("if-none-match")
+                                && objects.lock().unwrap().contains_key(&key)
+                            {
+                                return StatusCode::PRECONDITION_FAILED.into_response();
                             }
 
                             objects.lock().unwrap().insert(key, bytes.to_vec());

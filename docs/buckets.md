@@ -18,6 +18,11 @@ what makes a second replica possible: two servers sharing one bucket and nothing
 holds a scene, and a release on either frees it on both. Tested against MinIO rather than assumed,
 including the case where both replicas ask at once.
 
+That leans entirely on the store performing the condition, and not every implementation does, so it
+is asked at startup: one key written twice, with the second required to be refused. A store that
+writes both, or that cannot be asked, loses locking rather than pretending, and taking a lock there
+answers `501`. [Locking](locking.md#what-makes-a-lock-unique) has the reasoning.
+
 The volume is still needed as a write buffer for uploads, but it no longer carries state a second
 replica would have to see.
 

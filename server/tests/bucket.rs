@@ -140,6 +140,7 @@ fn bucket_config(
             secret_key: bucket.secret_key.clone(),
             path_style: true,
             presign,
+            locking: true,
         },
         auth: Auth::Disabled,
     }

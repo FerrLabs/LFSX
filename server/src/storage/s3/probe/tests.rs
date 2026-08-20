@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use super::*;
-use crate::storage::s3::tests::{bucket, bucket_ignoring_checksums, keyspace};
+use crate::storage::s3::tests::{
+    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace,
+};
 
 // The good case, and the one that makes the rest meaningful: a store that
 // compares the body against the header refuses the probe, so nothing lands.
@@ -73,6 +75,7 @@ fn presigning(endpoint: &str) -> crate::config::Config {
             secret_key: "secret".into(),
             path_style: true,
             presign: true,
+            locking: true,
         },
         auth: crate::config::Auth::Disabled,
     }
@@ -136,5 +139,107 @@ async fn a_store_that_was_not_going_to_pre_sign_is_never_probed() {
         objects.lock().unwrap().is_empty(),
         "a store that ignores checksums keeps whatever it is sent, so anything written here would \
          show up"
+    );
+}
+
+// A store that implements the condition refuses the second write of the same
+// key, which is the whole contract a lock rests on.
+#[tokio::test]
+async fn a_store_that_refuses_the_second_write_can_hold_locks() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket().await;
+
+    assert_eq!(
+        conditional_writes(&keyspace(&endpoint)).await,
+        Conditional::Enforced
+    );
+    assert!(
+        objects.lock().unwrap().is_empty(),
+        "the probe wrote a key to find that out and has to take it back with it"
+    );
+}
+
+// And the store this exists to find. It accepts `If-None-Match: *`, writes
+// anyway, and answers success twice, so two clients racing for the same lock are
+// both told it is theirs.
+#[tokio::test]
+async fn a_store_that_writes_twice_cannot() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket_ignoring_conditions().await;
+
+    assert_eq!(
+        conditional_writes(&keyspace(&endpoint)).await,
+        Conditional::Ignored
+    );
+    assert!(objects.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_store_that_cannot_be_asked_about_conditions_is_not_trusted_either() {
+    crate::tls::install_crypto_provider();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let closed = listener.local_addr().unwrap();
+    drop(listener);
+
+    assert_eq!(
+        conditional_writes(&keyspace(&format!("http://{closed}"))).await,
+        Conditional::Unknown
+    );
+}
+
+fn locks(config: &crate::config::Config) -> bool {
+    matches!(
+        config.storage,
+        crate::config::Storage::Bucket { locking: true, .. }
+    )
+}
+
+// The answer has to reach the lock store, because the failure that matters is a
+// server that carries on handing out locks it cannot arbitrate.
+#[tokio::test]
+async fn a_store_that_ignores_conditions_loses_locking() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = bucket_ignoring_conditions().await;
+    let mut config = presigning(&endpoint);
+    assert!(locks(&config));
+
+    crate::verify_locking(&mut config).await;
+
+    assert!(!locks(&config));
+}
+
+#[tokio::test]
+async fn a_store_that_honours_them_keeps_locking() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = bucket().await;
+    let mut config = presigning(&endpoint);
+
+    crate::verify_locking(&mut config).await;
+
+    assert!(locks(&config));
+}
+
+// A key left behind by a run that died mid-probe would make the first write the
+// second one, and the refusal would read as enforcement that was never tested.
+// So the probe clears it first, and says so on a store that cannot even do that.
+#[tokio::test]
+async fn a_probe_key_left_by_an_earlier_run_does_not_pass_for_enforcement() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket().await;
+    objects
+        .lock()
+        .unwrap()
+        .insert(".probe/conditional".to_owned(), b"left behind".to_vec());
+
+    assert_eq!(
+        conditional_writes(&keyspace(&endpoint)).await,
+        Conditional::Enforced,
+        "the stale key is cleared first, so what is measured is a fresh pair of writes"
     );
 }

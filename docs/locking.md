@@ -43,3 +43,24 @@ Locks live next to the objects, under `.locks/`, so they are covered by the same
 disappear with the repository. That means `$LFSX_STORAGE_ROOT/.locks/` on a volume and the same
 prefix in the bucket when objects are in one: whatever holds the objects holds the locks, because a
 second replica has to agree with the first about who is holding what.
+
+### What makes a lock unique
+
+Only one of two clients reaching for the same path may come away with it, and the store is what
+decides which. On a volume that is `create_new`, a filesystem primitive that either makes the file or
+does not. In a bucket it is `If-None-Match: *`, a conditional write the store has to refuse when the
+key is already there.
+
+Not every S3-compatible implementation performs that condition. AWS added it in August 2024 and MinIO
+has it; some of the others accept the header and write anyway, answering success twice. Both callers
+are then told the lock is theirs, nothing detects it, and locking has quietly become advisory, which
+is exactly the situation it exists to prevent.
+
+So the server asks at startup rather than assuming. It writes one key twice under the condition and
+requires the second to be refused. A store that performs both writes, or that cannot be asked, loses
+locking: taking a lock answers `501` with a message saying why, and objects, transfers and everything
+else carry on untouched. A refusal at the moment somebody asks is the only honest answer available;
+handing out a lock two people can hold is not.
+
+This is why there is no table here of which providers work. Each deployment establishes it against
+its own store, at boot, and says so in the log, which is worth more than a list somebody tested once.

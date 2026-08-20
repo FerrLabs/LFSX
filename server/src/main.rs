@@ -15,6 +15,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // handed a write URL, and a store that will not prove it checks what comes
     // back through one cannot be given that job.
     lfsx_server::verify_presign(&mut config).await;
+
+    // And whether it can arbitrate between two clients reaching for the same
+    // lock, which is a different capability and a different failure: one lets a
+    // client write bytes nobody checked, the other hands the same lock to two
+    // people.
+    lfsx_server::verify_locking(&mut config).await;
     let config = config;
 
     // Once at boot, since a crash mid-transfer is exactly what leaves these

@@ -49,6 +49,11 @@ pub enum Storage {
         // that counts bytes, serves ranges and holds the ceiling, and an
         // operator should choose to give those up rather than discover it.
         presign: bool,
+        // Whether locks can be taken here. Not read from the environment: it
+        // starts true and the startup probes turn it off, the same way they turn
+        // `presign` off, when the store will not prove it can arbitrate between
+        // two writers racing for the same key.
+        locking: bool,
     },
 }
 
@@ -73,6 +78,7 @@ impl Storage {
             secret_key: required("LFSX_S3_SECRET_KEY"),
             path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
             presign: std::env::var("LFSX_S3_PRESIGN").as_deref() == Ok("true"),
+            locking: true,
         }
     }
 }

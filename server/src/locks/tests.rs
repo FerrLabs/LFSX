@@ -230,3 +230,98 @@ async fn a_clock_that_moved_backwards_does_not_make_a_lock_stale() {
 
     assert!(locks.stale_for(&future).is_none());
 }
+
+// The bucket lock path, which nothing exercised until the stub learned to refuse
+// a conditional write. Two callers reach for the same path and the store is what
+// decides the second one lost.
+#[tokio::test]
+async fn a_bucket_lets_exactly_one_of_two_callers_take_a_lock() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+
+    locks
+        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .await
+        .unwrap();
+
+    let refused = locks
+        .create(&ns, "Assets/Scenes/Arena.unity", "john")
+        .await
+        .unwrap_err();
+
+    match refused {
+        Error::LockHeld(held) => assert_eq!(held.owner.name, "jane"),
+        other => panic!("expected the lock to be refused, got {other:?}"),
+    }
+}
+
+// And a store that cannot arbitrate is refused outright rather than handed the
+// write. Attempting it would succeed and John would be told the scene is his,
+// which is the one answer locking must never give.
+#[tokio::test]
+async fn a_bucket_that_cannot_arbitrate_refuses_to_take_a_lock_at_all() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = crate::storage::s3::tests::bucket_ignoring_conditions().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint))
+        .with_conditional_writes(false);
+
+    let refused = locks
+        .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
+        .await
+        .unwrap_err();
+
+    assert!(matches!(refused, Error::Unsupported(_)), "{refused:?}");
+    assert!(
+        objects.lock().unwrap().is_empty(),
+        "nothing may be written for a lock that was not granted, or a later reader would find one"
+    );
+}
+
+// Locking on a volume never depended on the store answering anything: create_new
+// is a filesystem primitive. The flag exists for buckets and must not reach it.
+#[tokio::test]
+async fn a_volume_is_never_held_back_by_what_a_bucket_could_not_prove() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = LockStore::local(root.path()).with_conditional_writes(false);
+
+    assert!(
+        locks
+            .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
+            .await
+            .is_ok()
+    );
+}
+
+// Why the flag above is not decoration. Given the same store and no guard, both
+// callers are told the lock is theirs and the second write lands on top of the
+// first, so the bucket now says John holds a scene Jane was told she had. This is
+// the sequential shape of what two clients racing would get, and it is the reason
+// taking a lock is refused outright rather than attempted.
+#[tokio::test]
+async fn without_the_guard_that_store_hands_the_same_lock_to_both() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket_ignoring_conditions().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+
+    let jane = locks
+        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .await
+        .unwrap();
+    let john = locks
+        .create(&ns, "Assets/Scenes/Arena.unity", "john")
+        .await
+        .expect("this store refuses nothing, which is the whole problem");
+
+    assert_eq!(jane.id, john.id);
+    assert_eq!(
+        locks.get(&ns, &jane.id).await.unwrap().unwrap().owner.name,
+        "john",
+        "Jane was told the scene was hers and the store quietly gave it to John"
+    );
+}

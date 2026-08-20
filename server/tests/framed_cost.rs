@@ -40,6 +40,7 @@ fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Ro
             secret_key: "lfsxsecret".into(),
             path_style: true,
             presign: false,
+            locking: true,
         },
         auth: Auth::Disabled,
     })
