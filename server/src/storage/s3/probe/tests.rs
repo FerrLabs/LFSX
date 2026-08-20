@@ -224,22 +224,70 @@ async fn a_store_that_honours_them_keeps_locking() {
     assert!(locks(&config));
 }
 
-// A key left behind by a run that died mid-probe would make the first write the
-// second one, and the refusal would read as enforcement that was never tested.
-// So the probe clears it first, and says so on a store that cannot even do that.
+// Anything left behind by a run that died mid-probe has to be inert, and a fresh
+// key per probe is what makes it so. A stale one under the key this run was
+// about to use would make its first write the second one, and the refusal would
+// read as enforcement that was never tested.
 #[tokio::test]
 async fn a_probe_key_left_by_an_earlier_run_does_not_pass_for_enforcement() {
     crate::tls::install_crypto_provider();
 
     let (endpoint, objects) = bucket().await;
-    objects
-        .lock()
-        .unwrap()
-        .insert(".probe/conditional".to_owned(), b"left behind".to_vec());
+    for stale in [".probe/conditional", ".probe/conditional-0123456789abcdef"] {
+        objects
+            .lock()
+            .unwrap()
+            .insert(stale.to_owned(), b"left behind".to_vec());
+    }
 
     assert_eq!(
         conditional_writes(&keyspace(&endpoint)).await,
         Conditional::Enforced,
-        "the stale key is cleared first, so what is measured is a fresh pair of writes"
+        "what is measured has to be a fresh pair of writes, whatever an earlier run left"
     );
+}
+
+// The trap the review on #181 found, which a fixed key made permanent and
+// silent. A leftover, from a run that died or from a store that has since been
+// fixed, sits under the key the next run would have used: the compliant store
+// refuses the fresh write, the `HEAD` finds the old object, and pre-signing is
+// switched off for good with nothing said about why.
+#[tokio::test]
+async fn a_probe_object_left_by_an_earlier_run_does_not_condemn_a_compliant_store() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket().await;
+    for stale in [".probe/checksum", ".probe/checksum-0123456789abcdef"] {
+        objects
+            .lock()
+            .unwrap()
+            .insert(stale.to_owned(), b"left behind".to_vec());
+    }
+
+    assert_eq!(
+        checksums(&keyspace(&endpoint)).await,
+        Checksums::Enforced,
+        "this store refuses a body that does not match, and no amount of litter changes that"
+    );
+}
+
+// And what a probe leaves is not litter forever: the reclaimer takes `.probe/`
+// on the same schedule as an upload nobody reported.
+#[tokio::test]
+async fn what_a_probe_leaves_behind_is_reclaimed() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket_ignoring_checksums().await;
+    objects.lock().unwrap().insert(
+        ".probe/checksum-deadbeefdeadbeef".to_owned(),
+        b"orphan".to_vec(),
+    );
+
+    let reclaimed = crate::storage::s3::tests::store(&endpoint)
+        .reclaim_incoming(Duration::from_secs(0))
+        .await
+        .unwrap();
+
+    assert_eq!(reclaimed.files, 1);
+    assert!(objects.lock().unwrap().is_empty());
 }
