@@ -9,6 +9,17 @@ everyone's outage.
 LFSX_MAX_OBJECT_SIZE=5368709120   # 5 GiB
 ```
 
+That figure is an example rather than a boundary of the server, though against a bucket it used to
+be both, silently. Objects went up in one request, S3 caps one at 5 GiB, and an operator who set no
+limit got a store that worked up to that and failed above it: with an error from the bucket rather
+than from here, and only once the client had finished sending. An object over the ceiling now goes
+up in parts instead, so what is left is S3's own object limit rather than one this server invented.
+
+One place keeps the ceiling. A pre-signed upload is a single PUT to a single URL, because that is
+all the `basic` transfer adapter every git-lfs speaks can do, and there is nowhere to put a second
+request. So with `LFSX_S3_PRESIGN=true` an object over 5 GiB is not given a URL and comes through
+this server instead, which sends it in parts. Nothing is refused and nothing has to be configured.
+
 The size is declared during batch negotiation, so an object over the ceiling is refused there —
 before a byte moves — with a per-object error the client prints by name. The rest of the push goes
 through; the limit refuses an object, not the commit it arrived with.

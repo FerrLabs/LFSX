@@ -144,7 +144,12 @@ impl Store {
     // Where the client should PUT the object, when that is the bucket rather than
     // this server. None for a local store and for a bucket the operator has not
     // asked to redirect.
-    pub fn presigned_upload(&self, ns: &Namespace, oid: &str) -> Option<super::s3::Presigned> {
+    pub fn presigned_upload(
+        &self,
+        ns: &Namespace,
+        oid: &str,
+        size: u64,
+    ) -> Option<super::s3::Presigned> {
         match &self.backend {
             Backend::Local(_) => None,
             // A client uploading straight to the bucket writes the object as it
@@ -154,7 +159,7 @@ impl Store {
             // is not worth quietly breaking it. Those transfers keep coming
             // through the server, which seals them.
             Backend::Bucket { staging, .. } if staging.encrypts() => None,
-            Backend::Bucket { bucket, .. } => bucket.presigned_upload(ns, oid),
+            Backend::Bucket { bucket, .. } => bucket.presigned_upload(ns, oid, size),
         }
     }
 

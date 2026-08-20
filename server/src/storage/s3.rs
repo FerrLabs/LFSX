@@ -1,4 +1,5 @@
 pub(crate) mod keyspace;
+pub(crate) mod multipart;
 pub(crate) mod probe;
 pub(crate) mod refs;
 
@@ -143,8 +144,21 @@ impl S3Store {
     // that does not hash to the object it was signed for: a client with this URL
     // cannot put arbitrary bytes anywhere, which is what makes handing one out
     // safe at all.
-    pub fn presigned_upload(&self, ns: &Namespace, oid: &str) -> Option<Presigned> {
-        if !self.redirect || crate::storage::LocalStore::validate_oid(oid).is_err() {
+    // None above the single-request ceiling, and that is not a refusal: the
+    // object falls back to coming through this server, which sends it in parts.
+    // A client cannot do the same, because the `basic` transfer adapter every
+    // git-lfs speaks does one PUT to one href and has nowhere to put a second.
+    // So the ceiling multipart removes for the streamed path is real and
+    // permanent for this one, and the only question is whether the client learns
+    // it now or after uploading five gigabytes.
+    //
+    // It also keeps `adopt` honest: `CopyObject` stops at the same 5 GiB, and
+    // nothing can reach `.incoming/` above it while this holds.
+    pub fn presigned_upload(&self, ns: &Namespace, oid: &str, size: u64) -> Option<Presigned> {
+        if !self.redirect
+            || size > multipart::SINGLE_PUT_CEILING
+            || crate::storage::LocalStore::validate_oid(oid).is_err()
+        {
             return None;
         }
 
@@ -223,15 +237,25 @@ impl S3Store {
         if self.keys.head(&Self::content_key(oid)).await.is_err() {
             let file = tokio::fs::File::open(staged).await?;
             let length = file.metadata().await?.len();
-            let stream = tokio_util::io::ReaderStream::new(file);
 
-            self.keys
-                .put(
-                    &Self::content_key(oid),
-                    reqwest::Body::wrap_stream(stream),
-                    length,
-                )
-                .await?;
+            // One request while one request will carry it, which is every
+            // object a store normally sees, and parts when it will not. The
+            // split is here rather than always going in parts because the
+            // single write is one round trip and needs no cleanup if it fails.
+            if length > multipart::SINGLE_PUT_CEILING {
+                drop(file);
+                multipart::put(&self.keys, &Self::content_key(oid), staged, length).await?;
+            } else {
+                let stream = tokio_util::io::ReaderStream::new(file);
+
+                self.keys
+                    .put(
+                        &Self::content_key(oid),
+                        reqwest::Body::wrap_stream(stream),
+                        length,
+                    )
+                    .await?;
+            }
         }
 
         refs::write(&self.keys, ns, oid).await?;

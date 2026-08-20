@@ -587,3 +587,20 @@ async fn an_index_that_cannot_be_read_answers_that_somebody_still_holds_the_obje
         "an unreachable store must never be read as permission to delete"
     );
 }
+
+// A pre-signed upload is one PUT to one href, because that is all the `basic`
+// transfer adapter can do, so the 5 GiB ceiling on a single request is real and
+// permanent there. Withholding the URL is not a refusal: the object falls back
+// to coming through this server, which sends it in parts.
+#[tokio::test]
+async fn an_object_too_big_for_one_request_is_not_given_an_upload_url() {
+    let store = redirecting("http://127.0.0.1:1");
+    let ns = namespace("Blastlands");
+    let ceiling = super::multipart::SINGLE_PUT_CEILING;
+
+    assert!(store.presigned_upload(&ns, OID, ceiling).is_some());
+    assert!(
+        store.presigned_upload(&ns, OID, ceiling + 1).is_none(),
+        "a client handed this URL would upload for an hour and be refused by the bucket at the end"
+    );
+}
