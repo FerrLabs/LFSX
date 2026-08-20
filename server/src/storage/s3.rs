@@ -187,17 +187,24 @@ impl S3Store {
         let incoming = Self::incoming_key(ns, oid);
         let content = Self::content_key(oid);
 
+        // First, before anything here so much as looks at the content.
+        //
+        // The marker is the claim and the ref is the index of it, so a crash
+        // between the two has to leave a ref nobody claims rather than a claim
+        // nothing indexes: the first leaks an object, the second lets a later
+        // sweep free bytes this repository holds.
+        //
+        // Writing it up here rather than beside the marker costs nothing and buys
+        // the race below. A sweep asks the index one last time before deleting
+        // bytes, so a claim recorded before this repository even checked whether
+        // the content exists is a claim that sweep will see.
+        refs::write(&self.keys, ns, oid).await?;
+
         // Already there means another repository pushed the same object, and the
         // bytes are identical by construction.
         if self.keys.head(&content).await.is_err() {
             self.keys.copy(&incoming, &content).await?;
         }
-
-        // Before the marker, always. The marker is the claim and the ref is the
-        // index of it, so a crash between the two has to leave a ref nobody
-        // claims rather than a claim nothing indexes: the first leaks an object,
-        // the second lets a later sweep free bytes this repository holds.
-        refs::write(&self.keys, ns, oid).await?;
 
         self.keys
             .put(
@@ -234,6 +241,11 @@ impl S3Store {
     ) -> Result<(), Error> {
         crate::storage::LocalStore::validate_oid(oid)?;
 
+        // Before the content is even looked at, for the reason `adopt` gives:
+        // this is what a sweep re-reads before deleting bytes, so a claim
+        // recorded here cannot be missed by one that is already deciding.
+        refs::write(&self.keys, ns, oid).await?;
+
         if self.keys.head(&Self::content_key(oid)).await.is_err() {
             let file = tokio::fs::File::open(staged).await?;
             let length = file.metadata().await?.len();
@@ -257,8 +269,6 @@ impl S3Store {
                     .await?;
             }
         }
-
-        refs::write(&self.keys, ns, oid).await?;
 
         self.keys
             .put(
@@ -314,6 +324,35 @@ impl S3Store {
         } else {
             self.sweep_whole_bucket(ns, retained, grace, dry_run).await
         }
+    }
+
+    // The last question asked before bytes go, and the reason the index is read
+    // twice for one object.
+    //
+    // Between deciding an object is unclaimed and deleting it, another repository
+    // can push the same digest. It finds the content already there, skips the
+    // upload, and writes a claim, so deleting now leaves it holding a marker
+    // pointing at nothing, which its client meets as a missing object on the next
+    // pull.
+    //
+    // A push writes its ref before it so much as looks at the content, so a claim
+    // that landed at any moment before this question is one this sees. What is
+    // left is the width of a single request, between reading this answer and the
+    // delete that follows it. Closing that needs a lease the deleting side takes
+    // and every push waits on, which is a round trip on the hot path bought
+    // against a window this narrow, and it is not obviously the right trade.
+    async fn claimed_since(&self, ns: &Namespace, oid: &str) -> bool {
+        if refs::claimed_by_another(&self.keys, ns, oid).await {
+            tracing::info!(
+                oid,
+                "another repository claimed this object while it was being collected, so its bytes \
+                 stay"
+            );
+
+            return true;
+        }
+
+        false
     }
 
     // The markers this repository is allowed to drop. Retained is what the client
@@ -389,7 +428,7 @@ impl S3Store {
                 tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
             }
 
-            if frees {
+            if frees && !self.claimed_since(ns, &oid).await {
                 // Asked before the delete, because afterwards there is nothing
                 // left to ask.
                 let size = self.size_of(&oid).await.unwrap_or_default();
@@ -517,7 +556,13 @@ impl S3Store {
 
             // Counted only when this call is the one that removed them, so two
             // repositories letting go at once cannot each claim the same space.
-            if frees && self.keys.delete(&Self::content_key(&oid)).await? {
+            // The listing that decided `frees` was taken before any of these
+            // deletes, so it is the stalest answer there is and the index gets
+            // the last word.
+            if frees
+                && !self.claimed_since(ns, &oid).await
+                && self.keys.delete(&Self::content_key(&oid)).await?
+            {
                 report.bytes += size;
             }
         }

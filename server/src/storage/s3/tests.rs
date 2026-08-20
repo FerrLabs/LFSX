@@ -18,7 +18,17 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 // the authentication tests run against — a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
-    stub(true, true).await
+    stub(true, true, None).await
+}
+
+// A store where another repository turns up in the middle of a collection: the
+// given key appears the first time this sees a delete, which is the moment a
+// sweep has committed to dropping a marker and has not yet touched the bytes.
+//
+// It is the one interleaving that matters and the one a test cannot otherwise
+// produce, since both sides are a handful of requests wide.
+pub(crate) async fn bucket_where_a_claim_arrives_mid_sweep(key: &str) -> (String, Objects) {
+    stub(true, true, Some(key.to_owned())).await
 }
 
 // The store the checksum probe exists to find: it takes the header, stores the
@@ -26,18 +36,23 @@ pub(crate) async fn bucket() -> (String, Objects) {
 // accept `x-amz-checksum-*` this way, which is why the server asks rather than
 // assumes.
 pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
-    stub(false, true).await
+    stub(false, true, None).await
 }
 
 // And the one the locking probe exists to find: it accepts `If-None-Match: *`
 // and writes anyway, so two callers racing for the same lock are both told they
 // took it.
 pub(crate) async fn bucket_ignoring_conditions() -> (String, Objects) {
-    stub(true, false).await
+    stub(true, false, None).await
 }
 
-async fn stub(enforces_checksums: bool, enforces_conditions: bool) -> (String, Objects) {
+async fn stub(
+    enforces_checksums: bool,
+    enforces_conditions: bool,
+    arriving: Option<String>,
+) -> (String, Objects) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
+    let arriving = Arc::new(Mutex::new(arriving));
 
     let app = Router::new()
         .route(
@@ -48,65 +63,77 @@ async fn stub(enforces_checksums: bool, enforces_conditions: bool) -> (String, O
                       axum::extract::RawQuery(query): axum::extract::RawQuery,
                       headers: HeaderMap,
                       method: axum::http::Method,
-                      body: axum::body::Body| async move {
-                    let query = query.unwrap_or_default();
+                      body: axum::body::Body| {
+                    let arriving = arriving.clone();
+                    async move {
+                        let query = query.unwrap_or_default();
 
-                    // Path-style addressing puts the bucket in the path, so the
-                    // stub drops it to keep the same keyspace a real bucket has.
-                    let key = key.strip_prefix("assets/").unwrap_or(&key).to_owned();
+                        // Path-style addressing puts the bucket in the path, so the
+                        // stub drops it to keep the same keyspace a real bucket has.
+                        let key = key.strip_prefix("assets/").unwrap_or(&key).to_owned();
 
-                    if query.contains("list-type=2") {
-                        return list(&objects, &query);
-                    }
-
-                    match method {
-                        axum::http::Method::PUT => {
-                            let bytes = axum::body::to_bytes(body, usize::MAX)
-                                .await
-                                .unwrap_or_default();
-
-                            // A conforming store refuses a body that does not
-                            // match the checksum the URL was signed for, and the
-                            // whole pre-signed upload path rests on it, so the
-                            // stub does it too rather than accepting everything
-                            // and letting the tests pass for the wrong reason.
-                            if enforces_checksums && !matches(&headers, &bytes) {
-                                return (StatusCode::BAD_REQUEST, "XAmzContentChecksumMismatch")
-                                    .into_response();
-                            }
-
-                            // `If-None-Match: *` is the whole of lock uniqueness
-                            // against a bucket: the store is the only thing that
-                            // can say which of two callers arrived second. A
-                            // store without it answers success twice, which is
-                            // what `enforces_conditions` stands in for.
-                            if enforces_conditions
-                                && headers.contains_key("if-none-match")
-                                && objects.lock().unwrap().contains_key(&key)
-                            {
-                                return StatusCode::PRECONDITION_FAILED.into_response();
-                            }
-
-                            objects.lock().unwrap().insert(key, bytes.to_vec());
-                            StatusCode::OK.into_response()
+                        if query.contains("list-type=2") {
+                            return list(&objects, &query);
                         }
-                        axum::http::Method::HEAD => match objects.lock().unwrap().get(&key) {
-                            Some(object) => (
-                                StatusCode::OK,
-                                [(header::CONTENT_LENGTH, object.len().to_string())],
-                            )
-                                .into_response(),
-                            None => StatusCode::NOT_FOUND.into_response(),
-                        },
-                        // S3 answers 204 whether or not the key was there, and
-                        // the store depends on that: it settles whether a delete
-                        // removed anything with a HEAD beforehand rather than
-                        // reading the status.
-                        axum::http::Method::DELETE => {
-                            objects.lock().unwrap().remove(&key);
-                            StatusCode::NO_CONTENT.into_response()
+
+                        match method {
+                            axum::http::Method::PUT => {
+                                let bytes = axum::body::to_bytes(body, usize::MAX)
+                                    .await
+                                    .unwrap_or_default();
+
+                                // A conforming store refuses a body that does not
+                                // match the checksum the URL was signed for, and the
+                                // whole pre-signed upload path rests on it, so the
+                                // stub does it too rather than accepting everything
+                                // and letting the tests pass for the wrong reason.
+                                if enforces_checksums && !matches(&headers, &bytes) {
+                                    return (
+                                        StatusCode::BAD_REQUEST,
+                                        "XAmzContentChecksumMismatch",
+                                    )
+                                        .into_response();
+                                }
+
+                                // `If-None-Match: *` is the whole of lock uniqueness
+                                // against a bucket: the store is the only thing that
+                                // can say which of two callers arrived second. A
+                                // store without it answers success twice, which is
+                                // what `enforces_conditions` stands in for.
+                                if enforces_conditions
+                                    && headers.contains_key("if-none-match")
+                                    && objects.lock().unwrap().contains_key(&key)
+                                {
+                                    return StatusCode::PRECONDITION_FAILED.into_response();
+                                }
+
+                                objects.lock().unwrap().insert(key, bytes.to_vec());
+                                StatusCode::OK.into_response()
+                            }
+                            axum::http::Method::HEAD => match objects.lock().unwrap().get(&key) {
+                                Some(object) => (
+                                    StatusCode::OK,
+                                    [(header::CONTENT_LENGTH, object.len().to_string())],
+                                )
+                                    .into_response(),
+                                None => StatusCode::NOT_FOUND.into_response(),
+                            },
+                            // S3 answers 204 whether or not the key was there, and
+                            // the store depends on that: it settles whether a delete
+                            // removed anything with a HEAD beforehand rather than
+                            // reading the status.
+                            axum::http::Method::DELETE => {
+                                objects.lock().unwrap().remove(&key);
+
+                                // Once, on the first delete of the run.
+                                if let Some(key) = arriving.lock().unwrap().take() {
+                                    objects.lock().unwrap().insert(key, Vec::new());
+                                }
+
+                                StatusCode::NO_CONTENT.into_response()
+                            }
+                            _ => get(&objects, &key, &headers),
                         }
-                        _ => get(&objects, &key, &headers),
                     }
                 },
             ),
@@ -602,5 +629,96 @@ async fn an_object_too_big_for_one_request_is_not_given_an_upload_url() {
     assert!(
         store.presigned_upload(&ns, OID, ceiling + 1).is_none(),
         "a client handed this URL would upload for an hour and be refused by the bucket at the end"
+    );
+}
+
+// The race #177 records. A sweep decides an object is unclaimed, and before it
+// gets to the bytes another repository pushes the same digest: it finds the
+// content already there, skips the upload, and writes a claim. Deleting now
+// leaves that repository holding a marker pointing at nothing, which its client
+// meets as a missing object on the next pull.
+//
+// So the index gets the last word, asked again immediately before the delete.
+#[tokio::test]
+async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes() {
+    let arena = refs::key(&namespace("Arena"), OID);
+    let (endpoint, objects) = bucket_where_a_claim_arrives_mid_sweep(&arena).await;
+    let store = store(&endpoint);
+    let payload = b"an asset pack a second project is about to want".repeat(8);
+    let (_root, path) = staged(&payload).await;
+
+    store
+        .store(&namespace("Blastlands"), OID, &path)
+        .await
+        .unwrap();
+
+    let report = collect(&store, "Blastlands").await;
+
+    assert!(
+        holds(&objects, &S3Store::content_key(OID)),
+        "Arena claimed the object while this sweep was dropping Blastlands' marker, and its bytes \
+         are the ones Arena skipped uploading"
+    );
+    assert_eq!(
+        report.bytes, 0,
+        "nothing was freed, and a report saying otherwise promises space the bucket still holds"
+    );
+    assert!(!holds(
+        &objects,
+        &S3Store::marker_key(&namespace("Blastlands"), OID)
+    ));
+}
+
+// And the same on the indexed path, which is the one a bucket takes once
+// anything has walked it. The two paths decide `frees` from different evidence,
+// a per-object listing here and a whole-bucket one there, so both have to ask
+// again rather than trusting what they worked out earlier.
+#[tokio::test]
+async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes_on_the_indexed_path_too() {
+    let arena = refs::key(&namespace("Arena"), OID);
+    let (endpoint, objects) = bucket_where_a_claim_arrives_mid_sweep(&arena).await;
+    let store = store(&endpoint);
+    let (_root, path) = staged(b"an asset pack two projects share").await;
+
+    store
+        .store(&namespace("Blastlands"), OID, &path)
+        .await
+        .unwrap();
+
+    // What a bucket looks like once a sweep has built the index, which is what
+    // sends the next one down the per-object path.
+    objects
+        .lock()
+        .unwrap()
+        .insert(".refs/.complete".to_owned(), Vec::new());
+
+    let report = collect(&store, "Blastlands").await;
+
+    assert!(holds(&objects, &S3Store::content_key(OID)));
+    assert_eq!(report.bytes, 0);
+}
+
+// And what saves the bytes is a claim, not merely something happening mid-sweep.
+// Without this the two above would pass against a check that refused to delete
+// whenever the bucket changed underneath it, which would make collection stop
+// working on any store that is busy.
+#[tokio::test]
+async fn something_that_is_not_a_claim_arriving_mid_sweep_frees_the_bytes_anyway() {
+    let (endpoint, objects) =
+        bucket_where_a_claim_arrives_mid_sweep(".incoming/FerrLabs/Arena/an-upload").await;
+    let store = store(&endpoint);
+    let (_root, path) = staged(b"an asset only one project ever held").await;
+
+    store
+        .store(&namespace("Blastlands"), OID, &path)
+        .await
+        .unwrap();
+
+    let report = collect(&store, "Blastlands").await;
+
+    assert_eq!(report.swept, 1);
+    assert!(
+        !holds(&objects, &S3Store::content_key(OID)),
+        "nothing claimed this object, so a write elsewhere in the bucket is not a reason to keep it"
     );
 }
