@@ -24,9 +24,25 @@ use crate::error::Error;
 // while ignoring it is exactly the shape of an incomplete implementation. So it
 // is asked rather than assumed.
 
-const KEY: &str = ".probe/checksum";
-const CONDITIONAL_KEY: &str = ".probe/conditional";
 const BODY: &[u8] = b"lfsx probe";
+
+// A key nothing else will ever use, drawn fresh for each probe.
+//
+// A fixed one is a trap in both directions. A leftover, from a run that died or
+// from a store that has since been fixed, is found by the `HEAD` below and read
+// as this run's own write: a compliant store then reports as one that keeps
+// whatever it is sent, permanently and with nothing to say why. And two replicas
+// booting against the same bucket at the same moment tread on each other's key,
+// which is the deployment a bucket exists to make possible.
+//
+// What this leaves behind instead is swept with everything else under `.probe/`,
+// on the same schedule as an abandoned upload.
+fn probe_key(what: &str) -> String {
+    let mut suffix = [0u8; 8];
+    getrandom::fill(&mut suffix).expect("the operating system has a random number generator");
+
+    format!(".probe/{what}-{}", hex::encode(suffix))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Checksums {
@@ -46,7 +62,8 @@ fn wrong_digest() -> String {
 }
 
 pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
-    let signed = keys.signed_upload(KEY, vec![(CHECKSUM.to_owned(), wrong_digest())]);
+    let key = probe_key("checksum");
+    let signed = keys.signed_upload(&key, vec![(CHECKSUM.to_owned(), wrong_digest())]);
 
     let mut request = keys.client().put(&signed.href).body(BODY.to_vec());
     for (name, value) in &signed.headers {
@@ -62,20 +79,20 @@ pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
     // which status says no: a mismatch is a 400 in one and a 403 in another.
     // Whether the bytes landed is the question, because that is precisely the
     // property a pre-signed upload depends on.
-    match keys.head(KEY).await {
+    match keys.head(&key).await {
+        // Nothing is under a key nothing else has written, so the store refused
+        // it, and there is nothing to clean up.
         Err(Error::NotFound) => Checksums::Enforced,
         Err(error) => {
             tracing::warn!(%error, "the object store could not say whether it kept the probe");
+            discard(keys, &key).await;
             Checksums::Unknown
         }
         Ok(_) => {
             // They landed. This store took a body that does not hash to the
             // digest its own signature named, so nothing stops a client doing the
             // same with a digest somebody else's repository will later claim.
-            if let Err(error) = keys.delete(KEY).await {
-                tracing::warn!(%error, key = KEY, "the probe object could not be cleaned up");
-            }
-
+            discard(keys, &key).await;
             Checksums::Ignored
         }
     }
@@ -103,18 +120,17 @@ pub(crate) enum Conditional {
 // The local backend needs none of this. `create_new` is a filesystem primitive
 // and it either creates the file or it does not.
 pub(crate) async fn conditional_writes(keys: &Keyspace) -> Conditional {
-    // A key left behind by a run that died before cleaning up would make the
-    // first write below the second one, and a refusal then would look like
-    // enforcement that was never actually tested.
-    let _ = keys.delete(CONDITIONAL_KEY).await;
+    let key = probe_key("conditional");
 
-    match keys.put_if_absent(CONDITIONAL_KEY, BODY.to_vec()).await {
+    match keys.put_if_absent(&key, BODY.to_vec()).await {
         Ok(true) => {}
+        // Refused on a key nothing has ever written. Whatever that is, it is not
+        // the answer this asked for.
         Ok(false) => {
             tracing::warn!(
-                key = CONDITIONAL_KEY,
-                "the probe key could not be cleared, so whether this store refuses a conditional \
-                 write was not established"
+                key,
+                "the object store refused the first write to a key it had never seen, so whether \
+                 it refuses a conditional write was not established"
             );
             return Conditional::Unknown;
         }
@@ -124,7 +140,7 @@ pub(crate) async fn conditional_writes(keys: &Keyspace) -> Conditional {
         }
     }
 
-    let verdict = match keys.put_if_absent(CONDITIONAL_KEY, BODY.to_vec()).await {
+    let verdict = match keys.put_if_absent(&key, BODY.to_vec()).await {
         // The key is already there and the store said so, which is the whole
         // contract a lock is built on.
         Ok(false) => Conditional::Enforced,
@@ -135,11 +151,19 @@ pub(crate) async fn conditional_writes(keys: &Keyspace) -> Conditional {
         }
     };
 
-    if let Err(error) = keys.delete(CONDITIONAL_KEY).await {
-        tracing::warn!(%error, key = CONDITIONAL_KEY, "the probe object could not be cleaned up");
-    }
+    discard(keys, &key).await;
 
     verdict
+}
+
+async fn discard(keys: &Keyspace, key: &str) {
+    if let Err(error) = keys.delete(key).await {
+        tracing::warn!(
+            %error,
+            key,
+            "the probe object could not be cleaned up, and is left for the reclaimer"
+        );
+    }
 }
 
 #[cfg(test)]

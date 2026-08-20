@@ -287,15 +287,22 @@ impl S3Store {
     pub async fn reclaim_incoming(&self, older_than: Duration) -> Result<Reclaimed, Error> {
         let mut reclaimed = Reclaimed::default();
 
-        for entry in self.keys.entries(".incoming/").await? {
-            // A slow client on a bad connection is not an abandoned one.
-            if entry.age().is_none_or(|age| age < older_than) {
-                continue;
-            }
+        // `.probe/` too. A startup probe draws a key nothing else uses so that no
+        // run can read another's leftovers, which means a run that dies before
+        // cleaning up leaves one behind rather than overwriting it. They are
+        // empty or nearly so, and this is already the sweep for writes nobody
+        // will ever come back for.
+        for prefix in [".incoming/", ".probe/"] {
+            for entry in self.keys.entries(prefix).await? {
+                // A slow client on a bad connection is not an abandoned one.
+                if entry.age().is_none_or(|age| age < older_than) {
+                    continue;
+                }
 
-            if self.keys.delete(&entry.key).await.is_ok() {
-                reclaimed.files += 1;
-                reclaimed.bytes += entry.size;
+                if self.keys.delete(&entry.key).await.is_ok() {
+                    reclaimed.files += 1;
+                    reclaimed.bytes += entry.size;
+                }
             }
         }
 
