@@ -96,13 +96,27 @@ pub enum Auth {
 pub enum Provider {
     Github,
     Gitlab,
+    // Gitea and Forgejo, which are one API: Forgejo is a fork of Gitea and
+    // answers the same routes, so the only thing that tells two instances apart
+    // is the root they are reached at.
+    Gitea,
 }
 
 impl Provider {
-    fn default_api_url(self) -> &'static str {
+    // None where there is no such thing as the instance.
+    //
+    // github.com and gitlab.com are where a repository is unless the operator
+    // says otherwise, so defaulting there is nearly always right. Gitea is
+    // software rather than a place. gitea.com exists, but an operator who names
+    // this provider is almost certainly running their own, and quietly resolving
+    // their namespaces against a stranger's forge is worse than not starting: a
+    // public repository there that happens to share a name would hand out
+    // anonymous read on objects it has nothing to do with.
+    fn default_api_url(self) -> Option<&'static str> {
         match self {
-            Self::Github => "https://api.github.com",
-            Self::Gitlab => "https://gitlab.com/api/v4",
+            Self::Github => Some("https://api.github.com"),
+            Self::Gitlab => Some("https://gitlab.com/api/v4"),
+            Self::Gitea => None,
         }
     }
 
@@ -110,6 +124,7 @@ impl Provider {
         match self {
             Self::Github => "LFSX_GITHUB_API_URL",
             Self::Gitlab => "LFSX_GITLAB_API_URL",
+            Self::Gitea => "LFSX_GITEA_API_URL",
         }
     }
 }
@@ -227,24 +242,49 @@ impl Auth {
             return Self::Disabled;
         }
 
-        let provider = match std::env::var("LFSX_AUTH").as_deref() {
-            Ok("gitlab") => Provider::Gitlab,
-            _ => Provider::Github,
-        };
-
-        let api_url = std::env::var(provider.api_url_variable())
-            .unwrap_or_else(|_| provider.default_api_url().to_owned())
-            .trim_end_matches('/')
-            .to_owned();
+        let provider = provider(std::env::var("LFSX_AUTH").ok().as_deref());
 
         Self::Forge {
             provider,
-            api_url,
+            api_url: api_url(
+                provider,
+                std::env::var(provider.api_url_variable()).ok().as_deref(),
+            ),
             cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
         }
     }
+}
+
+// Anything unrecognised is GitHub, which is what an operator who set nothing
+// almost certainly meant. Forgejo is named alongside Gitea because they are one
+// API, and somebody running Forgejo should not have to know it began as a fork.
+fn provider(value: Option<&str>) -> Provider {
+    match value {
+        Some("gitlab") => Provider::Gitlab,
+        Some("gitea") | Some("forgejo") => Provider::Gitea,
+        _ => Provider::Github,
+    }
+}
+
+// The trailing slash matters: every route is built by appending to this, so one
+// left on the end produces `//repos/...`, which some forges answer and others do
+// not, and the ones that do not answer 404 for a repository that is right there.
+fn api_url(provider: Provider, configured: Option<&str>) -> String {
+    let variable = provider.api_url_variable();
+
+    configured
+        .map(str::to_owned)
+        .or_else(|| provider.default_api_url().map(str::to_owned))
+        .unwrap_or_else(|| {
+            panic!(
+                "{variable} must be set: a self-hosted forge has no default API root, and guessing \
+                 one would resolve your repositories against somebody else's"
+            )
+        })
+        .trim_end_matches('/')
+        .to_owned()
 }
 
 // Unset means unlimited, which is what a server on its own volume wants. Zero

@@ -7,9 +7,10 @@ All configuration is by environment variable.
 | `LFSX_BIND` | `0.0.0.0:8080` | listen address |
 | `LFSX_STORAGE_ROOT` | `/var/lib/lfsx` | root of the object store |
 | `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links |
-| `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, or `disabled` to accept every request |
+| `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, `gitea` (or `forgejo`, the same provider), or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
 | `LFSX_GITLAB_API_URL` | `https://gitlab.com/api/v4` | API root, point it at your self-managed GitLab |
+| `LFSX_GITEA_API_URL` | none, required | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1` |
 | `LFSX_ANONYMOUS_READ` | `false` | `true` to let a request with no credentials read a repository the forge serves publicly |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
