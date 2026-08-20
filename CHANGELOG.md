@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.4] - 2026-08-20
+
+### Bug Fixes
+
+- fix(storage): stop redirecting a download to bytes the codec has framed (#179)
+
 ## [1.1.3] - 2026-08-20
 
 ### Bug Fixes
