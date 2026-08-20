@@ -123,9 +123,15 @@ fn backends(config: &Config) -> (Store, LockStore) {
             );
 
             if *presign {
-                tracing::warn!(
-                    "LFSX_S3_PRESIGN=true — downloads are redirected to the bucket, so                      lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
-                );
+                if config.encryption_key_file.is_some() || config.compression.is_some() {
+                    tracing::warn!(
+                        "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep                          streaming through this server: what sits in the bucket is a frame under                          the plaintext digest, and a client handed that directly would hash it                          and reject the object"
+                    );
+                } else {
+                    tracing::warn!(
+                        "LFSX_S3_PRESIGN=true, downloads are redirected to the bucket, so                          lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
+                    );
+                }
 
                 if config.encryption_key_file.is_some() {
                     tracing::warn!(

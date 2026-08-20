@@ -125,6 +125,18 @@ impl Store {
     pub fn redirect(&self, oid: &str) -> Option<String> {
         match &self.backend {
             Backend::Local(_) => None,
+            // A pre-signed URL hands over whatever sits under that key, and with
+            // a codec in the path that is a frame rather than the object. The
+            // client would hash what arrived, get a digest that is not the one it
+            // asked for, and reject it. So the redirect is given up and the
+            // download streams, which is the only path that can decode.
+            //
+            // Compression is enough on its own, even though it still lets a
+            // client upload straight to the bucket. That asymmetry is the right
+            // way round: an unframed object is a perfectly good entry, so a
+            // direct upload stays safe, while one framed object anywhere in the
+            // store makes every redirect a guess.
+            Backend::Bucket { staging, .. } if staging.frames() => None,
             Backend::Bucket { bucket, .. } => bucket.presigned_download(oid),
         }
     }
@@ -381,7 +393,14 @@ mod tests {
     use futures_util::StreamExt;
 
     use super::*;
-    use crate::storage::s3::tests::{bucket, store};
+    use crate::storage::crypt::Keyring;
+    use crate::storage::s3::tests::{bucket, redirecting, store};
+
+    fn keyring() -> std::sync::Arc<Keyring> {
+        std::sync::Arc::new(
+            Keyring::parse(&hex::encode([7u8; crate::storage::crypt::KEY])).unwrap(),
+        )
+    }
 
     fn namespace() -> Namespace {
         Namespace::new("FerrLabs", "Blastlands").unwrap()
@@ -542,5 +561,97 @@ mod tests {
                 .is_ok(),
             "collection is implemented for a bucket and must not answer Unsupported"
         );
+    }
+
+    // The bug this guards. A pre-signed download hands the client the bucket key
+    // itself, which is only the object while nothing framed it on the way in.
+    // `presigned_upload` has refused to sign an upload under a key since
+    // encryption landed, for exactly this reason; the download side had no such
+    // guard and handed out frames.
+    //
+    // Asserted against what is actually in the bucket rather than against the
+    // flag, so this fails if framing ever stops happening and the guard becomes
+    // theatre.
+    #[tokio::test]
+    async fn a_download_is_never_redirected_to_a_frame() {
+        for label in ["compressed", "encrypted"] {
+            let root = tempfile::tempdir().unwrap();
+            let (endpoint, objects) = bucket().await;
+            let staging = match label {
+                "compressed" => LocalStore::new(root.path()).with_compression(Some(3)),
+                _ => LocalStore::new(root.path()).with_encryption(Some(keyring())),
+            };
+            let store = Store::bucket(redirecting(&endpoint), staging);
+
+            let payload =
+                b"a scene file that compresses and must still come back whole ".repeat(512);
+            let oid = hex::encode(sha2::Sha256::digest(&payload));
+
+            store
+                .write(
+                    &namespace(),
+                    &oid,
+                    Some(payload.len() as u64),
+                    None,
+                    futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                        payload.clone(),
+                    ))]),
+                )
+                .await
+                .unwrap();
+
+            let stored = objects
+                .lock()
+                .unwrap()
+                .values()
+                .find(|object| !object.is_empty())
+                .cloned()
+                .unwrap();
+
+            assert_ne!(
+                stored, payload,
+                "{label}: the bucket holds a frame, which is the premise of the rest of this test"
+            );
+            assert_eq!(
+                store.redirect(&oid),
+                None,
+                "{label}: a client sent to the bucket would hash {} bytes of frame and reject the \
+                 object it asked for",
+                stored.len()
+            );
+            assert_eq!(
+                read_back(&store, &namespace(), &oid).await,
+                payload,
+                "{label}: giving up the redirect is only correct because the streamed path decodes"
+            );
+        }
+    }
+
+    // And the guard does not quietly disable the feature it protects. With no
+    // codec configured the bucket holds the object itself, so the redirect is
+    // exactly what the operator asked for.
+    #[tokio::test]
+    async fn a_bucket_holding_the_object_itself_still_redirects() {
+        let root = tempfile::tempdir().unwrap();
+        let (endpoint, _objects) = bucket().await;
+        let store = Store::bucket(redirecting(&endpoint), LocalStore::new(root.path()));
+
+        let payload = b"an object stored as it arrived".repeat(32);
+        let oid = hex::encode(sha2::Sha256::digest(&payload));
+
+        store
+            .write(
+                &namespace(),
+                &oid,
+                Some(payload.len() as u64),
+                None,
+                futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                    payload.clone(),
+                ))]),
+            )
+            .await
+            .unwrap();
+
+        assert!(store.redirect(&oid).is_some());
     }
 }

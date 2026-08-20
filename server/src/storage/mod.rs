@@ -201,6 +201,14 @@ impl LocalStore {
         self.keys.is_some()
     }
 
+    // Whether an object in this store is a framing of the bytes rather than the
+    // bytes. Compression and encryption both put a frame under the plaintext
+    // digest, and only the codec turns one back into the object a client asked
+    // for by that name.
+    pub fn frames(&self) -> bool {
+        self.compression.is_some() || self.keys.is_some()
+    }
+
     pub fn validate_oid(oid: &str) -> Result<(), Error> {
         let well_formed = oid.len() == 64
             && oid
