@@ -104,6 +104,49 @@ pub async fn verify_presign(config: &mut Config) {
     }
 }
 
+// Ask the bucket, once, whether it refuses the second of two conditional writes,
+// and give up locking if it will not say yes.
+//
+// That refusal is the entirety of lock uniqueness here. Two clients race for the
+// same path, both write, and the store is the only thing that can say one of them
+// arrived second. A store that accepts `If-None-Match: *` without implementing it
+// performs both writes and reports success twice, so both are told the lock is
+// theirs, and nothing anywhere notices.
+//
+// There is no safe degraded mode for that, so taking a lock becomes a `501`
+// instead. It is the loudest honest answer: a client sees a refusal at the moment
+// it asks, rather than a lock somebody else also holds. Everything else about the
+// deployment is untouched, objects included, because a team that never takes a
+// lock should not lose a working server over this.
+pub async fn verify_locking(config: &mut Config) {
+    use crate::storage::s3::probe::{Conditional, conditional_writes};
+
+    let Some(keys) = keyspace(config) else {
+        return;
+    };
+
+    let refusal = match conditional_writes(&keys).await {
+        Conditional::Enforced => return,
+        Conditional::Ignored => {
+            "this object store wrote the same key twice under a condition that should have refused \
+             the second, so it cannot say which of two clients racing for a lock arrived first"
+        }
+        Conditional::Unknown => {
+            "this object store could not be asked whether it refuses a conditional write, and lock \
+             uniqueness is exactly that refusal"
+        }
+    };
+
+    tracing::error!(
+        "{refusal}, so taking a lock here answers 501. Objects are unaffected, and so is everything \
+         else this server does"
+    );
+
+    if let crate::config::Storage::Bucket { locking, .. } = &mut config.storage {
+        *locking = false;
+    }
+}
+
 fn keyspace(config: &Config) -> Option<Keyspace> {
     let crate::config::Storage::Bucket {
         endpoint,
@@ -172,7 +215,9 @@ fn backends(config: &Config) -> (Store, LockStore) {
             Store::local(local),
             LockStore::local(config.storage_root.clone()),
         ),
-        crate::config::Storage::Bucket { presign, .. } => {
+        crate::config::Storage::Bucket {
+            presign, locking, ..
+        } => {
             // Built once and shared: the objects and the locks are two ways of
             // using the same bucket, not two buckets. Signing, the connection
             // pool and the retry policy are settled here, and neither layer
@@ -210,7 +255,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
             // piece of state a second replica must agree on would not be.
             (
                 Store::bucket(S3Store::new(keys.clone(), *presign), local),
-                LockStore::bucket(keys),
+                LockStore::bucket(keys).with_conditional_writes(*locking),
             )
         }
     };

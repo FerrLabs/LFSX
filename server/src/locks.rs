@@ -34,6 +34,12 @@ pub struct Owner {
 pub struct LockStore {
     backend: Backend,
     max_age: Option<Duration>,
+    // Whether the store can be relied on to let exactly one writer win. A
+    // filesystem always can: `create_new` either makes the file or does not. A
+    // bucket can only if it implements `If-None-Match: *`, and that is asked at
+    // startup rather than assumed, because a store which accepts the header and
+    // writes anyway tells both callers they took the lock.
+    conditional_writes: bool,
 }
 
 enum Backend {
@@ -54,11 +60,20 @@ impl LockStore {
         Self {
             backend,
             max_age: None,
+            conditional_writes: true,
         }
     }
 
     pub fn with_max_age(mut self, max_age: Option<Duration>) -> Self {
         self.max_age = max_age;
+        self
+    }
+
+    // Set from what the store answered at startup. False turns taking a lock
+    // into a `501` rather than into a lock two people can hold, which is the
+    // only honest thing to do with a store that cannot arbitrate.
+    pub fn with_conditional_writes(mut self, supported: bool) -> Self {
+        self.conditional_writes = supported;
         self
     }
 
@@ -148,6 +163,14 @@ impl LockStore {
             Backend::Local { root } => {
                 Self::write_new(&Self::path_in(root, ns, &lock.id), encoded).await
             }
+            // Refused rather than attempted. The write would succeed and the
+            // caller would be told the lock is theirs, which is the one answer
+            // this must never give when the store cannot say whether somebody
+            // else was told the same thing a moment earlier.
+            Backend::Bucket(_) if !self.conditional_writes => Err(Error::Unsupported(
+                "this object store does not refuse a conditional write, so a lock here could be \
+                 held by two people at once",
+            )),
             Backend::Bucket(bucket) => {
                 bucket
                     .put_if_absent(&Self::key_of(ns, &lock.id), encoded.to_vec())

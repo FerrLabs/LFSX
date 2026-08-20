@@ -25,7 +25,8 @@ use crate::error::Error;
 // is asked rather than assumed.
 
 const KEY: &str = ".probe/checksum";
-const BODY: &[u8] = b"lfsx checksum probe";
+const CONDITIONAL_KEY: &str = ".probe/conditional";
+const BODY: &[u8] = b"lfsx probe";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Checksums {
@@ -78,6 +79,67 @@ pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
             Checksums::Ignored
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Conditional {
+    Enforced,
+    Ignored,
+    Unknown,
+}
+
+// Does this store actually refuse the second of two conditional writes?
+//
+// `If-None-Match: *` is the whole of lock uniqueness in a bucket. Two clients
+// race for the same path, both PUT, and the store is the only thing that decides
+// one of them arrived second. A store that accepts the header without
+// implementing the condition performs both writes and answers success twice, so
+// both callers are told they hold the lock. Nothing detects it and nothing logs
+// it: the feature quietly becomes advisory.
+//
+// Which is precisely the failure locking exists to prevent. Two artists are told
+// the scene is theirs, both edit it, and whoever pushes second loses the work.
+//
+// The local backend needs none of this. `create_new` is a filesystem primitive
+// and it either creates the file or it does not.
+pub(crate) async fn conditional_writes(keys: &Keyspace) -> Conditional {
+    // A key left behind by a run that died before cleaning up would make the
+    // first write below the second one, and a refusal then would look like
+    // enforcement that was never actually tested.
+    let _ = keys.delete(CONDITIONAL_KEY).await;
+
+    match keys.put_if_absent(CONDITIONAL_KEY, BODY.to_vec()).await {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                key = CONDITIONAL_KEY,
+                "the probe key could not be cleared, so whether this store refuses a conditional \
+                 write was not established"
+            );
+            return Conditional::Unknown;
+        }
+        Err(error) => {
+            tracing::warn!(%error, "the object store could not be reached to check it refuses a conditional write");
+            return Conditional::Unknown;
+        }
+    }
+
+    let verdict = match keys.put_if_absent(CONDITIONAL_KEY, BODY.to_vec()).await {
+        // The key is already there and the store said so, which is the whole
+        // contract a lock is built on.
+        Ok(false) => Conditional::Enforced,
+        Ok(true) => Conditional::Ignored,
+        Err(error) => {
+            tracing::warn!(%error, "the object store gave no usable answer to a conditional write");
+            Conditional::Unknown
+        }
+    };
+
+    if let Err(error) = keys.delete(CONDITIONAL_KEY).await {
+        tracing::warn!(%error, key = CONDITIONAL_KEY, "the probe object could not be cleaned up");
+    }
+
+    verdict
 }
 
 #[cfg(test)]
