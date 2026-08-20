@@ -42,9 +42,25 @@ Uploads go the same way, and the two things that made that unsafe are both close
 accepted:
 
 **The digest is bound into the signature.** The URL comes with an `x-amz-checksum-sha256` header the
-client must send, and it is part of what was signed, so the store refuses any body that does not hash
-to the object the URL was cut for. A client holding an upload URL cannot put arbitrary bytes behind
-it.
+client must send, and it is part of what was signed, so a conforming store refuses any body that does
+not hash to the object the URL was cut for. A client holding an upload URL cannot put arbitrary bytes
+behind it.
+
+Conforming is doing the work in that sentence, so it is checked rather than assumed. At startup, with
+`LFSX_S3_PRESIGN=true`, the server signs one upload, sends a body that deliberately does not match,
+and looks at whether the bytes landed. What the store answered is not the question, since stores
+disagree about which status says no; whether the key exists afterwards is exactly the property a
+pre-signed upload rests on.
+
+A store that kept them loses pre-signing, with an error in the log saying so, and uploads go back to
+coming through this server, which hashes what it is sent. So does a store that could not be asked: an
+unanswered question is not a yes. Losing it costs throughput and nothing else.
+
+That is a heavy reaction to a header, and the reason is that the damage would not be one bad object.
+Bytes live once at `.content/{oid}`, and a repository pushing a digest that is already there writes a
+marker and uploads nothing. So whoever put the wrong bytes there put them in every repository that
+will ever hold that object. `x-amz-checksum-*` is a late addition to the S3 API, and accepting a
+header while ignoring it is the ordinary shape of an incomplete implementation.
 
 **The upload goes to a key only that repository was signed for**, under `.incoming/`, not to the
 shared content key. That is what keeps possession meaning something: bytes arriving there prove the

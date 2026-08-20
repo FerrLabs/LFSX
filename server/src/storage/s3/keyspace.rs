@@ -137,6 +137,14 @@ impl Keyspace {
     }
 
     // A signature handed to a client so it reads the key straight from the store.
+    // For the one caller that has to send a request the way a client would,
+    // rather than the way this server does: the checksum probe puts a body
+    // against a URL it was handed, and it has to do it over the configured
+    // client so that the TLS, the proxy and the timeouts are the real ones.
+    pub(crate) fn client(&self) -> &reqwest::Client {
+        &self.client
+    }
+
     // Whether the caller is entitled to the bytes is settled before this is
     // called: the signature is scoped to one key and it expires.
     pub(crate) fn signed_download(&self, key: &str) -> String {
@@ -146,8 +154,12 @@ impl Keyspace {
     }
 
     // The same for a write, with headers bound into the signature rather than
-    // merely suggested: the store refuses a body that does not match them, which
-    // is what makes handing out a write URL safe at all.
+    // merely suggested: a conforming store refuses a body that does not match
+    // them, which is what makes handing out a write URL safe at all.
+    //
+    // Conforming is the load-bearing word, and it is not assumed. `probe` asks
+    // the store at startup whether it really does refuse, because a store that
+    // accepts the header and ignores it turns this from a guarantee into a hope.
     pub(crate) fn signed_upload(&self, key: &str, headers: Vec<(String, String)>) -> Presigned {
         let mut action = PutObject::new(&self.bucket, Some(&self.credentials), key);
 

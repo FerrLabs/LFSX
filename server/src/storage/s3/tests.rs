@@ -7,6 +7,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::any;
 use futures_util::StreamExt;
+use sha2::Digest;
 
 use super::*;
 
@@ -17,18 +18,30 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 // the authentication tests run against — a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
+    stub(true).await
+}
+
+// The store the checksum probe exists to find: it takes the header, stores the
+// bytes, and never compares the two. Several S3-compatible implementations
+// accept `x-amz-checksum-*` this way, which is why the server asks rather than
+// assumes.
+pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
+    stub(false).await
+}
+
+async fn stub(enforces_checksums: bool) -> (String, Objects) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
 
     let app = Router::new()
         .route(
             "/{*key}",
             any(
-                |State(objects): State<Objects>,
-                 Path(key): Path<String>,
-                 axum::extract::RawQuery(query): axum::extract::RawQuery,
-                 headers: HeaderMap,
-                 method: axum::http::Method,
-                 body: axum::body::Body| async move {
+                move |State(objects): State<Objects>,
+                      Path(key): Path<String>,
+                      axum::extract::RawQuery(query): axum::extract::RawQuery,
+                      headers: HeaderMap,
+                      method: axum::http::Method,
+                      body: axum::body::Body| async move {
                     let query = query.unwrap_or_default();
 
                     // Path-style addressing puts the bucket in the path, so the
@@ -44,6 +57,17 @@ pub(crate) async fn bucket() -> (String, Objects) {
                             let bytes = axum::body::to_bytes(body, usize::MAX)
                                 .await
                                 .unwrap_or_default();
+
+                            // A conforming store refuses a body that does not
+                            // match the checksum the URL was signed for, and the
+                            // whole pre-signed upload path rests on it, so the
+                            // stub does it too rather than accepting everything
+                            // and letting the tests pass for the wrong reason.
+                            if enforces_checksums && !matches(&headers, &bytes) {
+                                return (StatusCode::BAD_REQUEST, "XAmzContentChecksumMismatch")
+                                    .into_response();
+                            }
+
                             objects.lock().unwrap().insert(key, bytes.to_vec());
                             StatusCode::OK.into_response()
                         }
@@ -75,6 +99,18 @@ pub(crate) async fn bucket() -> (String, Objects) {
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     (format!("http://{address}"), objects)
+}
+
+// A request with no checksum header is nothing to disagree with. One that has it
+// has to hash to it.
+fn matches(headers: &HeaderMap, bytes: &[u8]) -> bool {
+    let Some(claimed) = headers.get(CHECKSUM) else {
+        return true;
+    };
+
+    let actual = base64::engine::general_purpose::STANDARD.encode(sha2::Sha256::digest(bytes));
+
+    claimed.as_bytes() == actual.as_bytes()
 }
 
 fn get(objects: &Objects, key: &str, headers: &HeaderMap) -> Response {
