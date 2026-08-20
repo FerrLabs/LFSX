@@ -55,6 +55,14 @@ pub(crate) async fn bucket() -> (String, Objects) {
                                 .into_response(),
                             None => StatusCode::NOT_FOUND.into_response(),
                         },
+                        // S3 answers 204 whether or not the key was there, and
+                        // the store depends on that: it settles whether a delete
+                        // removed anything with a HEAD beforehand rather than
+                        // reading the status.
+                        axum::http::Method::DELETE => {
+                            objects.lock().unwrap().remove(&key);
+                            StatusCode::NO_CONTENT.into_response()
+                        }
                         _ => get(&objects, &key, &headers),
                     }
                 },
@@ -186,8 +194,9 @@ async fn an_object_goes_up_once_and_comes_back_whole() {
     );
     assert_eq!(
         objects.lock().unwrap().len(),
-        2,
-        "the bytes under their digest, and one empty marker saying this repository holds them"
+        3,
+        "the bytes under their digest, one empty marker saying this repository holds them, and one \
+         index entry so a sweep can find that marker from the digest alone"
     );
 }
 
@@ -207,9 +216,10 @@ async fn a_second_repository_adds_a_marker_and_not_the_bytes() {
     let held = objects.lock().unwrap();
     assert_eq!(
         held.len(),
-        3,
-        "one copy of the bytes, two markers — deduplication is what content addressing gives for \
-         free here, and paying twice would throw it away"
+        5,
+        "one copy of the bytes, two markers and the two index entries that point back at them. \
+         Deduplication is what content addressing gives for free here, and paying twice would \
+         throw it away"
     );
     assert_eq!(held.values().filter(|object| !object.is_empty()).count(), 1);
 }
@@ -327,4 +337,198 @@ fn an_object_id_that_could_not_be_one_is_never_signed_into_a_key() {
     for short in ["", "ab", "abc", "../../etc/passwd"] {
         assert!(store.presigned_download(short).is_none(), "{short:?}");
     }
+}
+
+// A second digest, so a test can tell an object that was collected apart from
+// one that merely was not looked at.
+const OTHER_OID: &str = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
+
+async fn collect(store: &S3Store, repo: &str) -> crate::storage::SweepReport {
+    store
+        .sweep(
+            &namespace(repo),
+            &std::collections::HashSet::new(),
+            Duration::from_secs(0),
+            false,
+        )
+        .await
+        .unwrap()
+}
+
+fn holds(objects: &Objects, key: &str) -> bool {
+    objects.lock().unwrap().contains_key(key)
+}
+
+// Two repositories, one object, and the bytes may only go with the second claim.
+// This is the whole point of the marker keyspace, and the index has to answer it
+// the same way the whole-bucket listing did.
+//
+// It also crosses both paths in one run. The first sweep finds no index and reads
+// the bucket, which builds one; the second finds it and asks a single prefix.
+#[tokio::test]
+async fn the_bytes_go_when_the_last_repository_holding_them_lets_go() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+    let payload = b"an asset pack two projects share".repeat(16);
+    let (_root, path) = staged(&payload).await;
+
+    store
+        .store(&namespace("Blastlands"), OID, &path)
+        .await
+        .unwrap();
+    store.store(&namespace("Arena"), OID, &path).await.unwrap();
+
+    collect(&store, "Blastlands").await;
+
+    assert!(
+        holds(&objects, &S3Store::content_key(OID)),
+        "Arena still holds the object, so dropping Blastlands' claim frees nothing"
+    );
+
+    let report = collect(&store, "Arena").await;
+
+    assert!(!holds(&objects, &S3Store::content_key(OID)));
+    assert_eq!(
+        report.bytes,
+        payload.len() as u64,
+        "the last claim is the one that frees the bytes, and it is the one that reports them"
+    );
+    assert!(
+        !objects
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|key| key.starts_with(&format!(".refs/{OID}/"))),
+        "an object that is gone must leave no claim behind: a ref outliving its bytes would keep \\
+         the next copy of them from ever being collected"
+    );
+}
+
+// The migration hazard, and the reason the index is not trusted on sight.
+//
+// A bucket written before the index existed has markers and no refs. Asking the
+// index about an object two repositories hold would find nothing, read that as
+// nobody claiming it, and delete the bytes out from under the other one. Only
+// something that has walked the whole bucket may say the index is complete.
+#[tokio::test]
+async fn a_bucket_that_predates_the_index_is_never_swept_against_it() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+
+    {
+        let mut held = objects.lock().unwrap();
+        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(
+            S3Store::marker_key(&namespace("Blastlands"), OID),
+            Vec::new(),
+        );
+        held.insert(S3Store::marker_key(&namespace("Arena"), OID), Vec::new());
+    }
+
+    collect(&store, "Blastlands").await;
+
+    assert!(
+        holds(&objects, &S3Store::content_key(OID)),
+        "Arena's claim predates the index and has no ref, so only reading the whole bucket can see \\
+         it, and missing it deletes an object Arena still holds"
+    );
+    assert!(!holds(
+        &objects,
+        &S3Store::marker_key(&namespace("Blastlands"), OID)
+    ));
+}
+
+// And the pass that had to read the whole bucket leaves an index covering every
+// repository in it, not just the one that swept. A ref missing for Arena is
+// exactly how the next sweep would free bytes Arena holds.
+#[tokio::test]
+async fn the_pass_that_reads_the_whole_bucket_leaves_an_index_behind() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+
+    {
+        let mut held = objects.lock().unwrap();
+        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(
+            S3Store::marker_key(&namespace("Blastlands"), OID),
+            Vec::new(),
+        );
+        held.insert(S3Store::marker_key(&namespace("Arena"), OID), Vec::new());
+        held.insert(
+            S3Store::marker_key(&namespace("Arena"), OTHER_OID),
+            Vec::new(),
+        );
+    }
+
+    // Retained, so nothing is deleted and what is left is the index alone.
+    store
+        .sweep(
+            &namespace("Blastlands"),
+            &std::collections::HashSet::from([OID.to_owned()]),
+            Duration::from_secs(0),
+            false,
+        )
+        .await
+        .unwrap();
+
+    let held = objects.lock().unwrap();
+
+    assert!(held.contains_key(".refs/.complete"));
+    assert!(held.contains_key(&refs::key(&namespace("Blastlands"), OID)));
+    assert!(held.contains_key(&refs::key(&namespace("Arena"), OID)));
+    assert!(
+        held.contains_key(&refs::key(&namespace("Arena"), OTHER_OID)),
+        "every marker in the bucket earns a ref, including the ones belonging to repositories this \\
+         sweep never touched"
+    );
+}
+
+// A dry run reports what a real one would free and writes nothing, index
+// included. Building the index is a write, and an operator asking what a sweep
+// would do has not agreed to one.
+#[tokio::test]
+async fn a_dry_run_leaves_the_bucket_exactly_as_it_found_it() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+
+    {
+        let mut held = objects.lock().unwrap();
+        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(
+            S3Store::marker_key(&namespace("Blastlands"), OID),
+            Vec::new(),
+        );
+    }
+
+    let before = objects.lock().unwrap().clone();
+
+    let report = store
+        .sweep(
+            &namespace("Blastlands"),
+            &std::collections::HashSet::new(),
+            Duration::from_secs(0),
+            true,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(report.swept, 1);
+    assert_eq!(*objects.lock().unwrap(), before);
+}
+
+// The asymmetry the index is built around, stated as a test. A store that cannot
+// be asked is not an answer of "nobody holds this": a false yes leaves an object
+// nobody reads, a false no destroys one somebody does.
+#[tokio::test]
+async fn an_index_that_cannot_be_read_answers_that_somebody_still_holds_the_object() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let closed = listener.local_addr().unwrap();
+    drop(listener);
+
+    let keys = keyspace(&format!("http://{closed}"));
+
+    assert!(
+        refs::claimed_by_another(&keys, &namespace("Blastlands"), OID).await,
+        "an unreachable store must never be read as permission to delete"
+    );
 }

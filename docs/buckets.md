@@ -83,10 +83,26 @@ bucket itself. Per-repository figures still work, since a repository is a prefix
 
 **Collection works here.** A repository's markers are its claims on the bytes, so a sweep drops the
 markers the client no longer retains and removes a content object once no marker anywhere still
-references it. One listing of the bucket answers all of that at once: which markers this repository
-holds, which objects any other repository still claims, and how big each one is. Asked per object it
-would cost a request each, which is the difference between a collection you run and one you read
-about.
+references it.
+
+The hard part is that last question. A marker is `{org}/{repo}/.../{oid}`, so the digest is the
+*suffix* of the key, and the org and repo that would make a prefix are exactly what the sweep does
+not know. There is no query for "any key ending in this digest", so the bucket keeps a claim index:
+one empty object at `.refs/{oid}/{org}/{repo}` for each repository holding that object. Asking
+whether anyone else still holds it is then a listing of one short prefix, and a sweep costs what the
+repository holds rather than what the bucket does. That matters on a bucket shared by many
+repositories, where reading every key to collect a small repository is most of the work.
+
+A bucket that predates the index is read whole once instead, and that pass builds the index as it
+goes. Until something has walked the whole bucket and recorded that it did, the index is not
+consulted at all. A marker written before the index existed has no ref beside it and would read as
+an object nobody claims, which is exactly how a sweep deletes bytes another repository is still
+serving.
+
+That asymmetry is what the design turns on. The index may name a holder that has gone; it may never
+miss one that is still there. So a ref is written before the marker it stands for and deleted after
+it, and any failure to read the index counts as somebody still holding the object. A ref too many
+leaves an object nobody reads. A ref too few loses data.
 
 A listing that could not be finished is reported as `incomplete`, and when that happens no content
 object is removed at all. The reference that would have saved it may sit in the pages that never
