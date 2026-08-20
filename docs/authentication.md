@@ -7,16 +7,29 @@ The client presents the token it would use to clone over HTTPS — a personal ac
 `GITHUB_TOKEN` a CI job already has — as the password of an HTTP Basic credential, or as a bearer
 token. LFSX resolves it against `GET /repos/{org}/{repo}` and maps the result:
 
-| GitHub | GitLab | Objects |
-|---|---|---|
-| admin | Maintainer, Owner | download, upload, and force a lock open |
-| push | Developer | download, upload, and take locks |
-| pull only | Reporter | download |
-| none, or an unusable token | Guest, or none | rejected |
+| GitHub | GitLab | Gitea, Forgejo | Objects |
+|---|---|---|---|
+| admin | Maintainer, Owner | admin | download, upload, and force a lock open |
+| push | Developer | push | download, upload, and take locks |
+| pull only | Reporter | pull only | download |
+| none, or an unusable token | Guest, or none | none, or an unusable token | rejected |
 
 GitLab grants inherited from a group count the same as ones set on the project, which is how most
 organisations there are arranged. Developer is the level that may push, matching what GitLab itself
 requires to write to the repository.
+
+`LFSX_AUTH` picks the forge: `github`, which is the default, `gitlab`, or `gitea`. `forgejo` names
+the same provider as `gitea`, because Forgejo is a fork of Gitea and answers the same API. Each has
+an API root that can be pointed at a self-hosted instance, `LFSX_GITHUB_API_URL`,
+`LFSX_GITLAB_API_URL` and `LFSX_GITEA_API_URL`, which is how GitHub Enterprise and a private GitLab
+are reached.
+
+For Gitea that variable is required, and the server refuses to start without it. github.com and
+gitlab.com are where a repository is unless somebody says otherwise, so defaulting there is nearly
+always right. Gitea is software rather than a place, and an operator who names it is almost
+certainly running their own. Quietly resolving their namespaces against gitea.com would be worse
+than not starting: a public repository there that happened to share a name would hand out anonymous
+read on objects it has nothing to do with.
 
 `/health` stays open. Everything under `/{org}/{repo}/objects/` requires a token, and each answer
 is cached for `LFSX_AUTH_CACHE_TTL` seconds so a push of two hundred objects costs one API call
@@ -78,11 +91,12 @@ repository, kept in a secret and passed the same way.
 
 ### Adding a forge
 
-Two providers exist, so the shape is settled rather than guessed. A provider is one module under
-`server/src/auth/` exposing two functions — `permission(client, api_url, token, namespace)` and
-`login(client, api_url, token)` — plus a variant on `config::Provider` carrying its default API
-root and environment variable, and two arms in `auth.rs`. Nothing else: the caching, the challenge
-handling and the rejection accounting are shared and provider-blind.
+Three providers exist, so the shape is settled rather than guessed. A provider is one module under
+`server/src/auth/` exposing three functions, `permission(client, api_url, token, namespace)`,
+`public(client, api_url, namespace)` and `login(client, api_url, token)`, plus a variant on
+`config::Provider` carrying its environment variable and its default API root if it has one, and
+three arms in `auth.rs`. Nothing else: the caching, the challenge handling and the rejection
+accounting are shared and provider-blind.
 
 The part worth care is the error mapping, because it is where the two existing providers already
 disagree. GitHub answers `403` when rate-limited, GitLab answers `429`; both mean "ask again
@@ -99,7 +113,14 @@ it says neither: never from zero. `lfsx_rejections_total{cause="forge_rate_limit
 separately from `forge_unreachable`, because "the forge is throttling us" and "the forge is broken"
 are different afternoons.
 
-Gitea is the obvious third, tracked in [the issues](https://github.com/FerrLabs/LFSX/issues).
+The three disagree in exactly that place, which is why it is worth naming. GitHub answers `403` when
+rate-limited and GitLab answers `429`. Gitea limits nothing itself, so a throttled instance is
+whatever sits in front of it speaking, and nginx answers `503` unless it was told otherwise. What
+the Gitea provider keys on is the `Retry-After` header rather than the status: something that says
+when to come back is a limit, and a `503` with nothing to say is an instance that is down.
+
+Bitbucket and Azure DevOps are the two that are left. Neither overlaps with the people who
+self-host the way Gitea does, so neither is queued behind anything.
 
 ### Why authentication cannot live in the proxy
 

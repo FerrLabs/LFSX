@@ -1,6 +1,7 @@
 mod backoff;
 mod cache;
 mod credentials;
+mod gitea;
 mod github;
 mod gitlab;
 
@@ -109,6 +110,7 @@ impl Authorizer {
             let outcome = match provider {
                 Provider::Github => github::public(client, api_url, ns).await,
                 Provider::Gitlab => gitlab::public(client, api_url, ns).await,
+                Provider::Gitea => gitea::public(client, api_url, ns).await,
             };
             if let Some(decision) = Decision::of(&outcome) {
                 cache.insert(Caller::Anonymous, ns, decision);
@@ -124,6 +126,7 @@ impl Authorizer {
         let outcome = match provider {
             Provider::Github => github::permission(client, api_url, &token, ns).await,
             Provider::Gitlab => gitlab::permission(client, api_url, &token, ns).await,
+            Provider::Gitea => gitea::permission(client, api_url, &token, ns).await,
         };
         if let Some(decision) = Decision::of(&outcome) {
             cache.insert(Caller::Token(&token), ns, decision);
@@ -154,6 +157,7 @@ impl Authorizer {
         let login = match provider {
             Provider::Github => github::login(client, api_url, &token).await?,
             Provider::Gitlab => gitlab::login(client, api_url, &token).await?,
+            Provider::Gitea => gitea::login(client, api_url, &token).await?,
         };
         identities.insert(&token, &login);
 
