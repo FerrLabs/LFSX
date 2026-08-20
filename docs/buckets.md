@@ -66,6 +66,18 @@ the operator believed otherwise. Encryption is a promise about what the storage 
 a faster upload is not worth breaking it quietly. The server says so at startup. With compression the
 trade is milder and allowed: objects uploaded directly are simply not compressed.
 
+**A download is redirected only when the bucket holds the object itself.** A pre-signed URL hands the
+client whatever sits under that key, so with `LFSX_COMPRESSION` or `LFSX_ENCRYPTION_KEY_FILE` set it
+would hand over a frame written under the plaintext digest. The client hashes what arrives, gets a
+digest that is not the one it asked for, and rejects the object. With either of them set the redirect
+is given up and downloads keep streaming, which is the only path that can decode. Startup says which
+of the two is happening.
+
+Compression is enough on its own to stop it, even though it still permits a direct upload. That
+asymmetry is deliberate. An object that was never framed is a perfectly good entry, so uploading
+straight to the bucket stays safe, while a single framed object anywhere in the store makes every
+redirect a guess about which kind this one is.
+
 The permission check does not move. A signature is cut only after the marker says this repository
 holds the object, exactly as a plain download is refused without it, and the URL it signs is scoped
 to one object and expires with the action. What changes is what the server can still see:
