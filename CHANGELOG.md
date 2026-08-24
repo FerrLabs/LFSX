@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.2] - 2026-08-24
+
+### Bug Fixes
+
+- fix(config): refuse a Host header that is not a host (#209)
+
 ## [1.4.1] - 2026-08-24
 
 ### Bug Fixes
