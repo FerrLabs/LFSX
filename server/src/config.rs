@@ -189,19 +189,23 @@ impl Config {
             return configured.clone();
         }
 
+        // Neither of these is this deployment speaking. They are what the caller
+        // sent, and what comes out of here is the URL that caller will send the
+        // object to, with its credential attached. So both are checked for being
+        // the thing they claim to be before either goes into a URL.
         let scheme = headers
             .get("x-forwarded-proto")
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.split(',').next())
             .map(str::trim)
-            .filter(|scheme| !scheme.is_empty())
+            .filter(|scheme| matches!(*scheme, "http" | "https"))
             .unwrap_or("http");
 
         let authority = headers
             .get(header::HOST)
             .and_then(|value| value.to_str().ok())
             .map(str::trim)
-            .filter(|host| !host.is_empty())
+            .filter(|host| is_an_authority(host))
             .unwrap_or("localhost");
 
         format!("{scheme}://{authority}")
@@ -313,6 +317,24 @@ fn api_url(provider: Provider, configured: Option<&str>) -> String {
         })
         .trim_end_matches('/')
         .to_owned()
+}
+
+// Is this a host and a port, and nothing else?
+//
+// A `Host` carrying a `/` or an `@` is not one, and both change where the URL
+// built from it points. `real.example@evil.example` resolves to the second name
+// with the first read as a username, which turns a header somebody sent into a
+// redirect nobody wrote, and the client follows it carrying its token.
+//
+// Anything that fails this falls back to `localhost`, which is useless to
+// everybody and dangerous to nobody. `LFSX_PUBLIC_URL` is the fix, and startup
+// says so.
+fn is_an_authority(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 255
+        && host.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b':' | b'[' | b']')
+        })
 }
 
 // Unset means unlimited, which is what a server on its own volume wants. Zero

@@ -81,3 +81,104 @@ fn an_unset_or_unreadable_lookup_budget_keeps_the_default() {
 fn a_lookup_budget_is_taken_as_written() {
     assert_eq!(lookup_budget(Some("25")), Some(25));
 }
+
+fn asked_from(host: &str, scheme: Option<&str>) -> String {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::HOST, host.parse().unwrap());
+    if let Some(scheme) = scheme {
+        headers.insert("x-forwarded-proto", scheme.parse().unwrap());
+    }
+
+    Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: PathBuf::from("."),
+        public_url: None,
+        action_lifetime: 1800,
+        gc_grace: Duration::ZERO,
+        staging_max_age: Duration::ZERO,
+        lock_max_age: None,
+        max_object_size: None,
+        repo_quota: None,
+        compression: None,
+        encryption_key_file: None,
+        storage: Storage::Local,
+        auth: Auth::Disabled,
+    }
+    .base_url(&headers)
+}
+
+// What the hrefs are for: the client sends the object there, with its credential
+// attached. So a `Host` that is not a host has to fall back to something useless
+// rather than be pasted into a URL.
+//
+// `real.example@evil.example` is the one that matters. It resolves to the second
+// name with the first read as a username, so a header somebody sent becomes a
+// redirect nobody wrote.
+#[test]
+fn a_host_that_is_not_an_authority_never_reaches_a_url() {
+    for forged in [
+        "real.example@evil.example",
+        "real.example/../evil.example",
+        "evil.example/path",
+        "real.example evil.example",
+        "",
+    ] {
+        assert_eq!(
+            asked_from(forged, None),
+            "http://localhost",
+            "{forged:?} must not end up in an href"
+        );
+    }
+}
+
+#[test]
+fn an_ordinary_host_still_works() {
+    assert_eq!(
+        asked_from("lfs.example.com", None),
+        "http://lfs.example.com"
+    );
+    assert_eq!(
+        asked_from("lfs.example.com:8443", Some("https")),
+        "https://lfs.example.com:8443"
+    );
+    assert_eq!(asked_from("[::1]:8080", None), "http://[::1]:8080");
+}
+
+// A scheme is one of two words. Anything else is not a proxy telling this server
+// how it was reached, and `javascript` or `file` pasted in front of `://` is not
+// a URL anybody should hand a client.
+#[test]
+fn only_the_two_schemes_a_client_can_use_are_believed() {
+    for invented in ["javascript", "file", "HTTPS ", "gopher", ""] {
+        assert_eq!(
+            asked_from("lfs.example.com", Some(invented)),
+            "http://lfs.example.com",
+            "{invented:?}"
+        );
+    }
+}
+
+// And a configured public URL is never second-guessed, whatever the caller sent.
+#[test]
+fn a_configured_public_url_wins() {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::HOST, "evil.example".parse().unwrap());
+
+    let config = Config {
+        public_url: Some("https://lfs.example.com".into()),
+        bind: "127.0.0.1:0".parse().unwrap(),
+        storage_root: PathBuf::from("."),
+        action_lifetime: 1800,
+        gc_grace: Duration::ZERO,
+        staging_max_age: Duration::ZERO,
+        lock_max_age: None,
+        max_object_size: None,
+        repo_quota: None,
+        compression: None,
+        encryption_key_file: None,
+        storage: Storage::Local,
+        auth: Auth::Disabled,
+    };
+
+    assert_eq!(config.base_url(&headers), "https://lfs.example.com");
+}

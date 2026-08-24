@@ -6,7 +6,7 @@ All configuration is by environment variable.
 |---|---|---|
 | `LFSX_BIND` | `0.0.0.0:8080` | listen address |
 | `LFSX_STORAGE_ROOT` | `/var/lib/lfsx` | root of the object store |
-| `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links |
+| `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links; set it behind a proxy, because the fallback trusts the caller's headers |
 | `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, `gitea` (or `forgejo`, the same provider), or `disabled` to accept every request |
 | `LFSX_GITHUB_API_URL` | `https://api.github.com` | API root, point it at your GitHub Enterprise host |
 | `LFSX_GITLAB_API_URL` | `https://gitlab.com/api/v4` | API root, point it at your self-managed GitLab |
@@ -28,6 +28,18 @@ All configuration is by environment variable.
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | — | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
+
+**Set `LFSX_PUBLIC_URL` behind a proxy.** Unset, the origin is built from the `Host` and
+`X-Forwarded-Proto` the caller sent, and those are a fact about the deployment only for as long as
+something in front is rewriting both. The URLs in a batch answer are where the client sends the
+object, with its credential attached, so a caller who chooses the header chooses where its own token
+goes, and anything caching that answer serves the choice to whoever asks next. The server says so at
+startup when it is unset and authentication is on.
+
+The fallback is not left wide open in the meantime. The scheme has to be `http` or `https`, and the
+host has to be a host: a `Host` carrying a `/` or an `@` is refused and the origin falls back to
+`localhost`, which is useless to everybody and dangerous to nobody. `real.example@evil.example` is
+the one that matters, because it resolves to the second name with the first read as a username.
 
 `LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
 object — if it is wrong, negotiation succeeds and every transfer then fails.
