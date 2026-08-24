@@ -56,3 +56,28 @@ fn an_api_root_keeps_no_trailing_slash() {
 fn a_self_hosted_forge_refuses_to_start_without_its_api_root() {
     api_url(Provider::Gitea, None);
 }
+
+// Zero is the one value that cannot mean what it says: a ceiling of no lookups
+// is a server that refuses everyone it has not already seen, so it is read as
+// the operator turning the ceiling off.
+#[test]
+fn a_lookup_budget_of_zero_turns_the_ceiling_off() {
+    assert_eq!(lookup_budget(Some("0")), None);
+    assert_eq!(lookup_budget(Some(" 0 ")), None);
+}
+
+#[test]
+fn an_unset_or_unreadable_lookup_budget_keeps_the_default() {
+    for kept in [None, Some("nonsense"), Some(""), Some("-1"), Some("6.5")] {
+        assert_eq!(
+            lookup_budget(kept),
+            Some(LOOKUP_BUDGET),
+            "{kept:?} must not take the ceiling away, and must not stop the server either"
+        );
+    }
+}
+
+#[test]
+fn a_lookup_budget_is_taken_as_written() {
+    assert_eq!(lookup_budget(Some("25")), Some(25));
+}

@@ -6,7 +6,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use common::{app, app_with_rejection_ttl, batch, credentials, forge, put};
+use common::{app, app_with_lookup_budget, app_with_rejection_ttl, batch, credentials, forge, put};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
@@ -442,4 +442,88 @@ async fn the_option_actually_closes_anonymous_read() {
         before,
         "and the forge is not even asked: refusing outright is the old behaviour"
     );
+}
+
+// #172. The rejection cache is keyed by the token, so a caller that sends a
+// different one every request misses every entry and costs a forge lookup each
+// time. What runs out is not this server: the forge counts failed
+// authentications against the address that made them, so the budget being spent
+// is the one every real lookup shares.
+#[tokio::test]
+async fn a_caller_rotating_tokens_cannot_spend_more_than_the_lookup_budget() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+    let app = app_with_lookup_budget(&root, &api_url, 5);
+
+    let mut refused = 0;
+    for attempt in 0..20 {
+        let status = batch(app.clone(), &format!("invented-{attempt}"), "download").await;
+
+        if status == StatusCode::SERVICE_UNAVAILABLE {
+            refused += 1;
+        }
+    }
+
+    let asked = forge.calls.load(Ordering::SeqCst);
+
+    assert!(
+        asked <= 5,
+        "twenty distinct tokens reached the forge {asked} times, and the ceiling was five"
+    );
+    assert!(
+        refused > 0,
+        "a caller past the ceiling has to be told to come back, not quietly served"
+    );
+}
+
+// And the refusal has to say when, because a client told nothing comes straight
+// back and the flood this exists to damp is made of exactly that.
+#[tokio::test]
+async fn a_caller_past_the_lookup_budget_is_told_when_to_return() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app_with_lookup_budget(&root, &api_url, 1);
+
+    for attempt in 0..4 {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/FerrLabs/LFSX/objects/batch")
+            .header("content-type", "application/vnd.git-lfs+json")
+            .header("authorization", credentials(&format!("t{attempt}")))
+            .body(Body::from(
+                json!({ "operation": "download", "objects": [] }).to_string(),
+            ))
+            .unwrap();
+
+        let response = app.clone().oneshot(request).await.unwrap();
+
+        if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+            assert!(
+                response.headers().contains_key("retry-after"),
+                "a 503 with no Retry-After is a client retrying immediately"
+            );
+            return;
+        }
+    }
+
+    panic!("a budget of one lookup has to refuse the second caller");
+}
+
+// A push of two hundred objects is one lookup, not two hundred, so an ordinary
+// client never meets the ceiling however busy it is. That is what makes this a
+// bound on forge traffic rather than on requests.
+#[tokio::test]
+async fn one_token_pushing_repeatedly_spends_one_lookup() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+    let app = app_with_lookup_budget(&root, &api_url, 2);
+
+    for _ in 0..30 {
+        assert_eq!(
+            batch(app.clone(), "reader", "download").await,
+            StatusCode::OK
+        );
+    }
+
+    assert_eq!(forge.calls.load(Ordering::SeqCst), 1);
 }

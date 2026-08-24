@@ -62,6 +62,14 @@ pub enum Error {
     #[error("the forge is rate-limiting this server — retry in {retry_after} seconds")]
     RateLimited { retry_after: u64 },
 
+    // And distinct from that one, because the two read the same to a client and
+    // mean opposite things to an operator. `RateLimited` is the forge saying it
+    // has had enough of this server. This is the server saying it has had enough
+    // on the forge's behalf, before the forge is given a reason to refuse
+    // everybody at once.
+    #[error("this server is not asking the forge again yet, retry in {retry_after} seconds")]
+    LookupBudgetSpent { retry_after: u64 },
+
     #[error("lock path must not be empty")]
     MalformedLockPath,
 
@@ -108,7 +116,9 @@ impl Error {
             Self::Forge => StatusCode::BAD_GATEWAY,
             // Not 502: a bad gateway invites an immediate retry, which is the
             // one thing that must not happen here.
-            Self::RateLimited { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            Self::RateLimited { .. } | Self::LookupBudgetSpent { .. } => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             Self::Storage(_) | Self::Serialisation(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -137,6 +147,7 @@ impl Error {
             // "the forge is throttling us" and "the forge is broken" are
             // different afternoons, and sharing one label hides which.
             Self::RateLimited { .. } => "forge_rate_limited",
+            Self::LookupBudgetSpent { .. } => "lookup_budget_spent",
             Self::LockHeld(_) => "lock_held",
             Self::LockNotFound => "lock_not_found",
             Self::NotFound => "not_found",
@@ -155,7 +166,7 @@ impl IntoResponse for Error {
             tracing::error!(error = %self, "request failed");
         }
 
-        if let Self::RateLimited { retry_after } = &self {
+        if let Self::RateLimited { retry_after } | Self::LookupBudgetSpent { retry_after } = &self {
             let mut response = (
                 status,
                 [(header::RETRY_AFTER, retry_after.to_string())],

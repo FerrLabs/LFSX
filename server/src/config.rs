@@ -90,6 +90,9 @@ pub enum Auth {
         api_url: String,
         cache_ttl: Duration,
         rejection_ttl: Duration,
+        // Lookups a minute this server will spend on the forge, counted only
+        // when neither cache could answer. None is no ceiling at all.
+        lookup_budget: Option<u32>,
         // Whether a request with no credentials is resolved against the forge
         // instead of refused. On by default, because that is what cloning a
         // public repository does everywhere else.
@@ -137,6 +140,11 @@ impl Provider {
 
 const CACHE_TTL: Duration = Duration::from_secs(60);
 const REJECTION_TTL: Duration = Duration::from_secs(10);
+// Generous enough that a busy server never meets it, since a lookup is one
+// distinct token against one repository per cache lifetime rather than one per
+// request, and tight enough that a flood costs ten a second instead of whatever
+// the network will carry.
+const LOOKUP_BUDGET: u32 = 600;
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const STAGING_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
@@ -258,8 +266,22 @@ impl Auth {
             ),
             cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
+            lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
         }
+    }
+}
+
+// Zero is the one value that cannot mean what it says. A ceiling of no lookups
+// is a server that refuses every caller it has not already seen, so it is read as
+// the operator turning the ceiling off, which is the only other thing they could
+// have meant. Anything unparseable is the default rather than a refusal to start:
+// this bounds a cost, and getting it wrong should not take the server down.
+fn lookup_budget(value: Option<&str>) -> Option<u32> {
+    match value.map(str::trim).map(str::parse::<u32>) {
+        Some(Ok(0)) => None,
+        Some(Ok(budget)) => Some(budget),
+        Some(Err(_)) | None => Some(LOOKUP_BUDGET),
     }
 }
 

@@ -146,6 +146,7 @@ pub fn anonymous_forge_auth(
         api_url: api_url.to_owned(),
         cache_ttl,
         rejection_ttl,
+        lookup_budget: None,
         anonymous_read,
     }
 }
@@ -171,6 +172,26 @@ pub fn app_collecting_immediately(root: &tempfile::TempDir, api_url: &str) -> Ro
 pub fn app_capped(root: &tempfile::TempDir, api_url: &str, max_object_size: u64) -> Router {
     lfsx_server::app(Config {
         max_object_size: Some(max_object_size),
+        ..config(root, api_url)
+    })
+}
+
+// A ceiling on forge lookups, which is what stops a caller rotating tokens from
+// spending this server's standing with the forge.
+pub fn app_with_lookup_budget(
+    root: &tempfile::TempDir,
+    api_url: &str,
+    lookup_budget: u32,
+) -> Router {
+    lfsx_server::app(Config {
+        auth: Auth::Forge {
+            provider: Provider::Github,
+            api_url: api_url.to_owned(),
+            cache_ttl: Duration::from_secs(60),
+            rejection_ttl: Duration::from_secs(10),
+            lookup_budget: Some(lookup_budget),
+            anonymous_read: false,
+        },
         ..config(root, api_url)
     })
 }

@@ -1,4 +1,5 @@
 mod backoff;
+mod budget;
 mod cache;
 mod credentials;
 mod gitea;
@@ -16,6 +17,7 @@ use crate::config::{Auth, Provider};
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::state::Shared;
+use budget::Budget;
 use cache::{Cache, Caller, Decision, IdentityCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,8 +49,15 @@ pub enum Authorizer {
         provider: Provider,
         client: reqwest::Client,
         api_url: String,
-        cache: Cache,
+        // Boxed because this variant carries four sizeable things and the other
+        // carries nothing, so every `Authorizer` in the process would pay for the
+        // difference. The same reason `Backend::Bucket` boxes its handle.
+        cache: Box<Cache>,
         identities: IdentityCache,
+        // Spent only on a lookup the caches could not answer, which is what
+        // makes it a ceiling on forge traffic rather than on requests: a push of
+        // two hundred objects under one token costs one.
+        budget: Budget,
         anonymous_read: bool,
     },
     Disabled,
@@ -65,6 +74,7 @@ impl Authorizer {
                 api_url,
                 cache_ttl,
                 rejection_ttl,
+                lookup_budget,
                 anonymous_read,
             } => Self::Forge {
                 provider: *provider,
@@ -74,8 +84,9 @@ impl Authorizer {
                     .build()
                     .expect("http client"),
                 api_url: api_url.clone(),
-                cache: Cache::new(*cache_ttl, *rejection_ttl),
+                cache: Box::new(Cache::new(*cache_ttl, *rejection_ttl)),
                 identities: IdentityCache::new(*cache_ttl),
+                budget: Budget::new(*lookup_budget),
                 anonymous_read: *anonymous_read,
             },
         }
@@ -87,6 +98,7 @@ impl Authorizer {
             client,
             api_url,
             cache,
+            budget,
             anonymous_read,
             ..
         } = self
@@ -107,6 +119,8 @@ impl Authorizer {
                 return decision.into();
             }
 
+            budget.afford()?;
+
             let outcome = match provider {
                 Provider::Github => github::public(client, api_url, ns).await,
                 Provider::Gitlab => gitlab::public(client, api_url, ns).await,
@@ -122,6 +136,10 @@ impl Authorizer {
         if let Some(decision) = cache.get(Caller::Token(&token), ns) {
             return decision.into();
         }
+
+        // Only here, past both caches. Everything above this line was answered
+        // without asking anybody.
+        budget.afford()?;
 
         let outcome = match provider {
             Provider::Github => github::permission(client, api_url, &token, ns).await,
@@ -143,6 +161,7 @@ impl Authorizer {
             client,
             api_url,
             identities,
+            budget,
             ..
         } = self
         else {
@@ -153,6 +172,8 @@ impl Authorizer {
         if let Some(login) = identities.get(&token) {
             return Ok(Actor(login));
         }
+
+        budget.afford()?;
 
         let login = match provider {
             Provider::Github => github::login(client, api_url, &token).await?,
