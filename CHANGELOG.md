@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.3] - 2026-08-24
+
+### Bug Fixes
+
+- perf(storage): read what a repository holds from a size index (#211)
+
 ## [1.4.2] - 2026-08-24
 
 ### Bug Fixes
