@@ -6,7 +6,7 @@ pub(crate) mod refs;
 use std::time::Duration;
 
 use axum::body::Bytes;
-use futures_util::Stream;
+use futures_util::{Stream, StreamExt};
 
 use base64::Engine;
 
@@ -17,6 +17,11 @@ use crate::storage::Reclaimed;
 pub use keyspace::{Keyspace, Presigned};
 
 const CHECKSUM: &str = "x-amz-checksum-sha256";
+
+// Enough to hide the round trips a bucket charges for without becoming a burst
+// the store answers with 503, and the same figure the batch endpoint settled on
+// for the same reason.
+const SIZES_AT_ONCE: usize = 16;
 
 pub struct S3Config {
     pub endpoint: String,
@@ -144,6 +149,7 @@ impl S3Store {
     // that does not hash to the object it was signed for: a client with this URL
     // cannot put arbitrary bytes anywhere, which is what makes handing one out
     // safe at all.
+    //
     // None above the single-request ceiling, and that is not a refusal: the
     // object falls back to coming through this server, which sends it in parts.
     // A client cannot do the same, because the `basic` transfer adapter every
@@ -582,14 +588,25 @@ impl S3Store {
     // nothing — this is a listing plus one head per object, which is why the
     // figure is cached the same way the local one is.
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        let prefix = Self::own_prefix(ns);
-        let mut objects = 0;
-        let mut bytes = 0;
+        let oids = self.list(&Self::own_prefix(ns)).await;
+        let objects = oids.len() as u64;
 
-        for oid in self.list(&prefix).await {
-            objects += 1;
-            bytes += self.size_of(&oid).await.unwrap_or_default();
-        }
+        // Asked a few at a time rather than one after another. The number of
+        // requests is the same, and it is the cost this cannot avoid without
+        // changing the layout, but in series a repository holding fifty thousand
+        // objects is fifty thousand round trips end to end: minutes of a client
+        // waiting on a quota check that the cache was meant to make invisible.
+        //
+        // What would remove the requests rather than overlap them is still open
+        // in #174, because both answers there cost something else.
+        let bytes = futures_util::stream::iter(oids)
+            .map(|oid| {
+                let store = &self;
+                async move { store.size_of(&oid).await.unwrap_or_default() }
+            })
+            .buffer_unordered(SIZES_AT_ONCE)
+            .fold(0, |held, size| async move { held + size })
+            .await;
 
         (objects, bytes)
     }

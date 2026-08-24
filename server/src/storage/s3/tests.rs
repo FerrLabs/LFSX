@@ -722,3 +722,25 @@ async fn something_that_is_not_a_claim_arriving_mid_sweep_frees_the_bytes_anyway
         "nothing claimed this object, so a write elsewhere in the bucket is not a reason to keep it"
     );
 }
+
+// The sizes are gathered a few at a time and added up out of order, so one
+// object proves nothing: a fold that dropped or doubled one would still pass on
+// a repository holding a single asset.
+#[tokio::test]
+async fn what_a_repository_holds_is_the_sum_of_every_object_in_it() {
+    let (endpoint, _objects) = bucket().await;
+    let store = store(&endpoint);
+    let ns = namespace("Blastlands");
+    let mut expected = 0;
+
+    for size in [1usize, 7, 40, 300, 2, 91, 5000, 13] {
+        let payload = vec![b'a'; size];
+        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let (_root, path) = staged(&payload).await;
+
+        store.store(&ns, &oid, &path).await.unwrap();
+        expected += size as u64;
+    }
+
+    assert_eq!(store.usage_of(&ns).await, (8, expected));
+}
