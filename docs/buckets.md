@@ -126,16 +126,27 @@ This is the one case where the batch response says `"authenticated": true`, and 
 it is true: see [below](#why-authentication-cannot-live-in-the-proxy) for why that field is a trap
 everywhere else.
 
-**What one repository holds is measured, and it costs.** A marker is empty and a listing reports the
-marker's own size rather than the content's, so the figure comes from one `HEAD` per object. They go
-out a few at a time rather than one after another, which is the difference between a quota check a
-client waits on for a moment and one it waits on for minutes, and the answer is remembered for a
-minute so a push of two hundred objects asks once.
+**What one repository holds is read from a listing.** A listing reports each key's own length, and a
+marker is empty, so the size of the object a marker claims is not in it: that lives on the content
+key, under a name the repository's prefix never reaches. Measuring a repository therefore used to
+cost one `HEAD` per object, which for fifty thousand of them was fifty thousand requests every time
+the cached figure expired.
 
-That cache does not cross replicas. Each measures its own and credits its own writes, so with a
-quota set and several replicas serving, a repository can overshoot by roughly what they write between
-them inside one minute. Each replica's figure is internally consistent and none of them is the whole
-truth, which is worth knowing before a quota is treated as a hard wall.
+So the number goes into a key name, where a listing can read it: one empty object per marker at
+`{org}/{repo}/.sizes/{oid}.{size}`, and the total is the sum of what the names say. The same move
+`.refs/` made for the reverse lookup, and for the same reason. The bucket is the only database here,
+and an index is what a database would have given for nothing.
+
+A bucket written before the index has markers and no sizes. The first reading measures it the old
+way and writes down what it learned, so there is nothing to run and no flag to set: it converges by
+being used. An entry whose marker has gone is counted by nobody, since only a marker says a
+repository holds anything, so a sweep that fails to tidy one costs an empty key and nothing else.
+
+The figure is still remembered for a minute, and that cache does not cross replicas. Each measures
+its own and credits its own writes, so with a quota set and several replicas serving, a repository
+can overshoot by roughly what they write between them inside one minute. Each replica's figure is
+internally consistent and none of them is the whole truth, which is worth knowing before a quota is
+treated as a hard wall.
 
 **Capacity is not reported.** `lfsx_objects_stored` and `lfsx_store_bytes` are not measured against
 a bucket: there is no cheap answer for what one holds, and building it from a full listing would cost

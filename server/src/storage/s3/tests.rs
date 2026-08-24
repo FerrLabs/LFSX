@@ -276,9 +276,10 @@ async fn an_object_goes_up_once_and_comes_back_whole() {
     );
     assert_eq!(
         objects.lock().unwrap().len(),
-        3,
-        "the bytes under their digest, one empty marker saying this repository holds them, and one \
-         index entry so a sweep can find that marker from the digest alone"
+        4,
+        "the bytes under their digest, one empty marker saying this repository holds them, one \
+         index entry so a sweep can find that marker from the digest alone, and one more carrying \
+         the size so measuring the repository costs no request at all"
     );
 }
 
@@ -298,8 +299,9 @@ async fn a_second_repository_adds_a_marker_and_not_the_bytes() {
     let held = objects.lock().unwrap();
     assert_eq!(
         held.len(),
-        5,
-        "one copy of the bytes, two markers and the two index entries that point back at them. \
+        7,
+        "one copy of the bytes, two markers, and two index entries apiece: one pointing back at the \
+         marker and one carrying the size. \
          Deduplication is what content addressing gives for free here, and paying twice would \
          throw it away"
     );
@@ -743,4 +745,118 @@ async fn what_a_repository_holds_is_the_sum_of_every_object_in_it() {
     }
 
     assert_eq!(store.usage_of(&ns).await, (8, expected));
+}
+
+async fn stored(store: &S3Store, ns: &Namespace, sizes: &[usize]) -> u64 {
+    let mut total = 0;
+
+    for size in sizes {
+        let payload = vec![b'a'; *size];
+        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let (_root, path) = staged(&payload).await;
+
+        store.store(ns, &oid, &path).await.unwrap();
+        total += *size as u64;
+    }
+
+    total
+}
+
+// The point of #174, stated so it cannot pass by accident: the objects are taken
+// out of the bucket before the measurement, and it is still right. A `HEAD` per
+// object would report every one of them as nothing.
+#[tokio::test]
+async fn what_a_repository_holds_is_read_without_touching_a_single_object() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+    let ns = namespace("Blastlands");
+    let total = stored(&store, &ns, &[1, 7, 40, 300, 2, 91, 5000, 13]).await;
+
+    objects
+        .lock()
+        .unwrap()
+        .retain(|key, _| !key.starts_with(".content/"));
+
+    assert_eq!(store.usage_of(&ns).await, (8, total));
+}
+
+// A bucket written before the index has markers and no sizes. The first reading
+// measures it the old way and leaves the answer behind, so there is nothing to
+// run and no flag to set: it converges by being used.
+#[tokio::test]
+async fn a_repository_written_before_the_index_is_measured_once_and_indexed() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+    let ns = namespace("Blastlands");
+    let mut total = 0;
+
+    for size in [12usize, 900, 4] {
+        let payload = vec![b'b'; size];
+        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let mut held = objects.lock().unwrap();
+
+        held.insert(S3Store::content_key(&oid), payload);
+        held.insert(S3Store::marker_key(&ns, &oid), Vec::new());
+        total += size as u64;
+    }
+
+    assert_eq!(
+        store.usage_of(&ns).await,
+        (3, total),
+        "an unindexed repository still has to be measured, however it was written"
+    );
+
+    // And now it is indexed, which the same trick proves: take the objects away
+    // and ask again.
+    objects
+        .lock()
+        .unwrap()
+        .retain(|key, _| !key.starts_with(".content/"));
+
+    assert_eq!(
+        store.usage_of(&ns).await,
+        (3, total),
+        "the first reading wrote what it learned, so the second one asks nobody"
+    );
+}
+
+// An index entry outliving its marker is inert rather than wrong, but a sweep
+// holds the listing that names it and should take it along.
+#[tokio::test]
+async fn collecting_an_object_takes_its_size_with_it() {
+    let (endpoint, objects) = bucket().await;
+    let store = store(&endpoint);
+    let ns = namespace("Blastlands");
+    stored(&store, &ns, &[64]).await;
+
+    collect(&store, "Blastlands").await;
+
+    assert!(
+        !objects
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|key| key.contains("/.sizes/")),
+        "the marker is gone, so nothing should still be recording how big it was"
+    );
+}
+
+// And the index is not a marker. Read as one it would be a claim on an object
+// whose name ends in a number, which a sweep would then try to collect.
+#[tokio::test]
+async fn a_size_entry_is_never_swept_as_though_it_were_a_claim() {
+    let (endpoint, _objects) = bucket().await;
+    let store = store(&endpoint);
+    let ns = namespace("Arena");
+    let total = stored(&store, &ns, &[11, 22]).await;
+
+    // A different repository sweeps, which is the pass that reads every key in
+    // the bucket rather than one prefix.
+    collect(&store, "Blastlands").await;
+
+    assert_eq!(
+        store.usage_of(&ns).await,
+        (2, total),
+        "Arena holds what it held, and its index is not somebody else's to collect"
+    );
 }
