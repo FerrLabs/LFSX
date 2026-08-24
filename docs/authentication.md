@@ -36,6 +36,25 @@ is cached for `LFSX_AUTH_CACHE_TTL` seconds so a push of two hundred objects cos
 rather than two hundred. That cache is also the delay before a revocation takes effect — shorten
 it if that matters more than the round trips.
 
+`LFSX_AUTH_LOOKUP_BUDGET` is the ceiling underneath all of that: the number of lookups a minute this
+server will spend on the forge, counting only the ones neither cache could answer. A push of two
+hundred objects under one token costs one, so an ordinary client never meets it however busy it is.
+
+It exists because the caches are keyed by the token. A caller sending a different one every request
+misses every entry and costs a lookup each time, and inventing a token that does not exist is free.
+What runs out then is not this server: the forge counts a failed authentication against the address
+that made it, so the budget being drained is the one every real lookup shares, and legitimate pushes
+start being refused because somebody else spent it. Past the ceiling a caller gets a `503` with
+`Retry-After` from here, which is the same answer the forge would eventually give and a very
+different afternoon behind it, because this one lifts the moment the flood stops.
+
+It is a ceiling on this server rather than fairness between callers. Telling two callers apart needs
+the address a request came from, and behind a reverse proxy that is the proxy: per-client limiting
+belongs there, where the real address is known. What a proxy cannot know is which requests cost a
+forge lookup, which is exactly what this counts. `lfsx_rejections_total{cause="lookup_budget_spent"}`
+is how you see it happening, kept apart from `forge_rate_limited` because one is this server saying
+no and the other is the forge.
+
 Refusals are remembered too, for the shorter `LFSX_AUTH_REJECTION_TTL`. Without that, a CI job
 retrying with a revoked token spends one API call per attempt, forever, against the same budget
 the server needs for real lookups — and an unauthenticated caller could drive that load on
