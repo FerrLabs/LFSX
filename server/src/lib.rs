@@ -26,6 +26,27 @@ use crate::storage::s3::{Keyspace, S3Config, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
+    // Here rather than in `backends`, which `reclaim` also calls: a reclaim pass
+    // hands nobody a URL, and saying this twice at every boot teaches an operator
+    // to skim it.
+    //
+    // The hrefs in a batch answer are where a client sends the object, and it
+    // sends its credential with them. Unset, they are built from the `Host` and
+    // `X-Forwarded-Proto` of whoever asked, which is a deployment fact only for
+    // as long as something in front is rewriting both.
+    //
+    // Warned rather than refused. Every deployment that works today works without
+    // it, and taking those down to close a hole most of them do not have is the
+    // wrong trade.
+    if config.public_url.is_none() && !matches!(config.auth, crate::config::Auth::Disabled) {
+        tracing::warn!(
+            "LFSX_PUBLIC_URL is not set, so the URLs handed to clients are built from the Host and \
+             X-Forwarded-Proto headers of whoever asked. Behind a proxy that does not rewrite them, \
+             a caller chooses where the next request goes and takes its token there. Set it to the \
+             address clients actually use"
+        );
+    }
+
     let (store, locks) = backends(&config);
     let authorizer = Authorizer::new(&config.auth);
 
