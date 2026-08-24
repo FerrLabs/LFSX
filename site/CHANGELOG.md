@@ -4,6 +4,23 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.24] - 2026-08-24
+
+### Features
+
+- feat(auth): cap how often this server will ask the forge anything (#208)
+- feat(storage): send an object over 5 GiB to a bucket in parts (#183)
+- feat(auth): authenticate against Gitea and Forgejo (#180)
+
+### Bug Fixes
+
+- fix(storage): draw a fresh key for every startup probe (#189)
+- fix(ci): drop socket.yml triggerPaths (#188)
+- fix(storage): ask the claim index once more before a sweep frees an object (#184)
+- fix(locks): disable locking unless the bucket refuses a conditional write (#182)
+- fix(storage): give up pre-signing unless the bucket proves it verifies checksums (#181)
+- fix(storage): stop redirecting a download to bytes the codec has framed (#179)
+
 ## [2026.8.20] - 2026-08-20
 
 ### Features
