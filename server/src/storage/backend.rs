@@ -181,7 +181,7 @@ impl Store {
             Backend::Local(_) => Err(Error::Unsupported(
                 "objects are written through this server, so there is nothing to adopt",
             )),
-            Backend::Bucket { bucket, .. } => bucket.adopt(ns, oid).await,
+            Backend::Bucket { bucket, .. } => bucket.adopt(ns, oid, arrived).await,
         };
 
         // Same reason as a write: verify is called once per object, so dropping

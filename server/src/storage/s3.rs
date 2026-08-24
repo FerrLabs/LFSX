@@ -2,6 +2,7 @@ pub(crate) mod keyspace;
 pub(crate) mod multipart;
 pub(crate) mod probe;
 pub(crate) mod refs;
+pub(crate) mod sizes;
 
 use std::time::Duration;
 
@@ -187,7 +188,7 @@ impl S3Store {
     // Take an upload that landed under this repository's own key into the shared
     // keyspace. The bytes are already known to hash to the oid, because the store
     // refused everything else.
-    pub async fn adopt(&self, ns: &Namespace, oid: &str) -> Result<(), Error> {
+    pub async fn adopt(&self, ns: &Namespace, oid: &str, size: u64) -> Result<(), Error> {
         crate::storage::LocalStore::validate_oid(oid)?;
 
         let incoming = Self::incoming_key(ns, oid);
@@ -219,6 +220,8 @@ impl S3Store {
                 0,
             )
             .await?;
+
+        sizes::write(&self.keys, ns, oid, size).await?;
 
         // Leaving it would pay for the object twice. A failure here is not worth
         // failing the push over: the object is adopted, and what is left is a key
@@ -252,10 +255,14 @@ impl S3Store {
         // recorded here cannot be missed by one that is already deciding.
         refs::write(&self.keys, ns, oid).await?;
 
-        if self.keys.head(&Self::content_key(oid)).await.is_err() {
-            let file = tokio::fs::File::open(staged).await?;
-            let length = file.metadata().await?.len();
+        // Read here rather than inside the branch below, because the size index
+        // wants it whether or not these bytes are the ones that go up: an object
+        // another repository pushed first is still this repository's to account
+        // for.
+        let file = tokio::fs::File::open(staged).await?;
+        let length = file.metadata().await?.len();
 
+        if self.keys.head(&Self::content_key(oid)).await.is_err() {
             // One request while one request will carry it, which is every
             // object a store normally sees, and parts when it will not. The
             // split is here rather than always going in parts because the
@@ -282,7 +289,9 @@ impl S3Store {
                 reqwest::Body::from(Vec::new()),
                 0,
             )
-            .await
+            .await?;
+
+        sizes::write(&self.keys, ns, oid, length).await
     }
 
     // What an interrupted upload leaves behind. A client can negotiate, PUT the
@@ -411,15 +420,28 @@ impl S3Store {
             ..Default::default()
         };
 
-        let mine = listing
-            .entries
-            .into_iter()
-            .filter_map(|entry| {
-                let oid = entry.key.rsplit('/').next()?.to_owned();
-                crate::storage::LocalStore::validate_oid(&oid).ok()?;
-                Some((entry, oid))
-            })
-            .collect();
+        // The size index shares this prefix, so it arrives in the same listing.
+        // Kept rather than discarded, because dropping a marker should take its
+        // entry with it and the key carries a number this sweep has no other way
+        // of knowing.
+        let mut sized = std::collections::HashMap::new();
+        let mut mine = Vec::new();
+
+        for entry in listing.entries {
+            if sizes::is_one(&entry.key) {
+                if let Some((oid, _)) = sizes::read(&entry.key) {
+                    sized.insert(oid, entry.key);
+                }
+                continue;
+            }
+
+            let Some(oid) = entry.key.rsplit('/').next().map(str::to_owned) else {
+                continue;
+            };
+            if crate::storage::LocalStore::validate_oid(&oid).is_ok() {
+                mine.push((entry, oid));
+            }
+        }
 
         for (entry, oid) in Self::droppable(mine, retained, grace, &mut report) {
             let frees = !refs::claimed_by_another(&self.keys, ns, &oid).await;
@@ -439,6 +461,15 @@ impl S3Store {
             // sweep free bytes this repository still holds.
             if let Err(error) = self.keys.delete(&refs::key(ns, &oid)).await {
                 tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
+            }
+
+            // Tidiness rather than correctness: a size whose marker has gone is
+            // counted by nobody, because only a marker says this repository holds
+            // anything.
+            if let Some(key) = sized.get(&oid)
+                && let Err(error) = self.keys.delete(key).await
+            {
+                tracing::warn!(%error, oid, "a dropped marker left its size behind");
             }
 
             if frees && !self.claimed_since(ns, &oid).await {
@@ -484,6 +515,7 @@ impl S3Store {
 
         let ours = Self::own_prefix(ns);
         let mut markers = Vec::new();
+        let mut sized = std::collections::HashMap::new();
         let mut mine = Vec::new();
         let mut claimed_elsewhere = std::collections::HashSet::new();
         let mut sizes = std::collections::HashMap::new();
@@ -511,6 +543,21 @@ impl S3Store {
                 || entry.key.starts_with(".refs/")
                 || entry.key.starts_with(".probe/")
             {
+                continue;
+            }
+
+            // The size index shares a repository's prefix, so it arrives here
+            // among the markers. Read as one, an entry of it is a claim on an
+            // object whose name ends in a number. Kept rather than dropped,
+            // because a marker this sweep removes should take its size along and
+            // the key is the only place that number is written down.
+            if sizes::is_one(&entry.key) {
+                if entry.key.starts_with(&ours)
+                    && let Some((oid, _)) = sizes::read(&entry.key)
+                {
+                    sized.insert(oid, entry.key);
+                }
+
                 continue;
             }
 
@@ -567,6 +614,12 @@ impl S3Store {
                 tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
             }
 
+            if let Some(key) = sized.get(&oid)
+                && let Err(error) = self.keys.delete(key).await
+            {
+                tracing::warn!(%error, oid, "a dropped marker left its size behind");
+            }
+
             // Counted only when this call is the one that removed them, so two
             // repositories letting go at once cannot each claim the same space.
             // The listing that decided `frees` was taken before any of these
@@ -588,44 +641,79 @@ impl S3Store {
     // nothing — this is a listing plus one head per object, which is why the
     // figure is cached the same way the local one is.
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
-        let oids = self.list(&Self::own_prefix(ns)).await;
-        let objects = oids.len() as u64;
+        // One listing, which returns the markers and the size index together
+        // because they share the repository's prefix. In a bucket this server
+        // wrote, that is the whole measurement: no request is spent per object.
+        let keys = match self.keys.keys(&Self::own_prefix(ns)).await {
+            Ok(keys) => keys,
+            Err(error) => {
+                // A capacity figure that silently reads zero is worse than one
+                // that is missing, because it looks like an answer.
+                tracing::warn!(%error, "the object store could not be listed");
+                return (0, 0);
+            }
+        };
 
-        // Asked a few at a time rather than one after another. The number of
-        // requests is the same, and it is the cost this cannot avoid without
-        // changing the layout, but in series a repository holding fifty thousand
-        // objects is fifty thousand round trips end to end: minutes of a client
-        // waiting on a quota check that the cache was meant to make invisible.
-        //
-        // What would remove the requests rather than overlap them is still open
-        // in #174, because both answers there cost something else.
-        let bytes = futures_util::stream::iter(oids)
-            .map(|oid| {
-                let store = &self;
-                async move { store.size_of(&oid).await.unwrap_or_default() }
-            })
-            .buffer_unordered(SIZES_AT_ONCE)
-            .fold(0, |held, size| async move { held + size })
-            .await;
+        let mut indexed = std::collections::HashMap::new();
+        let mut held = Vec::new();
+
+        for key in keys {
+            if let Some((oid, size)) = sizes::read(&key) {
+                indexed.insert(oid, size);
+            } else if let Some(oid) = key.rsplit('/').next()
+                && crate::storage::LocalStore::validate_oid(oid).is_ok()
+            {
+                held.push(oid.to_owned());
+            }
+        }
+
+        // Only what a marker claims is counted. An index entry whose marker has
+        // gone is inert rather than wrong, which is why a sweep that fails to
+        // tidy one costs an empty key and nothing else.
+        let objects = held.len() as u64;
+        let mut bytes = held.iter().filter_map(|oid| indexed.get(oid)).sum();
+
+        let unindexed: Vec<String> = held
+            .into_iter()
+            .filter(|oid| !indexed.contains_key(oid))
+            .collect();
+
+        if !unindexed.is_empty() {
+            bytes += self.measure_and_index(ns, unindexed).await;
+        }
 
         (objects, bytes)
     }
 
-    async fn list(&self, prefix: &str) -> Vec<String> {
-        // A capacity figure that silently reads zero is worse than one that is
-        // missing, because it looks like an answer.
-        let keys = match self.keys.keys(prefix).await {
-            Ok(keys) => keys,
-            Err(error) => {
-                tracing::warn!(%error, "the object store could not be listed");
-                return Vec::new();
-            }
-        };
+    // The old way, for the objects the index does not cover, and it writes what
+    // it learns so it covers them next time.
+    //
+    // That is the whole migration. A bucket written before the index has markers
+    // and no sizes, and the first reading measures it exactly as this server
+    // always did and leaves the answer behind. There is nothing to run and no
+    // flag to set: it converges by being used.
+    async fn measure_and_index(&self, ns: &Namespace, oids: Vec<String>) -> u64 {
+        tracing::info!(
+            count = oids.len(),
+            "measuring objects the size index does not cover yet, and indexing them"
+        );
 
-        keys.into_iter()
-            .filter_map(|key| key.rsplit('/').next().map(str::to_owned))
-            .filter(|oid| crate::storage::LocalStore::validate_oid(oid).is_ok())
-            .collect()
+        futures_util::stream::iter(oids)
+            .map(|oid| {
+                let store = &self;
+                async move {
+                    let size = store.size_of(&oid).await.unwrap_or_default();
+
+                    if let Err(error) = sizes::write(&store.keys, ns, &oid, size).await {
+                        tracing::warn!(%error, oid, "an object could not be added to the size index");
+                    }
+
+                    size
+                }
+            })
+            .buffer_unordered(SIZES_AT_ONCE)
+            .fold(0, |held, size| async move { held + size })
+            .await
     }
 }
 
