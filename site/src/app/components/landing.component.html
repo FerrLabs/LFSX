@@ -59,6 +59,23 @@
   </div>
 </section>
 
+<section class="quickstart">
+  <h2 class="band__title" i18n="@@landing.quickstart.title">Quick start</h2>
+
+  @for (step of steps; track step.key) {
+    <article class="step">
+      <h3 class="step__title">{{ step.title }}</h3>
+      @if (step.body) {
+        <p class="step__body">{{ step.body }}</p>
+      }
+      <pre class="step__code" translate="no"><code>{{ step.code }}</code></pre>
+      @if (step.note) {
+        <p class="step__note">{{ step.note }}</p>
+      }
+    </article>
+  }
+</section>
+
 <section class="access">
   <h2 class="access__title" i18n="@@landing.access.title">No accounts to manage</h2>
   <p class="access__body" i18n="@@landing.access.body">
@@ -67,6 +84,71 @@
   </p>
   <a class="access__link" href="/docs/authentication" i18n="@@landing.access.link"
     >How authentication works</a
+  >
+</section>
+
+<section class="config">
+  <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
+  <p class="band__body" i18n="@@landing.config.body">
+    All configuration is by environment variable. There is no config file to template and no
+    database to migrate.
+  </p>
+
+  <dl class="settings">
+    @for (setting of settings; track setting.key) {
+      <div class="setting">
+        <dt class="setting__name" translate="no">{{ setting.name }}</dt>
+        <dd class="setting__purpose">{{ setting.purpose }}</dd>
+      </div>
+    }
+  </dl>
+
+  <p class="band__note" i18n="@@landing.config.note">
+    <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the client
+    reconnects to it for every object. If it is wrong, negotiation succeeds and every transfer then
+    fails.
+  </p>
+
+  <a class="band__link" href="/docs/configuration" i18n="@@landing.config.link"
+    >Every variable</a
+  >
+</section>
+
+<section class="deploy">
+  <h2 class="band__title" i18n="@@landing.deploy.title">Self-hosting</h2>
+
+  <div class="installs">
+    @for (install of installs; track install.key) {
+      <article class="install">
+        <h3 class="install__title" translate="no">{{ install.title }}</h3>
+        <pre class="install__code" translate="no"><code>{{ install.code }}</code></pre>
+        @if (install.note) {
+          <p class="install__note">{{ install.note }}</p>
+        }
+      </article>
+    }
+  </div>
+</section>
+
+<section class="storage">
+  <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
+  <p class="band__body" i18n="@@landing.storage.body">
+    Objects live on the filesystem by default, addressed by digest. A bucket, compression and
+    encryption are each one environment variable, and they compose.
+  </p>
+
+  <div class="stores">
+    @for (store of stores; track store.key) {
+      <article class="store">
+        <h3 class="store__title">{{ store.title }}</h3>
+        <p class="store__flag" translate="no">{{ store.flag }}</p>
+        <p class="store__body">{{ store.body }}</p>
+      </article>
+    }
+  </div>
+
+  <a class="band__link" href="/docs/buckets" i18n="@@landing.storage.link"
+    >How a bucket deployment works</a
   >
 </section>
 
