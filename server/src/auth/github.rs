@@ -33,45 +33,19 @@ pub async fn permission(
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/repos/{ns}");
 
-    let response = client
-        .get(&url)
-        .bearer_auth(token)
-        .header("accept", "application/vnd.github+json")
-        .header("x-github-api-version", "2022-11-28")
-        .send()
-        .await
-        .map_err(|error| {
-            tracing::warn!(%error, %url, "forge request failed");
-            Error::Forge
-        })?;
-
-    match response.status() {
-        StatusCode::OK => {}
-        StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
-        StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
-            if let Some(retry_after) = super::backoff::rate_limited(&response) =>
-        {
-            tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
-            return Err(Error::RateLimited { retry_after });
-        }
-        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
-            // Said out loud because the refusal the client sees is the same one
-            // a readable repository with an unreadable permissions block
-            // produces, and an operator staring at a failing CI job has nothing
-            // else to tell them apart.
-            tracing::info!(
-                %url,
-                "the forge will not admit this repository to this token"
-            );
-            return Err(Error::Forbidden);
-        }
-        status => {
-            tracing::warn!(%status, %url, "unexpected forge response");
-            return Err(Error::Forge);
-        }
-    }
-
-    let repository = response.json::<Repository>().await.map_err(|error| {
+    // Said out loud because the refusal the client sees is the same one a
+    // readable repository with an unreadable permissions block produces, and an
+    // operator staring at a failing CI job has nothing else to tell them apart.
+    let repository = send(
+        client,
+        &url,
+        token,
+        "the forge will not admit this repository to this token",
+    )
+    .await?
+    .json::<Repository>()
+    .await
+    .map_err(|error| {
         tracing::warn!(%error, %url, "forge response could not be parsed");
         Error::Forge
     })?;
@@ -116,16 +90,10 @@ pub async fn public(
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/repos/{ns}");
 
-    let response = client
-        .get(&url)
-        .header("accept", "application/vnd.github+json")
-        .header("x-github-api-version", "2022-11-28")
-        .send()
-        .await
-        .map_err(|error| {
-            tracing::warn!(%error, %url, "forge request failed");
-            Error::Forge
-        })?;
+    let response = asking(client, &url).send().await.map_err(|error| {
+        tracing::warn!(%error, %url, "forge request failed");
+        Error::Forge
+    })?;
 
     match response.status() {
         StatusCode::OK => Ok(Permission::Read),
@@ -161,11 +129,37 @@ pub async fn public(
 pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Result<String, Error> {
     let url = format!("{api_url}/user");
 
-    let response = client
-        .get(&url)
-        .bearer_auth(token)
+    send(
+        client,
+        &url,
+        token,
+        "the forge will not say who this token belongs to",
+    )
+    .await?
+    .json::<User>()
+    .await
+    .map(|user| user.login)
+    .map_err(|error| {
+        tracing::warn!(%error, %url, "forge response could not be parsed");
+        Error::Forge
+    })
+}
+
+fn asking(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
+    client
+        .get(url)
         .header("accept", "application/vnd.github+json")
         .header("x-github-api-version", "2022-11-28")
+}
+
+async fn send(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    refusal: &'static str,
+) -> Result<reqwest::Response, Error> {
+    let response = asking(client, url)
+        .bearer_auth(token)
         .send()
         .await
         .map_err(|error| {
@@ -174,32 +168,23 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
         })?;
 
     match response.status() {
-        StatusCode::OK => {}
-        StatusCode::UNAUTHORIZED => return Err(Error::Unauthenticated),
+        StatusCode::OK => Ok(response),
+        StatusCode::UNAUTHORIZED => Err(Error::Unauthenticated),
         StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
             if let Some(retry_after) = super::backoff::rate_limited(&response) =>
         {
             tracing::warn!(%url, retry_after, "forge is rate-limiting this server");
-            return Err(Error::RateLimited { retry_after });
+            Err(Error::RateLimited { retry_after })
         }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
-            tracing::info!(%url, "the forge will not say who this token belongs to");
-            return Err(Error::Forbidden);
+            tracing::info!(%url, refusal);
+            Err(Error::Forbidden)
         }
         status => {
             tracing::warn!(%status, %url, "unexpected forge response");
-            return Err(Error::Forge);
+            Err(Error::Forge)
         }
     }
-
-    response
-        .json::<User>()
-        .await
-        .map(|user| user.login)
-        .map_err(|error| {
-            tracing::warn!(%error, %url, "forge response could not be parsed");
-            Error::Forge
-        })
 }
 
 #[cfg(test)]
