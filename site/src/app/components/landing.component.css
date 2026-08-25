@@ -102,7 +102,7 @@
 .properties {
   display: grid;
   gap: 2rem;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
   padding-block: 4rem 5rem;
   border-bottom: none;
 }
@@ -155,7 +155,7 @@
 
 .compare__columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
   gap: 0 3rem;
 }
 
@@ -199,7 +199,7 @@
 
 .faq__list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
   gap: 2.5rem 3rem;
 }
 
@@ -294,7 +294,7 @@
 .settings {
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
   gap: 0 3rem;
 }
 
@@ -322,7 +322,7 @@
 .installs,
 .stores {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
   gap: 2.5rem 3rem;
 }
 
@@ -352,4 +352,11 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--color-lfsx-green, #175812);
+}
+
+@media (max-width: 32rem) {
+  .setting {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
 }
