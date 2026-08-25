@@ -52,6 +52,36 @@ impl S3Store {
     // delete that follows it. Closing that needs a lease the deleting side takes
     // and every push waits on, which is a round trip on the hot path bought
     // against a window this narrow, and it is not obviously the right trade.
+    // The ref goes after the marker, never before. A failure between the two has
+    // to leave a ref with no claim behind it, which costs an object nobody reads,
+    // rather than a claim with no ref, which would let the next sweep free bytes
+    // this repository still holds.
+    //
+    // The size is tidiness rather than correctness: one whose marker has gone is
+    // counted by nobody, because only a marker says this repository holds
+    // anything.
+    async fn drop_marker(
+        &self,
+        ns: &Namespace,
+        oid: &str,
+        marker: &str,
+        sized: &HashMap<String, String>,
+    ) -> Result<(), Error> {
+        self.keys.delete(marker).await?;
+
+        if let Err(error) = self.keys.delete(&refs::key(ns, oid)).await {
+            tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
+        }
+
+        if let Some(key) = sized.get(oid)
+            && let Err(error) = self.keys.delete(key).await
+        {
+            tracing::warn!(%error, oid, "a dropped marker left its size behind");
+        }
+
+        Ok(())
+    }
+
     async fn claimed_since(&self, ns: &Namespace, oid: &str) -> bool {
         if refs::claimed_by_another(&self.keys, ns, oid).await {
             tracing::info!(
@@ -142,24 +172,7 @@ impl S3Store {
                 continue;
             }
 
-            self.keys.delete(&entry.key).await?;
-
-            // After the marker, never before. A failure between the two has to
-            // leave a ref with no claim behind it, which costs an object nobody
-            // reads, rather than a claim with no ref, which would let the next
-            // sweep free bytes this repository still holds.
-            if let Err(error) = self.keys.delete(&refs::key(ns, &oid)).await {
-                tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
-            }
-
-            // Tidiness rather than correctness: a size whose marker has gone is
-            // counted by nobody, because only a marker says this repository holds
-            // anything.
-            if let Some(key) = sized.get(&oid)
-                && let Err(error) = self.keys.delete(key).await
-            {
-                tracing::warn!(%error, oid, "a dropped marker left its size behind");
-            }
+            self.drop_marker(ns, &oid, &entry.key, &sized).await?;
 
             if frees && !self.claimed_since(ns, &oid).await {
                 // Asked before the delete, because afterwards there is nothing
@@ -297,17 +310,7 @@ impl S3Store {
                 continue;
             }
 
-            self.keys.delete(&entry.key).await?;
-
-            if let Err(error) = self.keys.delete(&refs::key(ns, &oid)).await {
-                tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
-            }
-
-            if let Some(key) = sized.get(&oid)
-                && let Err(error) = self.keys.delete(key).await
-            {
-                tracing::warn!(%error, oid, "a dropped marker left its size behind");
-            }
+            self.drop_marker(ns, &oid, &entry.key, &sized).await?;
 
             // Counted only when this call is the one that removed them, so two
             // repositories letting go at once cannot each claim the same space.

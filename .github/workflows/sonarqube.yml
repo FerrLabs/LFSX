@@ -109,8 +109,15 @@ jobs:
       # The reusable's defaults, plus the two directories whose duplication and
       # smells say nothing about the server: the end-to-end script is a script,
       # and the stub forge exists to be a crude stand-in.
-      exclusions: '**/node_modules/**,**/dist/**,**/build/**,**/target/**,**/coverage/**,**/.next/**,**/out/**,**/vendor/**,**/*.min.js,**/*.min.css,ci/**,server/examples/**'
+      #
+      # Test files leave sonar.sources here and arrive as sonar.tests below.
+      # Without that they count as production code, and since a Rust unit test
+      # lives in a tests.rs beside the module it covers, every fixture and every
+      # repeated bit of setup was being reported as duplication in the server.
+      exclusions: '**/node_modules/**,**/dist/**,**/build/**,**/target/**,**/coverage/**,**/.next/**,**/out/**,**/vendor/**,**/*.min.js,**/*.min.css,ci/**,server/examples/**,**/tests.rs,**/tests/**'
       args: >-
         -Dsonar.projectVersion=${{ needs.version.outputs.version }}
         -Dsonar.rust.lcov.reportPaths=.sonarcov/lcov.info
+        -Dsonar.tests=.
+        -Dsonar.test.inclusions=**/tests.rs,**/tests/**
     secrets: inherit
