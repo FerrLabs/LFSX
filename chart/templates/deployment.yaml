@@ -1,3 +1,4 @@
+{{- include "lfsx.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,9 +6,13 @@ metadata:
   labels:
     {{- include "lfsx.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
+    {{- if eq .Values.storage.type "s3" }}
+    type: RollingUpdate
+    {{- else }}
     type: Recreate
+    {{- end }}
   selector:
     matchLabels:
       {{- include "lfsx.selectorLabels" . | nindent 6 }}
@@ -47,6 +52,30 @@ spec:
               value: "0.0.0.0:8080"
             - name: LFSX_STORAGE_ROOT
               value: /var/lib/lfsx
+            {{- if eq .Values.storage.type "s3" }}
+            - name: LFSX_STORAGE
+              value: s3
+            - name: LFSX_S3_ENDPOINT
+              value: {{ .Values.storage.s3.endpoint | quote }}
+            - name: LFSX_S3_BUCKET
+              value: {{ .Values.storage.s3.bucket | quote }}
+            - name: LFSX_S3_REGION
+              value: {{ .Values.storage.s3.region | quote }}
+            - name: LFSX_S3_PATH_STYLE
+              value: {{ .Values.storage.s3.pathStyle | quote }}
+            - name: LFSX_S3_PRESIGN
+              value: {{ .Values.storage.s3.presign | quote }}
+            - name: LFSX_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storage.s3.existingSecret }}
+                  key: {{ .Values.storage.s3.accessKeyKey }}
+            - name: LFSX_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storage.s3.existingSecret }}
+                  key: {{ .Values.storage.s3.secretKeyKey }}
+            {{- end }}
             {{- with (include "lfsx.publicUrl" .) }}
             - name: LFSX_PUBLIC_URL
               value: {{ . | quote }}

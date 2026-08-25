@@ -1,3 +1,17 @@
+replicaCount: 1
+
+storage:
+  type: local
+  s3:
+    endpoint: ""
+    bucket: ""
+    region: us-east-1
+    pathStyle: true
+    presign: false
+    existingSecret: ""
+    accessKeyKey: accessKey
+    secretKeyKey: secretKey
+
 image:
   repository: ghcr.io/ferrlabs/lfsx
   tag: ""

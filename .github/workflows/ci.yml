@@ -212,3 +212,50 @@ jobs:
           grep -q 'https://lfs.example.com' nginx.yaml             || { echo "::error::LFSX_PUBLIC_URL was not derived from the ingress host"; exit 1; }
 
           helm template lfsx chart             --set config.publicUrl=http://lfsx.internal             --set auth.mode=disabled             --set persistence.existingClaim=objects >/dev/null
+
+      - name: A bucket deployment carries its credentials by reference
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart             --set config.publicUrl=https://lfs.example.com             --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com             --set storage.s3.bucket=assets             --set storage.s3.existingSecret=lfsx-s3 > bucket.yaml
+
+          grep -q 'name: LFSX_STORAGE' bucket.yaml             || { echo "::error::storage.type=s3 did not reach the server"; exit 1; }
+          grep -q 'secretKeyRef' bucket.yaml             || { echo "::error::the bucket keys were not taken from a Secret"; exit 1; }
+          grep -q 'type: RollingUpdate' bucket.yaml             || { echo "::error::a bucket deployment cannot roll, so it has downtime it does not need"; exit 1; }
+
+          if grep -q 'LFSX_S3_ACCESS_KEY$' bucket.yaml; then
+            echo "::error::a key was rendered as a literal value"; exit 1
+          fi
+
+      - name: A volume deployment stays one pod, and says so rather than breaking
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com > one.yaml
+          grep -q 'replicas: 1' one.yaml             || { echo "::error::the default is no longer a single replica"; exit 1; }
+          grep -q 'type: Recreate' one.yaml             || { echo "::error::a volume deployment must not roll: two pods would share one claim"; exit 1; }
+
+          refuses() {
+            if helm template lfsx chart "$@" >/dev/null 2>&1; then
+              echo "::error::the chart rendered a topology it cannot serve: $*"
+              exit 1
+            fi
+          }
+
+          refuses --set config.publicUrl=https://lfs.example.com --set replicaCount=2
+          refuses --set config.publicUrl=https://lfs.example.com --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com --set storage.s3.bucket=assets             --set storage.s3.existingSecret=lfsx-s3 --set replicaCount=2
+          refuses --set config.publicUrl=https://lfs.example.com --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com --set storage.s3.bucket=assets
+          refuses --set config.publicUrl=https://lfs.example.com --set storage.type=nfs
+
+      - name: Two pods over one bucket is the shape that carries HA
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart             --set config.publicUrl=https://lfs.example.com             --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com             --set storage.s3.bucket=assets             --set storage.s3.existingSecret=lfsx-s3             --set persistence.enabled=false             --set replicaCount=2 > ha.yaml
+
+          grep -q 'replicas: 2' ha.yaml             || { echo "::error::the replica count did not reach the Deployment"; exit 1; }
+          grep -q 'emptyDir' ha.yaml             || { echo "::error::each replica has to stage its own uploads"; exit 1; }
+
+          if grep -q 'kind: PersistentVolumeClaim' ha.yaml; then
+            echo "::error::a ReadWriteOnce claim cannot be shared by two pods"; exit 1
+          fi

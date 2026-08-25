@@ -11,6 +11,21 @@ the nginx annotations that keep large uploads from being rejected, a single repl
 `ReadWriteOnce` volume with the `Recreate` strategy, and probes on `/health` and `/ready`. See
 [chart/README.md](../chart/README.md).
 
+### More than one replica needs a bucket
+
+A volume deployment is one pod, and the chart refuses to render more: an upload is staged and
+renamed, which is atomic on one filesystem and undefined across two, and the locks the pods would
+have to agree on live in that same directory.
+
+`storage.type=s3` is what changes that. The objects and the locks move into the bucket, which is the
+whole reason locks were put there, and two servers sharing one bucket and nothing else agree on who
+is holding what. Set `persistence.enabled=false` with it, since the claim is `ReadWriteOnce` and each
+replica stages its own uploads regardless, and `replicaCount` to what you want. Anything else fails
+the render with the reason rather than deploying something that cannot work.
+
+Read [Objects in a bucket](buckets.md) first: locking there depends on the store performing a
+conditional write, which the server probes at startup and disables locking over if it will not.
+
 ### Ephemeral storage is tied to persistence
 
 Every upload is written to a staging file under `LFSX_STORAGE_ROOT` before anything is sent on, so
