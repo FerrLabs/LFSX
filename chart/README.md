@@ -9,10 +9,31 @@ helm install lfsx oci://ghcr.io/ferrlabs/charts/lfsx \
 
 ## What the chart decides for you
 
-**One replica, `Recreate` strategy, `ReadWriteOnce` volume.** Two pods sharing one object store is
-not a supported topology today: uploads stage a file and rename it, which is atomic on one
-filesystem and undefined across two. The chart does not expose a replica count rather than let you
-discover that in production.
+**One replica on a volume, and the chart refuses more.** Two pods sharing one claim is not a
+topology it can serve: an upload is staged and renamed, which is atomic on one filesystem and
+undefined across two, and the locks the pods must agree on live in that same directory. Setting
+`replicaCount` above 1 with `storage.type=local` fails the render with that sentence rather than
+letting you find it in production.
+
+**More than one replica needs a bucket.** With `storage.type=s3` the objects and the locks move into
+the bucket, which is what lets two servers agree on who holds what, and the strategy becomes
+`RollingUpdate`. It also needs `persistence.enabled=false`: the claim is `ReadWriteOnce` so a second
+pod could not mount it, and each replica stages its own uploads anyway.
+
+```bash
+helm install lfsx oci://ghcr.io/ferrlabs/charts/lfsx   --set storage.type=s3   --set storage.s3.endpoint=https://s3.example.com   --set storage.s3.bucket=assets   --set storage.s3.existingSecret=lfsx-s3   --set persistence.enabled=false   --set replicaCount=2
+```
+
+**The bucket keys come from a Secret you already hold**, never from a value. A Helm value ends up in
+the release secret and in whatever CI printed the command, which is the same reason the chart will
+not take an encryption key either. `storage.s3.existingSecret` names it; `accessKeyKey` and
+`secretKeyKey` name the entries inside it.
+
+Three things stay per replica and are worth knowing before you run several. The usage figure behind
+`limits.repoQuota` is measured and cached per pod, so a quota can be overshot by what the replicas
+write between them inside a minute. The permission cache is per pod, so the forge sees more lookups.
+And `LFSX_AUTH_LOOKUP_BUDGET` is a ceiling per pod, so the ceiling across the deployment is that
+number times the replica count.
 
 **`LFSX_PUBLIC_URL` comes from the ingress host** unless you set `config.publicUrl` yourself. It is
 echoed in the batch response and clients reconnect to it for every object, so a wrong value makes

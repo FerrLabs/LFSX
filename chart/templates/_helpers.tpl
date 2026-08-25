@@ -54,3 +54,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- toYaml $annotations -}}
 {{- end -}}
+
+{{- define "lfsx.validate" -}}
+{{- if eq .Values.storage.type "s3" -}}
+  {{- if not .Values.storage.s3.endpoint -}}
+    {{- fail "storage.type=s3 needs storage.s3.endpoint" -}}
+  {{- end -}}
+  {{- if not .Values.storage.s3.bucket -}}
+    {{- fail "storage.type=s3 needs storage.s3.bucket" -}}
+  {{- end -}}
+  {{- if not .Values.storage.s3.existingSecret -}}
+    {{- fail "storage.type=s3 needs storage.s3.existingSecret: the chart never takes the keys as values, because a Helm value ends up in the release secret and in whatever CI printed the command" -}}
+  {{- end -}}
+{{- else if ne .Values.storage.type "local" -}}
+  {{- fail (printf "storage.type must be local or s3, got %q" .Values.storage.type) -}}
+{{- end -}}
+{{- if gt (int .Values.replicaCount) 1 -}}
+  {{- if ne .Values.storage.type "s3" -}}
+    {{- fail "replicaCount above 1 needs storage.type=s3: on a volume an upload is staged and renamed, which is atomic on one filesystem and undefined across two, and the locks two pods must agree on live in that same directory" -}}
+  {{- end -}}
+  {{- if .Values.persistence.enabled -}}
+    {{- fail "replicaCount above 1 needs persistence.enabled=false: the claim is ReadWriteOnce, so a second pod cannot mount it, and each replica stages its own uploads anyway" -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
