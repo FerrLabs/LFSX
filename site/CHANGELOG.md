@@ -4,6 +4,19 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.25] - 2026-08-25
+
+### Bug Fixes
+
+- fix(chart): limit the ephemeral storage a pod may take (#214)
+- perf(storage): read what a repository holds from a size index (#211)
+- fix(config): refuse a Host header that is not a host (#209)
+- perf(storage): measure what a repository holds a few objects at a time (#210)
+
+### Refactoring
+
+- refactor(storage): split collection and usage out of s3.rs (#212)
+
 ## [2026.8.24] - 2026-08-24
 
 ### Features

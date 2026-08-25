@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.5] - 2026-08-25
+
+### Bug Fixes
+
+- fix(chart): limit the ephemeral storage a pod may take (#214)
+
 ## [1.4.4] - 2026-08-25
 
 ### Refactoring
