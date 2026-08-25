@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.4] - 2026-08-25
+
+### Refactoring
+
+- refactor(storage): split collection and usage out of s3.rs (#212)
+
 ## [1.4.3] - 2026-08-24
 
 ### Bug Fixes
