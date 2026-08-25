@@ -28,6 +28,37 @@
   }
 </section>
 
+<section class="why">
+  <h2 class="why__title" i18n="@@landing.why.title">
+    A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
+  </h2>
+  <p class="why__body" i18n="@@landing.why.body">
+    GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal project
+    burns through the free tier in a single push. Self-hosting removes the meter entirely: the cost
+    becomes a disk you already own.
+  </p>
+</section>
+
+<section class="compare">
+  <h2 class="compare__title" i18n="@@landing.compare.title">What actually changes</h2>
+
+  <div class="compare__columns">
+    <div class="compare__column">
+      <p class="compare__label" translate="no">GitHub / GitLab LFS</p>
+      @for (row of comparisons; track row.key) {
+        <p class="compare__row">{{ row.metered }}</p>
+      }
+    </div>
+
+    <div class="compare__column">
+      <p class="compare__label" translate="no">LFSX</p>
+      @for (row of comparisons; track row.key) {
+        <p class="compare__row compare__row--owned">{{ row.owned }}</p>
+      }
+    </div>
+  </div>
+</section>
+
 <section class="access">
   <h2 class="access__title" i18n="@@landing.access.title">No accounts to manage</h2>
   <p class="access__body" i18n="@@landing.access.body">
@@ -37,4 +68,17 @@
   <a class="access__link" href="/docs/authentication" i18n="@@landing.access.link"
     >How authentication works</a
   >
+</section>
+
+<section class="faq">
+  <h2 class="faq__title" i18n="@@landing.faq.title">FAQ</h2>
+
+  <div class="faq__list">
+    @for (question of questions; track question.key) {
+      <article class="faq__entry">
+        <h3 class="faq__asked">{{ question.asked }}</h3>
+        <p class="faq__answered">{{ question.answered }}</p>
+      </article>
+    }
+  </div>
 </section>
