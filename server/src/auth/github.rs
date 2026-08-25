@@ -177,7 +177,7 @@ async fn send(
             Err(Error::RateLimited { retry_after })
         }
         StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
-            tracing::info!(%url, refusal);
+            tracing::info!(%url, "{refusal}");
             Err(Error::Forbidden)
         }
         status => {

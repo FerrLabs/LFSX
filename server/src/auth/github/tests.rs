@@ -112,3 +112,56 @@ async fn a_repository_the_token_cannot_see_is_refused() {
 
     assert!(matches!(refused, Err(Error::Forbidden)), "{refused:?}");
 }
+
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
+    type Writer = Self;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
+}
+
+// The refusal a client sees is the same one a readable repository with an
+// unreadable permissions block produces, so this line is the only thing telling
+// an operator which they are looking at. That makes the wording the feature, and
+// a field named `refusal` with an empty message is not it.
+#[tokio::test]
+async fn a_refusal_says_why_in_the_message_and_not_only_in_a_field() {
+    crate::tls::install_crypto_provider();
+
+    let captured = Captured::default();
+    let logged = {
+        let _guard = tracing::subscriber::set_default(
+            tracing_subscriber::fmt()
+                .with_writer(captured.clone())
+                .with_max_level(tracing::Level::INFO)
+                .finish(),
+        );
+
+        asked(StatusCode::NOT_FOUND, r#"{"message":"Not Found"}"#)
+            .await
+            .ok();
+
+        String::from_utf8(captured.0.lock().unwrap().clone()).unwrap()
+    };
+
+    assert!(
+        logged.contains("the forge will not admit this repository to this token"),
+        "the refusal has to be the event's message, not a structured field \
+         nothing reads: {logged}"
+    );
+}
