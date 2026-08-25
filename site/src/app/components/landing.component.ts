@@ -253,7 +253,7 @@ export class LandingComponent {
     {
       key: 'locks',
       asked: $localize`:@@landing.faq.locks.asked:Does it handle file locks?`,
-      answered: $localize`:@@landing.faq.locks.answered:Yes, for the assets that cannot be merged, with force-open reserved for admin and Maintainer. In a bucket the server checks at startup that the store really refuses a conditional write, and gives locking up rather than hand the same lock to two people.`,
+      answered: $localize`:@@landing.faq.locks.answered:Yes, for the assets that cannot be merged, with force-open reserved for the levels a forge treats as administrative: admin on GitHub and Gitea, Maintainer or Owner on GitLab. In a bucket the server checks at startup that the store really refuses a conditional write, and gives locking up rather than hand the same lock to two people.`,
     },
     {
       key: 'contribute',
