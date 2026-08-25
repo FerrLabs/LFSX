@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.6] - 2026-08-25
+
+### Refactoring
+
+- refactor(auth): give github the send helper its siblings have (#215)
+
 ## [1.4.5] - 2026-08-25
 
 ### Bug Fixes
