@@ -1,4 +1,4 @@
-<section class="hero">
+<section class="band hero">
   <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
 
   <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
@@ -19,7 +19,7 @@
   <pre class="hero__run" translate="no"><code>{{ run }}</code></pre>
 </section>
 
-<section class="properties">
+<section class="band properties">
   @for (property of properties; track property.key) {
     <article class="property">
       <h2 class="property__title">{{ property.title }}</h2>
@@ -28,8 +28,8 @@
   }
 </section>
 
-<section class="why">
-  <h2 class="why__title" i18n="@@landing.why.title">
+<section class="band why">
+  <h2 class="band__title why__title" i18n="@@landing.why.title">
     A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
   </h2>
   <p class="why__body" i18n="@@landing.why.body">
@@ -39,8 +39,8 @@
   </p>
 </section>
 
-<section class="compare">
-  <h2 class="compare__title" i18n="@@landing.compare.title">What actually changes</h2>
+<section class="band compare">
+  <h2 class="band__title compare__title" i18n="@@landing.compare.title">What actually changes</h2>
 
   <div class="compare__columns">
     <div class="compare__column">
@@ -59,7 +59,7 @@
   </div>
 </section>
 
-<section class="quickstart">
+<section class="band quickstart">
   <h2 class="band__title" i18n="@@landing.quickstart.title">Quick start</h2>
 
   @for (step of steps; track step.key) {
@@ -76,8 +76,8 @@
   }
 </section>
 
-<section class="access">
-  <h2 class="access__title" i18n="@@landing.access.title">No accounts to manage</h2>
+<section class="band access">
+  <h2 class="band__title" i18n="@@landing.access.title">No accounts to manage</h2>
   <p class="access__body" i18n="@@landing.access.body">
     A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what that
     token is allowed to do. There is no user table, no invitations, and nothing to revoke twice.
@@ -87,7 +87,7 @@
   >
 </section>
 
-<section class="config">
+<section class="band config">
   <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
   <p class="band__body" i18n="@@landing.config.body">
     All configuration is by environment variable. There is no config file to template and no
@@ -114,7 +114,7 @@
   >
 </section>
 
-<section class="deploy">
+<section class="band deploy">
   <h2 class="band__title" i18n="@@landing.deploy.title">Self-hosting</h2>
 
   <div class="installs">
@@ -130,7 +130,7 @@
   </div>
 </section>
 
-<section class="storage">
+<section class="band storage">
   <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
   <p class="band__body" i18n="@@landing.storage.body">
     Objects live on the filesystem by default, addressed by digest. A bucket, compression and
@@ -152,8 +152,8 @@
   >
 </section>
 
-<section class="faq">
-  <h2 class="faq__title" i18n="@@landing.faq.title">FAQ</h2>
+<section class="band faq">
+  <h2 class="band__title faq__title" i18n="@@landing.faq.title">FAQ</h2>
 
   <div class="faq__list">
     @for (question of questions; track question.key) {
