@@ -79,7 +79,7 @@ jobs:
     name: Build & Push LFSX
     needs: meta
     if: needs.meta.outputs.kind == 'server'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@ea79f0da8110fa508659c6beb7598dc084713089 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@62a681d7ed2fb422b2f326e837b8bf0e4cc71947 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
@@ -112,7 +112,7 @@ jobs:
     name: Build & Push Site
     needs: meta
     if: needs.meta.outputs.kind == 'site'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@ea79f0da8110fa508659c6beb7598dc084713089 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@62a681d7ed2fb422b2f326e837b8bf0e4cc71947 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: ${{ needs.meta.outputs.version }}
@@ -139,7 +139,7 @@ jobs:
   verify:
     name: Build without publishing
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@ea79f0da8110fa508659c6beb7598dc084713089 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@62a681d7ed2fb422b2f326e837b8bf0e4cc71947 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: pr-${{ github.event.pull_request.number }}
@@ -152,7 +152,7 @@ jobs:
   verify-site:
     name: Build the site without publishing
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@ea79f0da8110fa508659c6beb7598dc084713089 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@62a681d7ed2fb422b2f326e837b8bf0e4cc71947 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: pr-${{ github.event.pull_request.number }}
