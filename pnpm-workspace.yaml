@@ -1,3 +1,9 @@
+overrides:
+  # esbuild below 0.28.1 does not verify the integrity of the platform binary
+  # it downloads (GHSA-gv7w-rqvm-qjhr), so a hostile registry turns an install
+  # into code execution. 0.27.7 arrives through @analogjs/vite-plugin-nitro.
+  esbuild: '>=0.28.1'
+
 packages:
   - 'site'
 
