@@ -139,29 +139,48 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
 // unreadable permissions block produces, so this line is the only thing telling
 // an operator which they are looking at. That makes the wording the feature, and
 // a field named `refusal` with an empty message is not it.
+//
+// Captured under a fresh subscriber per attempt, and retried, because the gate
+// in front of every event is global: tracing keeps one process-wide maximum
+// level, recomputed whenever a callsite registers, and a sibling test hitting
+// any callsite for its first time can recompute it from a snapshot taken before
+// this subscriber existed. The event is then dropped before the subscriber is
+// consulted, and one CI run captured nothing at all on a commit that changed no
+// Rust. Installing a new subscriber repairs the level, and each callsite only
+// registers once per process, so the attempts run out of ways to lose.
 #[tokio::test]
 async fn a_refusal_says_why_in_the_message_and_not_only_in_a_field() {
     crate::tls::install_crypto_provider();
 
-    let captured = Captured::default();
-    let logged = {
-        let _guard = tracing::subscriber::set_default(
-            tracing_subscriber::fmt()
-                .with_writer(captured.clone())
-                .with_max_level(tracing::Level::INFO)
-                .finish(),
-        );
+    let mut logged = String::new();
+    for _ in 0..5 {
+        let captured = Captured::default();
+        {
+            let _guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_writer(captured.clone())
+                    .with_max_level(tracing::Level::INFO)
+                    .with_ansi(false)
+                    .finish(),
+            );
 
-        asked(StatusCode::NOT_FOUND, r#"{"message":"Not Found"}"#)
-            .await
-            .ok();
+            asked(StatusCode::NOT_FOUND, r#"{"message":"Not Found"}"#)
+                .await
+                .ok();
+        }
 
-        String::from_utf8(captured.0.lock().unwrap().clone()).unwrap()
-    };
+        logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+        if !logged.is_empty() {
+            break;
+        }
+    }
 
     assert!(
         logged.contains("the forge will not admit this repository to this token"),
-        "the refusal has to be the event's message, not a structured field \
-         nothing reads: {logged}"
+        "the refusal has to be the event's message, not a structured field          nothing reads: {logged}"
+    );
+    assert!(
+        !logged.contains("refusal="),
+        "the refusal is in the message, so a `refusal` field is the old bug          coming back: {logged}"
     );
 }
