@@ -166,6 +166,21 @@ impl IntoResponse for Error {
             tracing::error!(error = %self, "request failed");
         }
 
+        // Everything else in this enum speaks in sentences written here, for
+        // the person holding the curl. These two carry whatever the operating
+        // system or the JSON parser said, which can name paths and offsets
+        // that are the log's business: the line above already has the detail,
+        // and the client gets the only fact that is theirs.
+        if let Self::Storage(_) | Self::Serialisation(_) = &self {
+            let mut response = (
+                status,
+                Json(json!({ "message": "the server could not complete this request" })),
+            )
+                .into_response();
+            response.extensions_mut().insert(cause);
+            return response;
+        }
+
         if let Self::RateLimited { retry_after } | Self::LookupBudgetSpent { retry_after } = &self {
             let mut response = (
                 status,
@@ -207,5 +222,66 @@ impl IntoResponse for Error {
 
         response.extensions_mut().insert(cause);
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn body_of(error: Error) -> (StatusCode, String) {
+        let response = error.into_response();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+
+        (status, String::from_utf8(bytes.to_vec()).unwrap())
+    }
+
+    // The property is that nothing the operating system said crosses into the
+    // HTTP body: an io::Error can carry a path, and this is the only test that
+    // fails if somebody puts `self.to_string()` back on this arm.
+    #[tokio::test]
+    async fn a_storage_failure_does_not_quote_the_operating_system() {
+        let inner = std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "/var/lib/lfsx/org/repo/ab/cd/abcdef (No such file or directory)",
+        );
+
+        let (status, body) = body_of(Error::Storage(inner)).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!body.contains("/var/lib/lfsx"), "{body}");
+        assert!(!body.contains("No such file"), "{body}");
+        assert!(
+            body.contains("the server could not complete this request"),
+            "{body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_serialisation_failure_does_not_quote_the_parser() {
+        let inner = serde_json::from_str::<serde_json::Value>("{broken").unwrap_err();
+
+        let (status, body) = body_of(Error::Serialisation(inner)).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!body.contains("line 1"), "{body}");
+        assert!(
+            body.contains("the server could not complete this request"),
+            "{body}"
+        );
+    }
+
+    // The refusals whose wording is the feature keep it: this arm must never
+    // widen into a blanket 5xx scrub, because these sentences are how an
+    // operator learns which deployment fact bit them.
+    #[tokio::test]
+    async fn a_deployment_refusal_keeps_its_own_words() {
+        let (status, body) = body_of(Error::NotDecryptable).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(body.contains("LFSX_ENCRYPTION_KEY_FILE"), "{body}");
     }
 }
