@@ -1,13 +1,13 @@
 # Operations: backup, restore and disaster recovery
 
-An LFS server holds the artwork that is too big for git — the files a studio cannot regenerate and
+An LFS server holds the artwork that is too big for git: the files a studio cannot regenerate and
 git itself is not keeping a copy of. This is the page you need on the day that goes wrong, so it
 covers the restore as carefully as the backup.
 
 ## What to back up
 
 `$LFSX_STORAGE_ROOT`, and nothing else. There is no database, no cache to warm and no state
-anywhere but that directory. Configuration lives in the environment — back it up with whatever
+anywhere but that directory. Configuration lives in the environment: back it up with whatever
 holds your Helm values or unit file, not from here.
 
 ```
@@ -27,7 +27,7 @@ server they are reclaimed within `LFSX_STAGING_MAX_AGE`.
 
 **Objects are immutable.** A file is named after the SHA-256 of its own contents, so it is written
 once and never rewritten. An incremental file-level backup copies each object exactly once, for as
-long as it lives — the daily delta is genuinely new work, not a re-upload of the archive.
+long as it lives: the daily delta is genuinely new work, not a re-upload of the archive.
 
 **Preserve hard links, or the restore expands.** The bytes are stored once under `.content` and
 every repository holding them keeps a hard link. A copy that does not understand links turns one
@@ -39,7 +39,7 @@ rsync -aH --delete /var/lib/lfsx/ backup@vault:/backups/lfsx/
 ```
 
 `-H` is the whole point. `tar` preserves links by default; `cp -a` does not (`cp -a --link` is not
-the same thing — it links the copy to the *source*, which is not a backup at all).
+the same thing: it links the copy to the *source*, which is not a backup at all).
 
 **The server can stay up.** An upload streams into a `.part` file and is renamed on success, and
 rename is atomic, so no half-written object ever appears under its final name. The two things a
@@ -47,13 +47,13 @@ snapshot can catch mid-flight are harmless: a `.part` file, reclaimed on the nex
 object under `.content` whose repository link had not been made yet, which is collected the next
 time that repository runs `retain`.
 
-Volume snapshots — LVM, ZFS, a CSI `VolumeSnapshot` on the chart's PVC — work for the same reason
+Volume snapshots (LVM, ZFS, a CSI `VolumeSnapshot` on the chart's PVC) work for the same reason
 and are usually faster to restore than a file-level copy. They are also the only sensible option
 once the store passes a few terabytes, where walking it costs more than copying it.
 
 ## Restore
 
-1. **Restore the volume, then start the server** — not the other way around. A server pointed at a
+1. **Restore the volume, then start the server**, not the other way around. A server pointed at a
    half-restored directory will answer `batch` saying objects are missing, and clients will
    cheerfully re-upload gigabytes you already have.
 
@@ -78,7 +78,7 @@ once the store passes a few terabytes, where walking it costs more than copying 
    ```
 
 4. **Verify the bytes.** Every object is named after its own digest, so the store checks itself
-   without a manifest — rehash each file and compare it to its filename:
+   without a manifest: rehash each file and compare it to its filename:
 
    ```bash
    find "$LFSX_STORAGE_ROOT/.content" -type f -print0 |
@@ -96,19 +96,19 @@ once the store passes a few terabytes, where walking it costs more than copying 
    ```
 
    It names what fails and separates the two kinds of failure: an object that read fine and is not
-   what it claims, and one that could not be read at all — the answer a failing disk gives first.
+   what it claims, and one that could not be read at all, the answer a failing disk gives first.
    It also says when it could not see the whole repository, because an audit that quietly skipped
    part of it would read as a clean bill. It exits non-zero on any of the three, so it belongs in a
    cron as much as in a restore.
 
    Silence means the store is intact. This reads every byte you hold, so it is I/O bound and worth
-   an evening rather than a maintenance window — but it is the only check that distinguishes a
+   an evening rather than a maintenance window, but it is the only check that distinguishes a
    restore that worked from one that merely finished. Objects pushed before deduplication existed
    live at their repository path with a single link and no `.content` entry; point the same command
    at `$LFSX_STORAGE_ROOT` to cover those too, at the cost of hashing shared objects once per
    repository that holds them.
 
-Delete whatever the check reports. A corrupt object is worse than a missing one — it fails the
+Delete whatever the check reports. A corrupt object is worse than a missing one: it fails the
 client's own hash verification after a full download, and it will do that on every retry. Once it
 is gone, recover it the way the next section describes.
 
@@ -128,14 +128,14 @@ fatal: Assets/Hero.psd: smudge filter lfs failed
 warning: Clone succeeded, but checkout failed.
 ```
 
-Read that last line carefully: **the clone succeeded.** Git history is intact — it was never on
+Read that last line carefully: **the clone succeeded.** Git history is intact: it was never on
 this server. What failed is the checkout, and the file left in the working tree is the pointer, a
 hundred-odd bytes of text where the artwork should be. A developer who does not read the warning
 can commit on top of that and push the pointer back, so say so in the channel before saying
 anything else.
 
 **Do not run `git lfs fsck` in the broken clone.** It repairs what it can, which here means moving
-the pointer into `.git/lfs/bad` — no help, and one more confused developer.
+the pointer into `.git/lfs/bad`: no help, and one more confused developer.
 
 The recovery is a developer's local cache. Anyone who cloned before the loss still has the bytes in
 `.git/lfs/objects`, and pushing them back is one command from a healthy clone:
@@ -148,7 +148,7 @@ git lfs push --all origin       # re-upload every object for every ref
 `--all` walks all refs rather than what the last push touched, so one developer with a complete
 clone repopulates the repository. Pick whoever cloned earliest and has not run `git lfs prune`;
 several people running it is harmless, since the second upload is negotiated away as already
-present. Then clone the repository somewhere fresh and check that a real file comes back — the
+present. Then clone the repository somewhere fresh and check that a real file comes back, the
 push reporting success only means the server accepted the bytes.
 
 Objects nobody holds any more are gone. That is the case backups exist for, and the reason to test
@@ -192,7 +192,7 @@ The dry run does the whole job and throws the result away, so its number is meas
 estimated. Run it for every repository: objects shared between them live once under `.content`, and
 a repository that has not had its turn keeps the older bytes alive through its own link.
 
-The same conservatism as the deduplication migration — verified against its own digest before being
+The same conservatism as the deduplication migration, verified against its own digest before being
 rewritten, never removed before its replacement exists, idempotent, refusals counted and named. An
 object that would not get smaller is left alone rather than wrapped.
 
@@ -206,13 +206,13 @@ Two routes, and the choice is usually made for you by whether you can read the o
 rsync -aH --delete /var/lib/lfsx/ newhost:/var/lib/lfsx/
 ```
 
-Run it once while the old server is still serving, switch the clients, then run it again — the
+Run it once while the old server is still serving, switch the clients, then run it again, the
 second pass moves only what arrived in between, which for immutable objects is quick. Update
 `LFSX_PUBLIC_URL` on the new server before pointing anyone at it, and `lfsx doctor` against it
 before announcing anything.
 
 **Re-push from clones.** Slower and only as complete as the clones you have, but it needs no access
-to the old machine — which is the situation when the old server encrypted its store, as rudolfs
+to the old machine, which is the situation when the old server encrypted its store, as rudolfs
 does, and the files on disk are unreadable by anything but the server that wrote them:
 
 ```bash

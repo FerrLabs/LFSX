@@ -13,7 +13,7 @@
 
 </div>
 
-LFSX stores the large binaries of a Git repository — game assets, textures, models, video — so
+LFSX stores the large binaries of a Git repository (game assets, textures, models, video) so
 they never touch your host's LFS quota. Your repository stays on GitHub, GitLab or anywhere else;
 only the LFS transfer is redirected to your own server.
 
@@ -25,7 +25,7 @@ manage. See [Authentication](docs/authentication.md).
 
 GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal project
 burns through the free tier in a single push. A 3 GB asset pack cloned by a CI job ten times a
-month is 30 GB of metered traffic. Self-hosting removes the meter entirely — the cost becomes a
+month is 30 GB of metered traffic. Self-hosting removes the meter entirely: the cost becomes a
 disk you already own.
 
 LFSX is built around three properties:
@@ -56,7 +56,7 @@ docker run -d --name lfsx \
 ```
 
 Or without a container runtime, from the binaries attached to each
-[release](https://github.com/FerrLabs/LFSX/releases) — statically linked, so they need nothing
+[release](https://github.com/FerrLabs/LFSX/releases), statically linked, so they need nothing
 installed:
 
 ```bash
@@ -104,7 +104,7 @@ git push
 
 > [!IMPORTANT]
 > `git lfs install` must be run **before cloning**. Without it, files arrive as 130-byte pointer
-> stubs and tools that read them — Unity, Unreal, image editors — fail in confusing ways.
+> stubs and tools that read them (Unity, Unreal, image editors) fail in confusing ways.
 
 ### Verify it works
 
@@ -117,7 +117,7 @@ npm install -g @ferrlabs/lfsx        # or: cargo install lfsx
 ```
 
 That checks the server is up, its storage is writable, your token is accepted, and that the URL it
-advertises for transfers is the one you reached it on — the mismatch that lets negotiation succeed
+advertises for transfers is the one you reached it on: the mismatch that lets negotiation succeed
 while every transfer fails. Install it alongside the server, or use the probes directly:
 
 ```bash
@@ -174,7 +174,7 @@ That one starts the binary and a stub forge, pushes a large asset with the actua
 back and compares the bytes, then takes a lock, fails to steal it and releases it. It runs on an
 isolated `GIT_CONFIG_GLOBAL`, so it cannot touch your own git configuration.
 
-It runs on every push against **Linux, macOS and Windows**, plus **git-lfs 3.0.2** — the oldest
+It runs on every push against **Linux, macOS and Windows**, plus **git-lfs 3.0.2**, the oldest
 version supported, since that is where the locking API settled. The clients a studio actually runs
 are rarely the newest: Git for Windows, GitHub Desktop, Sourcetree, Rider and Unity each bundle
 their own copy. [`docs/clients.md`](docs/clients.md) records what is covered and carries a short

@@ -2,8 +2,8 @@
 
 ## What is tested, and on what
 
-Every push to this repository runs the full end-to-end script — push a 16 MiB asset with the real
-`git lfs`, clone it back, compare the bytes, take a lock, fail to steal it, release it — against:
+Every push to this repository runs the full end-to-end script (push a 16 MiB asset with the real
+`git lfs`, clone it back, compare the bytes, take a lock, fail to steal it, release it) against:
 
 | Platform | git-lfs |
 |---|---|
@@ -22,7 +22,7 @@ bundle a copy, and a project can easily be a year behind without anyone choosing
 
 ## The graphical clients
 
-Those cannot be automated here — they are what the artists run, so they are worth checking by hand
+Those cannot be automated here: they are what the artists run, so they are worth checking by hand
 after a change to the transfer or locking paths. The whole list is ten minutes.
 
 - [ ] **Clone** a repository holding a large asset, and confirm the file opens in its editor rather
@@ -30,7 +30,7 @@ after a change to the transfer or locking paths. The whole list is ten minutes.
       really a missing `git lfs install`.
 - [ ] **Push** a new asset over a hundred megabytes, and watch the progress bar move. A stalled bar
       that then completes usually means the server buffered rather than streamed.
-- [ ] **Interrupt** that push halfway — pull the network, not the process — and start it again. It
+- [ ] **Interrupt** that push halfway (pull the network, not the process) and start it again. It
       should resume rather than restart.
 - [ ] **Take a lock** on a scene or a PSD from the client's own UI, and confirm a second machine is
       refused and told who holds it.

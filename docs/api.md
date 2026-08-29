@@ -1,6 +1,6 @@
 # API
 
-The Git LFS protocol is small — four routes, plus a health check:
+The Git LFS protocol is small: four routes, plus a health check:
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -27,7 +27,7 @@ them. Missing objects on a download are reported per object with a `404` error r
 the whole batch.
 
 Downloads honour `Range`, so a transfer that drops at 90% of a three-gigabyte asset resumes from
-where it stopped instead of starting over — which on a home upstream is the difference between an
+where it stopped instead of starting over, which on a home upstream is the difference between an
 annoyance and an afternoon. A range that cannot be satisfied is refused with `416` carrying the
 object's real size; a range we cannot parse is ignored and the whole object is served, since
 refusing a transfer over a malformed header would be worse than the header.

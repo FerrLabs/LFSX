@@ -1,7 +1,7 @@
 # Looking at a repository
 
 Open `https://lfs.example.com/my-org/my-project` in a browser. It shows how many objects the
-repository holds, how much disk they take, and what is locked and by whom — the questions that
+repository holds, how much disk they take, and what is locked and by whom: the questions that
 otherwise need a shell.
 
 There is no login screen and no session. The page sits behind the same permission check as every

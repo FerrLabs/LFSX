@@ -1,6 +1,6 @@
 # Observability
 
-`/metrics` serves the Prometheus text format, unauthenticated like the probes — an orchestrator
+`/metrics` serves the Prometheus text format, unauthenticated like the probes: an orchestrator
 scraping it has no forge token, and refusing it would only mean the one moment you need numbers is
 the one moment you cannot get them.
 
@@ -23,7 +23,7 @@ size instead, since "this project uses 3 GiB of assets" is the useful answer the
 of it is shared.
 
 The two disk gauges are measured by walking the store, so they are computed at most once a minute
-and reused in between — and concurrent scrapes queue behind a single walk rather than each starting
+and reused in between, and concurrent scrapes queue behind a single walk rather than each starting
 their own, which is what keeps an unauthenticated endpoint from being a lever on a large disk.
 `lfsx_store_scans` is how you check that: it should climb about once a minute under load, not once
 per request.

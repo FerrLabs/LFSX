@@ -20,8 +20,8 @@ all the `basic` transfer adapter every git-lfs speaks can do, and there is nowhe
 request. So with `LFSX_S3_PRESIGN=true` an object over 5 GiB is not given a URL and comes through
 this server instead, which sends it in parts. Nothing is refused and nothing has to be configured.
 
-The size is declared during batch negotiation, so an object over the ceiling is refused there —
-before a byte moves — with a per-object error the client prints by name. The rest of the push goes
+The size is declared during batch negotiation, so an object over the ceiling is refused there,
+before a byte moves, with a per-object error the client prints by name. The rest of the push goes
 through; the limit refuses an object, not the commit it arrived with.
 
 The transfer is capped as well, because the declared size is a claim by the client and the ceiling
@@ -44,13 +44,13 @@ and on a server hosting a team the first symptom is unrelated repositories faili
 budget turns that into one repository being told, in its own client, that it is out of room.
 
 Negotiation refuses each object that would not fit, with a `507` the client prints, and the direct
-`PUT` is guarded too for clients that skip negotiation — including when they skip declaring a size,
+`PUT` is guarded too for clients that skip negotiation, including when they skip declaring a size,
 since the budget travels with the transfer and cuts it off at the byte that crosses the line. An
 object the repository already holds is never refused at either gate: re-sending it asks for no new
 room. Downloads never are either: a repository over budget still serves every object it holds,
 because refusing a checkout punishes the wrong person and fixes nothing.
 
-The figure is what the repository holds on disk, the same one `stats` and the dashboard report — not
+The figure is what the repository holds on disk, the same one `stats` and the dashboard report: not
 what it costs after deduplication, and not what it weighed before compression. Two projects sharing a pack each count it against their own
 budget, which is the number an operator is actually handing out. Collection is the way back under:
 `retain` frees the room and the next push sees it immediately, without waiting for a cache to

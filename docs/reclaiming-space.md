@@ -3,7 +3,7 @@
 Objects are written and never removed on their own. A repository that rewrites history, drops a
 branch or replaces a large asset leaves the old blobs behind, and the disk only grows.
 
-The server cannot decide what is still needed — it never sees your Git history. So you tell it.
+The server cannot decide what is still needed: it never sees your Git history. So you tell it.
 The [`lfsx`](../cli/) command does it from a clone:
 
 ```bash
@@ -24,7 +24,7 @@ git lfs ls-files --all --long \
       --data @- https://lfs.example.com/my-org/my-project/objects/retain
 ```
 
-`--all` walks every ref, so the set covers every commit still reachable — which is the point: run
+`--all` walks every ref, so the set covers every commit still reachable, which is the point: run
 this from a full clone, not a shallow one, or you will retain a fraction of what you should.
 
 It answers with what it would free, and frees nothing until you drop `dry_run`:
@@ -35,17 +35,17 @@ It answers with what it would free, and frees nothing until you drop `dry_run`:
 
 Two safeguards, because this deletes data. An object is uploaded *before* the commit referencing
 it is pushed, so anything touched within `LFSX_GC_GRACE` (two weeks by default, matching git's own
-`gc.pruneExpire`) is never taken — that is the `within_grace` count. And a transfer still in
+`gc.pruneExpire`) is never taken: that is the `within_grace` count. And a transfer still in
 flight is skipped, since staging files are not objects yet.
 
-Objects go, the fanout directories they lived in stay — an inode and a block per prefix, reused by
+Objects go, the fanout directories they lived in stay: an inode and a block per prefix, reused by
 the next object that hashes into it. Removing them raced every upload: a push creates its fanout
 directory, and until the staging file lands that directory is empty, so a collection running
 alongside could take it and fail a push on a directory made moments earlier for that push.
 
 An upload streams into a `.part` file next to its destination and is renamed on success. A process
 kill or a host crash mid-transfer leaves one behind, and nothing used to reclaim it. The server now
-sweeps them at boot — a crash is exactly what strands them — and hourly after that, logging the
+sweeps them at boot (a crash is exactly what strands them) and hourly after that, logging the
 count and the bytes it recovered.
 
 `LFSX_STAGING_MAX_AGE` has to stay above the longest transfer you expect to serve: a `.part` file

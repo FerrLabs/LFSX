@@ -15,8 +15,8 @@ Without this a studio that has locked an art directory received every lock in on
 that sent `limit` believed it had seen the list.
 
 **`ref` is accepted and not acted on.** Clients send the branch they are working on, and this server
-cannot make it change any answer: permissions come from the forge at repository granularity — pull,
-push, admin — so there is nothing branch-shaped to consult. Refusing the field would break a client
+cannot make it change any answer: permissions come from the forge at repository granularity (pull,
+push, admin), so there is nothing branch-shaped to consult. Refusing the field would break a client
 sending exactly what the specification tells it to send, so it is parsed and ignored deliberately
 rather than by omission. The day it matters is
 [#46](https://github.com/FerrLabs/LFSX/issues/46): once a public repository can be read without a

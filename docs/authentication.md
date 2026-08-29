@@ -3,8 +3,8 @@
 LFSX does not manage accounts. It asks the forge that hosts the repository what the caller is
 allowed to do, so the answer is always the same one the repository gives.
 
-The client presents the token it would use to clone over HTTPS — a personal access token, or the
-`GITHUB_TOKEN` a CI job already has — as the password of an HTTP Basic credential, or as a bearer
+The client presents the token it would use to clone over HTTPS (a personal access token, or the
+`GITHUB_TOKEN` a CI job already has) as the password of an HTTP Basic credential, or as a bearer
 token. LFSX resolves it against `GET /repos/{org}/{repo}` and maps the result:
 
 | GitHub | GitLab | Gitea, Forgejo | Objects |
@@ -33,7 +33,7 @@ read on objects it has nothing to do with.
 
 `/health` stays open. Everything under `/{org}/{repo}/objects/` requires a token, and each answer
 is cached for `LFSX_AUTH_CACHE_TTL` seconds so a push of two hundred objects costs one API call
-rather than two hundred. That cache is also the delay before a revocation takes effect — shorten
+rather than two hundred. That cache is also the delay before a revocation takes effect: shorten
 it if that matters more than the round trips.
 
 `LFSX_AUTH_LOOKUP_BUDGET` is the ceiling underneath all of that: the number of lookups a minute this
@@ -57,7 +57,7 @@ no and the other is the forge.
 
 Refusals are remembered too, for the shorter `LFSX_AUTH_REJECTION_TTL`. Without that, a CI job
 retrying with a revoked token spends one API call per attempt, forever, against the same budget
-the server needs for real lookups — and an unauthenticated caller could drive that load on
+the server needs for real lookups, and an unauthenticated caller could drive that load on
 purpose. The window is short on purpose: it is how long you keep being refused after being granted
 access. A forge that cannot be reached is never cached, so an outage stays an outage rather than
 becoming a lasting denial.
@@ -70,7 +70,7 @@ printf 'protocol=https\nhost=lfs.example.com\nusername=git\npassword=%s\n' "$GIT
   | git credential approve
 ```
 
-In CI, the token the workflow already holds is enough — no secret to provision:
+In CI, the token the workflow already holds is enough, with no secret to provision:
 
 ```yaml
 - run: |
@@ -81,8 +81,8 @@ In CI, the token the workflow already holds is enough — no secret to provision
 
 ### In CI
 
-`actions/checkout` with `lfs: true` runs its LFS fetch against the endpoint the remote implies —
-GitHub's own — and never reads `.lfsconfig`, which is only honoured by git-lfs invoked afterwards
+`actions/checkout` with `lfs: true` runs its LFS fetch against the endpoint the remote implies,
+GitHub's own, and never reads `.lfsconfig`, which is only honoured by git-lfs invoked afterwards
 against a working tree that already contains it. So the fetch has to be its own step:
 
 ```yaml
@@ -146,7 +146,7 @@ self-host the way Gitea does, so neither is queued behind anything.
 This is not obvious, and it rules out the approach most people reach for first.
 
 The batch response carries the URLs the client will use for each object transfer. If the server
-advertises them as already authenticated — `"authenticated": true` — without supplying an
+advertises them as already authenticated (`"authenticated": true`) without supplying an
 `Authorization` header alongside, git-lfs treats those URLs as pre-signed storage links and calls
 them with **no credentials at all**. Behind an authenticating proxy, every one of those calls
 returns `401`, and the client retries in a loop.
@@ -156,13 +156,13 @@ Traefik BasicAuth: it answers `"authenticated": true` with `"header": null` and 
 change that.
 
 LFSX never emits `authenticated` for a URL that points back at itself, so the client authenticates
-each transfer itself. A test pins the behaviour down —
-`batch_never_claims_a_transfer_through_this_server_is_pre_authenticated` — and it will fail if
+each transfer itself. A test pins the behaviour down,
+`batch_never_claims_a_transfer_through_this_server_is_pre_authenticated`, and it will fail if
 anyone sets the field on the ordinary path.
 
 The exception proves the rule rather than bending it. With `LFSX_S3_PRESIGN=true` the href is a
 pre-signed bucket URL, which genuinely carries its own credentials and genuinely must be called
-without an `Authorization` header — the proxy in front of this server is not even in that path. The
+without an `Authorization` header: the proxy in front of this server is not even in that path. The
 field is not a claim about the server's own authentication; it is a claim about the URL, and it is
 set only when the URL was signed.
 

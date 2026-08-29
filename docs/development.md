@@ -18,7 +18,7 @@ That one starts the binary and a stub forge, pushes a large asset with the actua
 back and compares the bytes, then takes a lock, fails to steal it and releases it. It runs on an
 isolated `GIT_CONFIG_GLOBAL`, so it cannot touch your own git configuration.
 
-It runs on every push against **Linux, macOS and Windows**, plus **git-lfs 3.0.2** — the oldest
+It runs on every push against **Linux, macOS and Windows**, plus **git-lfs 3.0.2**, the oldest
 version supported, since that is where the locking API settled. The clients a studio actually runs
 are rarely the newest: Git for Windows, GitHub Desktop, Sourcetree, Rider and Unity each bundle
 their own copy. [Clients](clients.md) records what is covered and carries a short
