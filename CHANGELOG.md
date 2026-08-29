@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.2] - 2026-08-29
+
+### Bug Fixes
+
+- fix(cli): print the multi-line messages without their indentation (#250)
+
 ## [1.6.1] - 2026-08-29
 
 ### Bug Fixes
