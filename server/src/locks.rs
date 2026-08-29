@@ -31,9 +31,22 @@ pub struct Owner {
 // store on local disk behind a bucket means each replica has its own answer,
 // and an artist told the scene is theirs while another replica hands it to
 // somebody else is worse than no locking at all.
+// Longer than any path a real repository carries, and git's own limit is far
+// below it. What this refuses is the megabyte path, which is not a filename,
+// it is a payload: stored verbatim per lock, listed on every list, and never
+// collected, since a stale lock is takeable rather than removed.
+const MAX_PATH_BYTES: usize = 4096;
+
+// A backstop, not a workflow ceiling. A studio locking every binary asset in a
+// large project sits orders of magnitude below this; the thing that reaches it
+// is a loop. The refusal at create is what keeps `list`, and everything built
+// on it, bounded.
+const DEFAULT_CAPACITY: usize = 10_000;
+
 pub struct LockStore {
     backend: Backend,
     max_age: Option<Duration>,
+    capacity: usize,
     // Whether the store can be relied on to let exactly one writer win. A
     // filesystem always can: `create_new` either makes the file or does not. A
     // bucket can only if it implements `If-None-Match: *`, and that is asked at
@@ -60,8 +73,15 @@ impl LockStore {
         Self {
             backend,
             max_age: None,
+            capacity: DEFAULT_CAPACITY,
             conditional_writes: true,
         }
+    }
+
+    #[cfg(test)]
+    fn with_capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
     }
 
     pub fn with_max_age(mut self, max_age: Option<Duration>) -> Self {
@@ -105,6 +125,12 @@ impl LockStore {
         if path.is_empty() {
             return Err(Error::MalformedLockPath);
         }
+        if path.len() > MAX_PATH_BYTES {
+            return Err(Error::LockPathTooLong {
+                actual: path.len(),
+                limit: MAX_PATH_BYTES,
+            });
+        }
 
         let lock = Lock {
             id: Self::id_of(path),
@@ -117,6 +143,18 @@ impl LockStore {
             },
         };
         let encoded = serde_json::to_vec(&lock)?;
+
+        // Enforced only for a lock that would be new: a path already locked
+        // adds nothing to the count, and the caller retrying a stale lock they
+        // are entitled to take deserves "held by X", not "the repository is
+        // full". Two creates racing under the ceiling can land one over it,
+        // and that is fine, this is a backstop against a loop, not an
+        // invariant anything downstream leans on.
+        if self.get(ns, &lock.id).await?.is_none() && self.list(ns).await?.len() >= self.capacity {
+            return Err(Error::LockLimitReached {
+                limit: self.capacity,
+            });
+        }
 
         if self.take(ns, &lock, &encoded).await? {
             return Ok(lock);

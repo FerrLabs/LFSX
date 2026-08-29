@@ -56,6 +56,12 @@ pub fn render(overview: &Overview) -> String {
 // This is the only place a person is told a lock has gone stale. `git lfs locks`
 // prints the path, the owner and the id, and has no field for anything else, so
 // a client cannot be made to show it however the server phrases the JSON.
+// The page is a summary, so it shows a page's worth. Rendering every lock made
+// the response cost whatever the repository's locks weigh, paid by whoever
+// opened it, and a thousand rows answer no question the first fifty and a
+// count do not.
+const LOCKS_SHOWN: usize = 50;
+
 fn locks_table(locks: &[Lock], max_age: Option<Duration>) -> String {
     if locks.is_empty() {
         return "<p class=\"empty\">Nothing is locked.</p>".to_owned();
@@ -63,6 +69,7 @@ fn locks_table(locks: &[Lock], max_age: Option<Duration>) -> String {
 
     let rows: String = locks
         .iter()
+        .take(LOCKS_SHOWN)
         .map(|lock| match locks::stale_for(lock, max_age) {
             Some(age) => format!(
                 "<tr class=\"stale\"><td>{}</td><td>{}</td><td>{} (untouched for {}, anyone can take it)</td></tr>",
@@ -80,8 +87,16 @@ fn locks_table(locks: &[Lock], max_age: Option<Duration>) -> String {
         })
         .collect();
 
+    let remainder = locks.len().saturating_sub(LOCKS_SHOWN);
+    let footer = match remainder {
+        0 => String::new(),
+        more => format!(
+            "<tr class=\"more\"><td colspan=\"3\">and {more} more, list them with `git lfs locks`</td></tr>"
+        ),
+    };
+
     format!(
-        "<table><thead><tr><th>Path</th><th>Held by</th><th>Since</th></tr></thead><tbody>{rows}</tbody></table>"
+        "<table><thead><tr><th>Path</th><th>Held by</th><th>Since</th></tr></thead><tbody>{rows}{footer}</tbody></table>"
     )
 }
 
