@@ -166,6 +166,66 @@ async fn a_read_only_token_cannot_collect_garbage() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
+async fn collect(app: Router, token: &str, dry_run: bool) -> StatusCode {
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/LFSX/objects/retain")
+        .header("content-type", "application/json")
+        .header("authorization", credentials(token))
+        .body(Body::from(
+            json!({ "oids": [], "dry_run": dry_run }).to_string(),
+        ))
+        .unwrap();
+
+    app.oneshot(request).await.unwrap().status()
+}
+
+// An empty retain set past the grace window unlinks everything a repository
+// holds, which is not what push rights mean anywhere else in this API. The dry
+// run is the half a contributor legitimately wants: what would collection free.
+#[tokio::test]
+async fn a_push_token_previews_collection_and_cannot_run_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    assert_eq!(
+        collect(
+            app(&root, &api_url, Duration::from_secs(60)),
+            "writer",
+            true
+        )
+        .await,
+        StatusCode::OK,
+        "the dry run is a read and push rights have always been able to read"
+    );
+    assert_eq!(
+        collect(
+            app(&root, &api_url, Duration::from_secs(60)),
+            "writer",
+            false
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "unlinking objects is the administrator's call, as force-opening a lock already is"
+    );
+}
+
+#[tokio::test]
+async fn an_admin_token_still_collects() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    assert_eq!(
+        collect(
+            app(&root, &api_url, Duration::from_secs(60)),
+            "admin",
+            false
+        )
+        .await,
+        StatusCode::OK
+    );
+}
+
 #[tokio::test]
 async fn a_plain_forbidden_from_the_forge_stays_forbidden() {
     let root = tempfile::tempdir().unwrap();

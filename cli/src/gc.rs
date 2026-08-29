@@ -22,6 +22,11 @@ pub fn run(server: &Server, repository: &str, dry_run: bool) -> Result<Value> {
     )?;
 
     let status = response.status();
+    if status.as_u16() == 403 && !dry_run {
+        bail!(
+            "the server answered 403: collecting for real needs the level the forge treats as              administrative (admin on GitHub and Gitea, Maintainer or Owner on GitLab).              --dry-run shows what collection would free and works with push rights"
+        );
+    }
     if !status.is_success() {
         bail!("the server answered {status}");
     }

@@ -218,7 +218,7 @@ async fn collecting_makes_room_the_next_push_can_use() {
         .method("POST")
         .uri("/FerrLabs/LFSX/objects/retain")
         .header("content-type", "application/json")
-        .header("authorization", credentials("writer"))
+        .header("authorization", credentials("admin"))
         .body(Body::from(json!({ "oids": [] }).to_string()))
         .unwrap();
     assert_eq!(

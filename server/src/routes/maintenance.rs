@@ -12,6 +12,11 @@ use crate::storage::{CompressReport, DedupeReport, SweepReport, VerifyReport};
 // rewrite or measure what is already stored, and each one asks for rights a
 // pushing client is not assumed to have.
 
+// The one operation here that unlinks files, so the real run asks for the
+// rights of someone the forge treats as an administrator, same as force-opening
+// a lock. The dry run stays at push rights: it is a read of what collection
+// would free, and the contributor who wants that number is exactly who should
+// be able to see it without being able to act on it.
 pub(super) async fn retain(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
@@ -19,6 +24,9 @@ pub(super) async fn retain(
     Json(request): Json<RetainRequest>,
 ) -> Result<Json<SweepReport>, Error> {
     permission.require_write()?;
+    if !request.dry_run {
+        permission.require_admin()?;
+    }
 
     let retained = request.oids.into_iter().collect();
     let report = state

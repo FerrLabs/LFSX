@@ -54,4 +54,10 @@ doing nothing wrong. A day is generous for a multi-gigabyte push on a home upstr
 
 Both are worth understanding before you shorten the grace period: an empty `oids` set legitimately
 means *nothing is referenced any more*, and outside the grace window that sweeps the repository
-clean. Run it dry first. Collection needs push rights on the repository.
+clean. Run it dry first.
+
+Which is why the two halves ask for different rights. The dry run needs push rights: it is a read
+of what collection would free, and any contributor may ask. Collecting for real unlinks objects,
+so it needs the level the forge treats as administrative, admin on GitHub and Gitea, Maintainer or
+Owner on GitLab, the same level that force-opens a lock. A `$GITHUB_TOKEN` from a routine CI job
+will preview collection and be refused the real thing.
