@@ -116,7 +116,8 @@ fn main() -> Result<()> {
             let after = report["after"].as_u64().unwrap_or_default();
 
             println!(
-                "{} {compressed} objects: {:.2} GiB -> {:.2} GiB ({}% smaller), {already} already                  compressed, {left} left as they were",
+                "{} {compressed} objects: {:.2} GiB -> {:.2} GiB ({}% smaller), {already} already \
+             compressed, {left} left as they were",
                 if dry_run {
                     "would compress"
                 } else {

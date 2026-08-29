@@ -89,7 +89,8 @@ async fn a_bucket_holds_the_object_even_when_the_server_was_told_to_compress() {
     assert_eq!(
         hex::encode(sha2::Sha256::digest(&restored)),
         oid,
-        "the client asked for the object named by this digest and has no way to know the              server framed it on the way past: {} bytes came back",
+        "the client asked for the object named by this digest and has no way to know the \
+             server framed it on the way past: {} bytes came back",
         restored.len()
     );
     assert_eq!(restored, payload);
@@ -153,7 +154,8 @@ async fn the_maintenance_commands_say_they_do_not_apply_rather_than_lying() {
     ] {
         assert!(
             matches!(outcome, Some(Error::Unsupported(_))),
-            "an operator running one of these against a bucket has to be told it did nothing,                  not handed an empty report that reads like success: {outcome:?}"
+            "an operator running one of these against a bucket has to be told it did nothing, \
+             not handed an empty report that reads like success: {outcome:?}"
         );
     }
 

@@ -177,10 +177,12 @@ async fn a_refusal_says_why_in_the_message_and_not_only_in_a_field() {
 
     assert!(
         logged.contains("the forge will not admit this repository to this token"),
-        "the refusal has to be the event's message, not a structured field          nothing reads: {logged}"
+        "the refusal has to be the event's message, not a structured field \
+             nothing reads: {logged}"
     );
     assert!(
         !logged.contains("refusal="),
-        "the refusal is in the message, so a `refusal` field is the old bug          coming back: {logged}"
+        "the refusal is in the message, so a `refusal` field is the old bug \
+             coming back: {logged}"
     );
 }

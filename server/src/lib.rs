@@ -207,7 +207,10 @@ fn backends(config: &Config) -> (Store, LockStore) {
     } = config.auth
     {
         tracing::info!(
-            "anonymous read is on: a request with no credentials is resolved against the forge, so              objects in a repository the forge serves publicly can be read by anybody, and the              bandwidth is yours. Unset LFSX_ANONYMOUS_READ to require a token whatever the              repository's visibility"
+            "anonymous read is on: a request with no credentials is resolved against the forge, so \
+             objects in a repository the forge serves publicly can be read by anybody, and the \
+             bandwidth is yours. Unset LFSX_ANONYMOUS_READ to require a token whatever the \
+             repository's visibility"
         );
     }
 
@@ -246,27 +249,37 @@ fn backends(config: &Config) -> (Store, LockStore) {
             let keys = keyspace(config).expect("a bucket keyspace for a bucket store");
 
             tracing::warn!(
-                "objects and locks are stored in a bucket: deduplication, rewriting and                  verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes                  gauges are not measured — read capacity from the bucket itself"
+                "objects and locks are stored in a bucket: deduplication, rewriting and \
+             verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes \
+             gauges are not measured — read capacity from the bucket itself"
             );
 
             if *presign {
                 if config.encryption_key_file.is_some() || config.compression.is_some() {
                     tracing::warn!(
-                        "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep                          streaming through this server: what sits in the bucket is a frame under                          the plaintext digest, and a client handed that directly would hash it                          and reject the object"
+                        "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep \
+             streaming through this server: what sits in the bucket is a frame under \
+             the plaintext digest, and a client handed that directly would hash it \
+             and reject the object"
                     );
                 } else {
                     tracing::warn!(
-                        "LFSX_S3_PRESIGN=true, downloads are redirected to the bucket, so                          lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
+                        "LFSX_S3_PRESIGN=true, downloads are redirected to the bucket, so \
+             lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
                     );
                 }
 
                 if config.encryption_key_file.is_some() {
                     tracing::warn!(
-                        "LFSX_ENCRYPTION_KEY_FILE is set, so uploads keep coming through this                          server rather than going straight to the bucket: an object a client                          writes itself would arrive unencrypted"
+                        "LFSX_ENCRYPTION_KEY_FILE is set, so uploads keep coming through this \
+             server rather than going straight to the bucket: an object a client \
+             writes itself would arrive unencrypted"
                     );
                 } else if config.compression.is_some() {
                     tracing::warn!(
-                        "LFSX_COMPRESSION is set, and objects clients upload straight to the                          bucket arrive uncompressed — only what passes through this server is                          compressed"
+                        "LFSX_COMPRESSION is set, and objects clients upload straight to the \
+             bucket arrive uncompressed — only what passes through this server is \
+             compressed"
                     );
                 }
             }

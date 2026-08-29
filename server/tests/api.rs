@@ -274,7 +274,9 @@ async fn batch_never_claims_a_transfer_through_this_server_is_pre_authenticated(
 
     assert!(
         body["objects"][0]["authenticated"].is_null(),
-        "advertising authenticated for a URL that points back here makes the client transfer \n         with no credentials at all, and loop on the 401 that follows. The only href this server \n         signs is a pre-signed bucket URL, and this is not one"
+        "advertising authenticated for a URL that points back here makes the client transfer \n \
+             with no credentials at all, and loop on the 401 that follows. The only href this server \n \
+             signs is a pre-signed bucket URL, and this is not one"
     );
 }
 
