@@ -256,7 +256,8 @@ async fn a_rate_limited_forge_is_an_outage_not_a_denial() {
     assert_eq!(
         response.status(),
         StatusCode::SERVICE_UNAVAILABLE,
-        "a throttled forge is not a broken one, and 502 invites the immediate retry that spends          another request on the same exhausted quota"
+        "a throttled forge is not a broken one, and 502 invites the immediate retry that spends \
+             another request on the same exhausted quota"
     );
     assert_eq!(
         response

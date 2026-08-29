@@ -355,7 +355,8 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
     assert_eq!(objects, 1);
     assert_eq!(
         bytes, 23,
-        "the marker is empty, so the size has to come from the content it points at — counting          the marker would report a repository holding nothing"
+        "the marker is empty, so the size has to come from the content it points at — counting \
+             the marker would report a repository holding nothing"
     );
 }
 
@@ -386,7 +387,8 @@ fn a_store_that_was_not_asked_to_redirect_hands_out_no_signature() {
         store("http://127.0.0.1:1")
             .presigned_download(OID)
             .is_none(),
-        "streaming through the server is what counts the bytes, serves the ranges and holds the          ceiling — giving that up is a choice an operator makes, not a default they discover"
+        "streaming through the server is what counts the bytes, serves the ranges and holds the \
+             ceiling — giving that up is a choice an operator makes, not a default they discover"
     );
 }
 
@@ -402,12 +404,14 @@ fn a_pre_signed_url_points_at_the_shared_content_key_and_expires() {
     );
     assert!(
         !signed.contains("FerrLabs"),
-        "the marker is this server's bookkeeping and has no business in a URL the client          resolves: {signed}"
+        "the marker is this server's bookkeeping and has no business in a URL the client \
+             resolves: {signed}"
     );
     assert!(signed.contains("X-Amz-Signature="), "{signed}");
     assert!(
         signed.contains("X-Amz-Expires=1800"),
-        "a client told the action lasts half an hour and handed a URL that dies sooner fails a          resume it had every reason to expect: {signed}"
+        "a client told the action lasts half an hour and handed a URL that dies sooner fails a \
+             resume it had every reason to expect: {signed}"
     );
 }
 

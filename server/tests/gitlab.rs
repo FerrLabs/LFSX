@@ -197,6 +197,7 @@ async fn a_grant_inherited_from_the_group_counts_as_much_as_a_project_one() {
     assert_eq!(
         upload(app(&root, &api_url), "group-developer").await,
         StatusCode::OK,
-        "a project with no direct membership still grants through its group, which is how          most GitLab organisations are set up"
+        "a project with no direct membership still grants through its group, which is how \
+             most GitLab organisations are set up"
     );
 }

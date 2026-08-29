@@ -216,7 +216,9 @@ async fn the_capacity_gauge_reports_the_disk_not_the_sum_of_projects() {
     assert_eq!(
         reported,
         pack.len() as u64,
-        "three projects share one copy, so the capacity metric must show one copy —          counting per-repository links would report the pre-deduplication total and          grow with every project that links the same pack"
+        "three projects share one copy, so the capacity metric must show one copy — \
+             counting per-repository links would report the pre-deduplication total and \
+             grow with every project that links the same pack"
     );
 }
 

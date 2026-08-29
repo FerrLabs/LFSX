@@ -424,7 +424,8 @@ async fn a_lock_taken_on_one_replica_is_refused_on_the_other() {
     assert_eq!(
         again,
         StatusCode::CONFLICT,
-        "the second replica handed out a scene the first had already given away, which is two          artists editing the same file and one of them losing the afternoon: {body}"
+        "the second replica handed out a scene the first had already given away, which is two \
+             artists editing the same file and one of them losing the afternoon: {body}"
     );
     assert_eq!(body["lock"]["path"], path.as_str());
 }
@@ -492,7 +493,8 @@ async fn the_store_itself_refuses_the_second_writer() {
     assert_eq!(
         (first, second),
         (StatusCode::CREATED, StatusCode::CONFLICT),
-        "both replicas were told they hold it, so the bucket is not honouring `If-None-Match: *`:          {complaint}"
+        "both replicas were told they hold it, so the bucket is not honouring `If-None-Match: *`: \
+             {complaint}"
     );
 }
 
@@ -530,7 +532,8 @@ async fn a_maximum_lock_age_applies_to_a_bucket_too() {
     assert_eq!(
         taken,
         StatusCode::CREATED,
-        "the ceiling has to hold wherever the locks live, or the page tints a lock as takeable          and the server refuses it forever"
+        "the ceiling has to hold wherever the locks live, or the page tints a lock as takeable \
+             and the server refuses it forever"
     );
     assert_eq!(body["lock"]["path"], path.as_str());
 }
@@ -581,13 +584,15 @@ async fn a_compressed_object_survives_a_bucket() {
     assert_eq!(
         length,
         payload.len().to_string(),
-        "the client is promised the plaintext length, read from the header rather than from what          the bucket holds"
+        "the client is promised the plaintext length, read from the header rather than from what \
+             the bucket holds"
     );
 
     let held = stats(framing(&root, &bucket, Some(3), false), &repo).await;
     assert!(
         held < payload.len() as u64 / 4,
-        "the bucket holds {held} bytes for a {} byte mesh, so the frames went up uncompressed and          the round trip above proved only that raw bytes survive",
+        "the bucket holds {held} bytes for a {} byte mesh, so the frames went up uncompressed and \
+             the round trip above proved only that raw bytes survive",
         payload.len()
     );
 }
@@ -1100,7 +1105,8 @@ async fn the_store_refuses_bytes_that_are_not_the_object() {
 
     assert!(
         refused.is_client_error(),
-        "the store took bytes that do not hash to the digest the URL was signed for, so a          pre-signed upload could not be trusted to hold the object: {refused}"
+        "the store took bytes that do not hash to the digest the URL was signed for, so a \
+             pre-signed upload could not be trusted to hold the object: {refused}"
     );
     assert_eq!(
         report(app(&root, &bucket, true), &repo, &oid, payload.len()).await,
@@ -1128,7 +1134,8 @@ async fn knowing_a_digest_is_not_holding_the_object() {
     assert_eq!(
         report(app(&root, &bucket, true), &stranger, &oid, payload.len()).await,
         StatusCode::NOT_FOUND,
-        "the bytes are in the shared keyspace, and that must not be enough: without an upload of          its own this repository has no claim on them"
+        "the bytes are in the shared keyspace, and that must not be enough: without an upload of \
+             its own this repository has no claim on them"
     );
     assert_eq!(
         download(app(&root, &bucket, true), &stranger, &oid)
