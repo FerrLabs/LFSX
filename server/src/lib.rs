@@ -251,7 +251,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
             tracing::warn!(
                 "objects and locks are stored in a bucket: deduplication, rewriting and \
              verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes \
-             gauges are not measured — read capacity from the bucket itself"
+             gauges are not measured: read capacity from the bucket itself"
             );
 
             if *presign {
@@ -278,7 +278,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
                 } else if config.compression.is_some() {
                     tracing::warn!(
                         "LFSX_COMPRESSION is set, and objects clients upload straight to the \
-             bucket arrive uncompressed — only what passes through this server is \
+             bucket arrive uncompressed: only what passes through this server is \
              compressed"
                     );
                 }

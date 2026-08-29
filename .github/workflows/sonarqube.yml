@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - id: tag
-        # Highest semver release tag, independent of branch reachability —
+        # Highest semver release tag, independent of branch reachability,
         # `git describe` returns the nearest ancestor tag, which goes stale on
         # feature branches and pull requests.
         run: |

@@ -5,7 +5,7 @@ on:
     types: [published]
   # The image is built on release only, so a Dockerfile that stops linting or
   # building stays invisible until a version has been tagged and published
-  # without one — which is how five releases went out with no image at all. A
+  # without one, which is how five releases went out with no image at all. A
   # change to the file now has to prove itself before it is merged.
   pull_request:
     paths:
@@ -104,10 +104,10 @@ jobs:
 
   # The lfsx.dev site is a separate image from the server: same repository, but
   # its own Dockerfile, its own package registry, its own deployment target (the
-  # cluster's `lfsx` namespace) — and since the release config split, its own
-  # version, on a calendar clock. Il n'a pas de sccache —
-  # rien de Rust ne s'y compile — et reste amd64 : c'est la seule architecture
-  # du cluster, et un build arm64 doublerait le temps pour personne.
+  # cluster's `lfsx` namespace), and since the release config split, its own
+  # version, on a calendar clock. It has no sccache (nothing Rust compiles
+  # here) and stays amd64: that is the cluster's only architecture, and an
+  # arm64 build would double the time for nobody.
   site:
     name: Build & Push Site
     needs: meta

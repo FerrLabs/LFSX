@@ -87,7 +87,7 @@ fn two_objects_under_one_key_never_share_a_keystream() {
         first.salt(),
         second.salt(),
         "the nonce is only a frame counter, so two objects sharing a key would encrypt their \
-         first frame with the same keystream — the salt is what makes that impossible rather \
+         first frame with the same keystream: the salt is what makes that impossible rather \
          than unlikely"
     );
 

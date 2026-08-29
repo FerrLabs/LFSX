@@ -49,7 +49,7 @@ pub struct Presigned {
 
 // The same layout as the local store, for the same reasons. The bytes live once
 // under a key derived from their digest, and a repository that holds them owns
-// an empty marker beside it — the object store's answer to a hard link. It is
+// an empty marker beside it, the object store's answer to a hard link. It is
 // what keeps two projects sharing an asset pack from paying twice, and what
 // stops a repository reading an object it never pushed: the marker is the proof
 // of possession, and it is the only thing the permission check consults.
@@ -79,7 +79,7 @@ fn unreachable_store() -> Error {
 
 // The bucket as a keyspace: whole values written, read, deleted and listed by
 // key, with the signing and the HTTP client in one place. It knows nothing about
-// objects, oids or repositories — what a key means is decided a layer up, which
+// objects, oids or repositories: what a key means is decided a layer up, which
 // is what lets the lock store share the bucket with the object store without
 // either of them reaching into the other.
 #[derive(Clone)]
@@ -221,8 +221,8 @@ impl Keyspace {
     }
 
     // Signed as a HEAD rather than reusing a GET signature: SigV4 covers the
-    // method, and an implementation that checks it — which is the point of
-    // testing against MinIO and Garage rather than only AWS — is entitled to
+    // method, and an implementation that checks it (which is the point of
+    // testing against MinIO and Garage rather than only AWS) is entitled to
     // refuse the mismatch.
     pub(crate) async fn head(&self, key: &str) -> Result<u64, Error> {
         let action = HeadObject::new(&self.bucket, Some(&self.credentials), key);

@@ -396,7 +396,7 @@ impl LocalStore {
     {
         let file = fs::File::create(staged).await?;
         // The digest, the declared size and the budget are all counted on the
-        // plaintext going past, whatever the bytes look like once they land —
+        // plaintext going past, whatever the bytes look like once they land,
         // so compression is a different sink, not a different path.
         let mut sink = match (self.compression, self.keys.as_deref()) {
             (None, None) => Sink::Raw(file),
@@ -434,7 +434,7 @@ impl LocalStore {
 
     // One copy of the bytes under .content, and a hard link per repository that
     // holds them. Two projects sharing an asset pack cost the disk once, and the
-    // link count is the reference count — the filesystem does the bookkeeping, so
+    // link count is the reference count: the filesystem does the bookkeeping, so
     // nothing can leak a repository's contents to another and nothing needs a
     // migration: objects already sitting at their repository path keep working as
     // ordinary files with one link.

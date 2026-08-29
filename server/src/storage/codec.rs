@@ -10,7 +10,7 @@ use crate::error::Error;
 
 // An object compressed or encrypted at rest is still named after the digest of
 // its plaintext, because that name is what every other part of the server
-// addresses it by — collection, deduplication, the shared store, the client's
+// addresses it by: collection, deduplication, the shared store, the client's
 // own verification. So the file says what it is in its first bytes instead of in
 // its name, and a store from before either feature reads back unchanged: no
 // magic, no header, just the object.
@@ -39,7 +39,7 @@ fn header_len(version: u8) -> u64 {
 const STORED: u32 = 1 << 31;
 
 // Plaintext per frame. Each is compressed and sealed on its own, so serving a
-// range means touching the frames it covers rather than everything before it —
+// range means touching the frames it covers rather than everything before it,
 // which is what keeps resuming a three-gigabyte download from costing three
 // gigabytes of work. Larger frames compress better and seek worse; four
 // megabytes is about where a home upstream stops noticing either.
@@ -248,7 +248,7 @@ fn plausible(plaintext: u64, frame: u64, frames: u64) -> bool {
         return false;
     }
 
-    // Exactly the frames the plaintext needs — no more, so a header cannot claim
+    // Exactly the frames the plaintext needs and no more, so a header cannot claim
     // an object far larger than the file that carries it, and no fewer.
     frames == plaintext.div_ceil(frame)
 }

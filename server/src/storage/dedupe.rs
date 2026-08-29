@@ -63,7 +63,7 @@ impl LocalStore {
     }
 
     // The shared store already holds these bytes. Replacing this repository's
-    // copy with a link to them is what frees the disk — but only after checking
+    // copy with a link to them is what frees the disk, but only after checking
     // that what is there really is this object: linking to a corrupt entry would
     // spread it to a repository that had a good copy of its own.
     async fn adopt(
@@ -146,7 +146,7 @@ impl LocalStore {
 }
 
 // Two paths that resolve to the same inode are already one set of bytes with
-// two names, which is exactly what deduplication produces — so this is how a
+// two names, which is exactly what deduplication produces, so this is how a
 // second run knows there is nothing left to do.
 #[cfg(unix)]
 pub(super) async fn shares_bytes_with(path: &Path, content: &Path) -> bool {

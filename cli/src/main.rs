@@ -101,7 +101,7 @@ fn main() -> Result<()> {
                 if dry_run { "freeing" } else { "freed" },
                 reclaimed as f64 / 1_073_741_824.0,
                 if refused > 0 {
-                    format!(" — {refused} refused, see the server log")
+                    format!(", {refused} refused, see the server log")
                 } else {
                     String::new()
                 }
@@ -154,7 +154,7 @@ fn main() -> Result<()> {
             let incomplete = report["incomplete"].as_bool().unwrap_or_default();
             if incomplete {
                 println!(
-                    "part of the repository could not be listed — this audit is not a clean bill"
+                    "part of the repository could not be listed: this audit is not a clean bill"
                 );
             }
 

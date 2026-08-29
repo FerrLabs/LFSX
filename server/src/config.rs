@@ -255,7 +255,7 @@ impl Auth {
     fn from_env() -> Self {
         if std::env::var("LFSX_AUTH").as_deref() == Ok("disabled") {
             tracing::warn!(
-                "LFSX_AUTH=disabled — every request is accepted, run this on a trusted network only"
+                "LFSX_AUTH=disabled: every request is accepted, run this on a trusted network only"
             );
             return Self::Disabled;
         }
@@ -356,7 +356,7 @@ fn compression() -> Option<i32> {
             Some(level @ 1..=19) => Some(level),
             _ => {
                 tracing::warn!(
-                    "LFSX_COMPRESSION={other} is not a codec this server knows — storing objects as they arrive"
+                    "LFSX_COMPRESSION={other} is not a codec this server knows, storing objects as they arrive"
                 );
                 None
             }
@@ -368,7 +368,7 @@ fn bytes(variable: &str) -> Option<u64> {
     let configured = std::env::var(variable).ok()?.trim().parse().ok()?;
 
     if configured == 0 {
-        tracing::warn!("{variable}=0 would refuse every upload — ignoring it");
+        tracing::warn!("{variable}=0 would refuse every upload, ignoring it");
         return None;
     }
 

@@ -15,7 +15,7 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 
 // Enough of S3 to prove the layout and the wire format this store depends on:
 // PUT, HEAD, ranged GET and a prefix listing. The same shape as the stub forge
-// the authentication tests run against — a real MinIO belongs in CI, not in the
+// the authentication tests run against: a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
     stub(true, true, None).await
@@ -321,7 +321,7 @@ async fn a_repository_that_never_pushed_an_object_does_not_hold_it() {
     assert!(store.exists(&namespace("Blastlands"), OID).await);
     assert!(
         !store.exists(&namespace("Arena"), OID).await,
-        "the marker is the proof of possession — without it, guessing a digest would be enough to \
+        "the marker is the proof of possession: without it, guessing a digest would be enough to \
          read another project's assets out of the shared keyspace"
     );
 }
@@ -355,7 +355,7 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
     assert_eq!(objects, 1);
     assert_eq!(
         bytes, 23,
-        "the marker is empty, so the size has to come from the content it points at — counting \
+        "the marker is empty, so the size has to come from the content it points at: counting \
              the marker would report a repository holding nothing"
     );
 }
@@ -367,7 +367,7 @@ async fn an_object_id_that_could_not_be_one_is_refused_rather_than_slicing_into_
     let (_root, path) = staged(b"bytes nobody will store").await;
 
     // The fanout takes the first four characters of the digest, so anything
-    // shorter is an index out of bounds — a panic where the client deserves a
+    // shorter is an index out of bounds: a panic where the client deserves a
     // refusal.
     for short in ["", "ab", "abc"] {
         assert!(store.size_of(short).await.is_err());
@@ -388,7 +388,7 @@ fn a_store_that_was_not_asked_to_redirect_hands_out_no_signature() {
             .presigned_download(OID)
             .is_none(),
         "streaming through the server is what counts the bytes, serves the ranges and holds the \
-             ceiling — giving that up is a choice an operator makes, not a default they discover"
+             ceiling: giving that up is a choice an operator makes, not a default they discover"
     );
 }
 
@@ -420,7 +420,7 @@ fn an_object_id_that_could_not_be_one_is_never_signed_into_a_key() {
     let store = redirecting("http://s3.example");
 
     // The fanout slices the first four characters, so a short oid is a panic
-    // rather than a refusal — and a signature is handed to the client, which is
+    // rather than a refusal, and a signature is handed to the client, which is
     // the last place to discover it.
     for short in ["", "ab", "abc", "../../etc/passwd"] {
         assert!(store.presigned_download(short).is_none(), "{short:?}");
