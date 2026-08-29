@@ -21,12 +21,12 @@ All configuration is by environment variable.
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
 | `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume |
-| `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | — | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
-| `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | — | credentials for it, required with `LFSX_STORAGE=s3` |
+| `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | unset | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
+| `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | unset | credentials for it, required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `LFSX_S3_PRESIGN` | `false` | `true` to hand transfers to the bucket instead of streaming them through the server, ignored for downloads when compression or encryption is configured, and ignored entirely if the bucket does not prove it verifies upload checksums |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
-| `LFSX_ENCRYPTION_KEY_FILE` | — | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
+| `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 
 **Set `LFSX_PUBLIC_URL` behind a proxy.** Unset, the origin is built from the `Host` and
@@ -42,10 +42,10 @@ host has to be a host: a `Host` carrying a `/` or an `@` is refused and the orig
 the one that matters, because it resolves to the second name with the first read as a username.
 
 `LFSX_PUBLIC_URL` is echoed in the batch response, and the client reconnects to it for every
-object — if it is wrong, negotiation succeeds and every transfer then fails.
+object: if it is wrong, negotiation succeeds and every transfer then fails.
 
 Left unset, the server answers on whatever host the request arrived at, honouring
 `X-Forwarded-Proto` from the proxy in front. That is what you want when the same server is reached
-under more than one name — a public host and an internal one, say — since a single fixed value
+under more than one name (a public host and an internal one, say) since a single fixed value
 would be wrong for half the clients. Set it when you want to pin one name regardless of how the
 request arrived; an explicit value always wins over the request.

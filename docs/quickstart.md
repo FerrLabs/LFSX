@@ -11,7 +11,7 @@ docker run -d --name lfsx \
 ```
 
 Or without a container runtime, from the binaries attached to each
-[release](https://github.com/FerrLabs/LFSX/releases) — statically linked, so they need nothing
+[release](https://github.com/FerrLabs/LFSX/releases), statically linked, so they need nothing
 installed:
 
 ```bash
@@ -59,7 +59,7 @@ git push
 
 > [!IMPORTANT]
 > `git lfs install` must be run **before cloning**. Without it, files arrive as 130-byte pointer
-> stubs and tools that read them — Unity, Unreal, image editors — fail in confusing ways.
+> stubs and tools that read them (Unity, Unreal, image editors) fail in confusing ways.
 
 ### Verify it works
 
@@ -72,7 +72,7 @@ npm install -g @ferrlabs/lfsx        # or: cargo install lfsx
 ```
 
 That checks the server is up, its storage is writable, your token is accepted, and that the URL it
-advertises for transfers is the one you reached it on — the mismatch that lets negotiation succeed
+advertises for transfers is the one you reached it on: the mismatch that lets negotiation succeed
 while every transfer fails. Install it alongside the server, or use the probes directly:
 
 ```bash

@@ -1,6 +1,6 @@
 # Objects in a bucket
 
-`LFSX_STORAGE=s3` puts the objects in an S3-compatible bucket — MinIO, Garage, Backblaze, AWS —
+`LFSX_STORAGE=s3` puts the objects in an S3-compatible bucket (MinIO, Garage, Backblaze, AWS)
 instead of on the volume, which is what unties capacity from one machine.
 
 ```bash
@@ -12,7 +12,7 @@ LFSX_S3_SECRET_KEY=…
 ```
 
 **Locks move with the objects.** They are keys under `.locks/` in the same bucket, taken with a
-conditional write — `If-None-Match: *`, so the store itself decides who arrived first and answers
+conditional write, `If-None-Match: *`, so the store itself decides who arrived first and answers
 `412` to everyone after. That is the mutual exclusion `create_new` gives on a filesystem, and it is
 what makes a second replica possible: two servers sharing one bucket and nothing else agree on who
 holds a scene, and a release on either frees it on both. Tested against MinIO rather than assumed,

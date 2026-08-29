@@ -27,7 +27,7 @@ spec:
                   number: 80
 ```
 
-Do not add a request body size limit or a buffering middleware — LFS transfers are large and must
+Do not add a request body size limit or a buffering middleware: LFS transfers are large and must
 stream. Traefik's `buffering` middleware in particular will break uploads.
 
 > [!CAUTION]

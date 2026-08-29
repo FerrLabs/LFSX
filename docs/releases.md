@@ -1,8 +1,8 @@
 # Releases
 
-Versions are SemVer, and the major stays at `0` while the surface is still settling — a `0.x` bump
+Versions are SemVer, and the major stays at `0` while the surface is still settling: a `0.x` bump
 is free to change environment variables, the storage layout or the API. Releases are cut by
-[FerrFlow](https://ferrflow.com) from the Conventional Commit history of `main` — a merged `feat:`
+[FerrFlow](https://ferrflow.com) from the Conventional Commit history of `main`: a merged `feat:`
 or `fix:` produces the tag, the [`CHANGELOG.md`](../CHANGELOG.md) entry and the GitHub release, and
 the release builds and pushes the image.
 

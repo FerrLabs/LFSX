@@ -15,7 +15,7 @@ the person to go and talk to. Taking a lock someone else holds is refused with t
 rather than silently overwritten.
 
 Only the owner can release a lock. Anyone else needs `--force`, and force needs **admin** rights on
-the repository — the same person who could rewrite the branch anyway.
+the repository, the same person who could rewrite the branch anyway.
 
 `LFSX_LOCK_MAX_AGE` is the answer to the same situation without an administrator in it. Unset, a
 lock lasts until someone releases it, which is what happened before this existed. Set, a lock nobody

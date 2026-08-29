@@ -8,18 +8,18 @@ $LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per re
 ```
 
 **The bytes are stored once.** Two projects sharing the same Synty or Quixel pack cost the disk
-once, however many repositories push it — and for a studio that is most of the disk. Each
+once, however many repositories push it, and for a studio that is most of the disk. Each
 repository holds a hard link, so the filesystem keeps the reference count and the content survives
 until the last repository lets go of it.
 
 Sharing the bytes does not share them over the API. Every route resolves through the repository's
 own path, so a repository cannot read, list or even learn the existence of an object it never
-pushed — including by guessing a digest. `retain` frees space only when the object it drops was the
+pushed, including by guessing a digest. `retain` frees space only when the object it drops was the
 last reference; the report says zero bytes otherwise, rather than promising space another
 repository is still using.
 
 Objects already stored per repository, from before this, keep working untouched: they are ordinary
-files with a single link. Nothing needs migrating for them to serve — but they never collapse
+files with a single link. Nothing needs migrating for them to serve, but they never collapse
 either, so a server that has been running since before 0.20.0 keeps paying full price for every
 pack two projects share. Folding them in is one call per repository:
 
@@ -43,7 +43,7 @@ temporary name and renamed over the original, so an interrupted run leaves eithe
 the new link. It needs admin rights on the repository.
 
 Backing up the server is backing up that directory. Objects are immutable, so an incremental
-file-level backup never rewrites what it already copied — but use a tool that preserves hard links
+file-level backup never rewrites what it already copied, but use a tool that preserves hard links
 (`rsync -H`, `tar`), or the copy will expand every shared object back into a separate file.
 
 [Operations](operations.md) covers the rest of it: restoring, verifying the store
