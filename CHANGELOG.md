@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.3] - 2026-08-29
+
+### Bug Fixes
+
+- fix(test): start the wrapped lines of an intentional newline at column zero (#251)
+
 ## [1.6.2] - 2026-08-29
 
 ### Bug Fixes
