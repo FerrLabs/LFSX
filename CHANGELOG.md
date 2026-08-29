@@ -4,6 +4,26 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.0] - 2026-08-29
+
+### Features
+
+- feat(site): give the landing the Poster reference sections (#220)
+- feat(site): give the landing the Poster argument, comparison and FAQ (#219)
+
+### Bug Fixes
+
+- fix(api): stop 5xx bodies quoting the operating system (#248)
+- fix(deps): pin esbuild to the version that verifies its binary (#246)
+- fix(test): stop the refusal capture losing the race for tracing's global level (#243)
+- fix(site): give the configuration descriptions room to read (#227)
+- fix(site): stop the landing overflowing a phone screen (#224)
+- fix(site): give the landing sections anchors and name every admin level (#223)
+
+### Refactoring
+
+- refactor(site): declare the landing band once (#221)
+
 ## [1.5.0] - 2026-08-25
 
 ### Features
