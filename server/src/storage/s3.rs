@@ -42,13 +42,13 @@ pub struct S3Config {
 
 // The same layout as the local store, for the same reasons. The bytes live once
 // under a key derived from their digest, and a repository that holds them owns
-// an empty marker beside it — the object store's answer to a hard link. It is
+// an empty marker beside it, the object store's answer to a hard link. It is
 // what keeps two projects sharing an asset pack from paying twice, and what
 // stops a repository reading an object it never pushed: the marker is the proof
 // of possession, and it is the only thing the permission check consults.
 //
 // Everything below is object semantics. What it takes to talk to the store at
-// all — signing, retrying, listing, the client — is the keyspace underneath.
+// all (signing, retrying, listing, the client) is the keyspace underneath.
 #[derive(Clone)]
 pub struct S3Store {
     keys: Keyspace,
@@ -117,8 +117,8 @@ impl S3Store {
     }
 
     // A download is streamed through this server rather than redirected, so the
-    // features that live in the byte path — the counters, the ranges, and the
-    // compression that will follow — keep working. The pre-signed redirect is a
+    // features that live in the byte path (the counters, the ranges, and the
+    // compression that will follow) keep working. The pre-signed redirect is a
     // separate mode for operators who would rather spend the object store's
     // bandwidth than their own.
     pub async fn read(
@@ -236,7 +236,7 @@ impl S3Store {
     }
 
     // The upload has already been streamed to a staging file, hashed and checked
-    // against everything the server enforces, so that file is what goes up —
+    // against everything the server enforces, so that file is what goes up,
     // streamed from disk rather than read into memory, because an object here is
     // measured in gigabytes and the whole storage layer is built on holding at
     // most a few megabytes of one at a time.

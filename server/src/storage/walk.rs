@@ -30,7 +30,7 @@ impl LocalStore {
         let root = self.root.join(ns.org()).join(ns.repo());
         let Some(prefixes) = self.entries(&root, &mut walk).await else {
             // A repository with nothing in it has no directory, and that is not
-            // an incomplete walk — it is an empty one.
+            // an incomplete walk: it is an empty one.
             return Walk {
                 objects: Vec::new(),
                 complete: true,

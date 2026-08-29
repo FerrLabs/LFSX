@@ -158,7 +158,7 @@ spec:
           secret:
             secretName: {{ .Values.encryption.existingSecret }}
             # 0440, not 0400. A projected secret is owned by root, and fsGroup
-            # gives the group to 65532 — the user this runs as. Owner-only read
+            # gives the group to 65532, the user this runs as. Owner-only read
             # looks tighter and leaves the server unable to open its own key.
             defaultMode: 0440
         {{- end }}

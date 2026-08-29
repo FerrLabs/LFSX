@@ -129,7 +129,7 @@ impl ObjectSpec {
             error: Some(ObjectError {
                 code: 507,
                 message: format!(
-                    "this repository holds {used} bytes of its {limit} byte budget — collect what \
+                    "this repository holds {used} bytes of its {limit} byte budget: collect what \
                      it no longer references, or ask for more room"
                 ),
             }),

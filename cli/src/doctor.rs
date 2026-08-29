@@ -45,7 +45,7 @@ pub fn run(server: &Server, repository: Option<&str>) -> Result<Report> {
             report.pass("the storage root is writable")
         }
         Ok(response) => report.fail(format!(
-            "/ready answered {} — the volume is missing, full or read only",
+            "/ready answered {}: the volume is missing, full or read only",
             response.status()
         )),
         Err(error) => report.fail(format!("{error:#}")),
@@ -91,7 +91,7 @@ fn check_repository(server: &Server, repository: &str, report: &mut Report) -> R
             report.pass(format!("transfers are advertised at {advertised}"));
         }
         Some(advertised) => report.fail(format!(
-            "the server advertises transfers at {advertised} but was reached at {} — \
+            "the server advertises transfers at {advertised} but was reached at {}: \
              negotiation will keep succeeding and every transfer will fail. Set LFSX_PUBLIC_URL \
              to the URL clients actually use",
             server.base()

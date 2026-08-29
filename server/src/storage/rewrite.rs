@@ -92,7 +92,7 @@ impl LocalStore {
         };
 
         // The name is the digest, so this is the same check an operator would
-        // run by hand — and the last chance to run it, since afterwards the file
+        // run by hand, and the last chance to run it, since afterwards the file
         // is no longer the bytes it is named after.
         if digest != oid {
             tracing::warn!(oid, %digest, "object does not hash to its own name, leaving it alone");

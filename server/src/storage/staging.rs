@@ -38,7 +38,7 @@ impl LocalStore {
 
                 if metadata.is_dir() {
                     // Staging files only ever appear under org/repo/xx/yy, so the
-                    // shared .content store and .locks hold none — walking them
+                    // shared .content store and .locks hold none, walking them
                     // every hour would cost I/O that grows with the whole store
                     // instead of with the litter. Only the root carries those:
                     // deeper down, a repository really can be named .github.

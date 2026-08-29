@@ -117,7 +117,7 @@ async fn a_body_that_outgrows_the_limit_is_cut_off_rather_than_written_to_comple
     assert_eq!(
         pulled.load(Ordering::Relaxed),
         5,
-        "the transfer has to stop at the chunk that crosses the line — reading to the end to \
+        "the transfer has to stop at the chunk that crosses the line: reading to the end to \
          find out how big it was is the outage this limit exists to prevent"
     );
     assert!(

@@ -67,7 +67,7 @@ async fn a_compressed_object_is_checked_through_its_own_bytes() {
     assert_eq!(
         (report.checked, report.bytes),
         (1, payload.len() as u64),
-        "the check has to see the object, not the file — a compressed store is exactly where \
+        "the check has to see the object, not the file: a compressed store is exactly where \
          rehashing the file on disk stops meaning anything: {report:?}"
     );
     assert!(report.corrupt.is_empty());

@@ -20,7 +20,7 @@ pub struct VerifyReport {
 
 impl LocalStore {
     // Every object is named after the digest of its own contents, so the store
-    // checks itself without a manifest — the property a restore is confirmed
+    // checks itself without a manifest: the property a restore is confirmed
     // with. Compression at rest is what took it away from `sha256sum`: the file
     // is no longer the bytes it is named after, so reading it back has to go
     // through the same path a download does.

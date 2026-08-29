@@ -41,13 +41,13 @@ negotiation succeed and every transfer fail.
 
 With no ingress and no `config.publicUrl`, nothing is pinned and the server answers on whichever
 host each request arrived at. That is the right setting when the same service is reached under more
-than one name — a public host and an internal one — where any single fixed value would be wrong for
+than one name (a public host and an internal one) where any single fixed value would be wrong for
 half the clients.
 
 **With `ingress.className: nginx`**, the annotations that keep large uploads working are added for
 you: no body size cap, no request buffering, and timeouts raised to an hour. Without them nginx
 rejects anything over one megabyte, which for an LFS server means everything. Other controllers get
-nothing extra — on Traefik the failure mode is attaching a buffering middleware, which the chart
+nothing extra: on Traefik the failure mode is attaching a buffering middleware, which the chart
 simply does not do.
 
 **The container runs as uid 65532 with a read-only root filesystem**, and the volume is mounted
@@ -87,8 +87,8 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 
 ## Storage
 
-The claim holds every object, so size it for the repositories you expect and grow it there — LFSX
-keeps nothing anywhere else. Backing up the release is backing up that volume — snapshot the PVC,
+The claim holds every object, so size it for the repositories you expect and grow it there. LFSX
+keeps nothing anywhere else. Backing up the release is backing up that volume: snapshot the PVC,
 and read [`docs/operations.md`](../docs/operations.md) before you need the restore.
 
 `limits.maxObjectSize` is worth setting here even though the server ships with no ceiling: a claim

@@ -18,7 +18,7 @@ use crate::storage::Budget;
 // or `git pull` and nothing else calls it.
 
 // A backstop rather than a policy. git-lfs sends at most a hundred and every
-// other client is in the same range, so nothing legitimate comes near this —
+// other client is in the same range, so nothing legitimate comes near this,
 // but the count is the client's to choose, and axum's body limit leaves room for
 // tens of thousands of entries in one request. Each entry costs a round trip
 // against storage the operator pays per request for, so an authenticated
@@ -56,7 +56,7 @@ pub(super) async fn batch(
 
     // Read once for the whole batch rather than once per object. Nothing is
     // written until the client uploads, so the figure cannot change during the
-    // loop in any way that matters — and asking per object made a batch cost
+    // loop in any way that matters, and asking per object made a batch cost
     // what the repository holds times what the batch asks for, which against a
     // bucket is a listing and a request per object, every time.
     let budget = match state.config.repo_quota {
@@ -95,7 +95,7 @@ pub(super) async fn batch(
 
 // The client advertises what it can speak and the server answers with one of
 // them. `basic` is the only adapter this server implements and every client
-// supports it, so the answer never changes today — but it is chosen here rather
+// supports it, so the answer never changes today, but it is chosen here rather
 // than assumed, so adding an adapter is a change in one place instead of a hunt.
 fn negotiate(advertised: &[String]) -> &'static str {
     const BASIC: &str = "basic";
@@ -112,7 +112,7 @@ fn negotiate(advertised: &[String]) -> &'static str {
 
 async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
     // The marker is what says this repository holds the object, and it is
-    // consulted before anything else — including before a signature is cut, so
+    // consulted before anything else, including before a signature is cut, so
     // a redirect is never a way around the check that a plain download makes.
     if !state.store.exists(ns, &id.oid).await {
         return ObjectSpec::missing(id);
@@ -225,7 +225,7 @@ pub(super) async fn upload(
         .and_then(|value| value.parse().ok());
 
     // Negotiation already refused what does not fit, but a client is free to
-    // skip it and PUT straight here — including without declaring a size, which
+    // skip it and PUT straight here, including without declaring a size, which
     // is why the budget rides along into the transfer rather than being checked
     // once against a number the client chose.
     let budget = match state.config.repo_quota {

@@ -381,7 +381,7 @@ async fn a_frame_moved_within_the_file_is_refused() {
     let (_root, path) = write_with(&payload, None, Some(&keyring())).await;
 
     // Two whole frames swapped on disk. Every byte is one this server wrote, and
-    // the index still adds up — only the order changed.
+    // the index still adds up: only the order changed.
     let mut bytes = std::fs::read(&path).unwrap();
     let sealed = FRAME as usize + crypt::TAG as usize;
     let first = SEALED_HEADER as usize;

@@ -113,7 +113,7 @@ async fn a_repository_named_like_a_dot_directory_is_still_swept() {
 
     assert_eq!(
         reclaimed.files, 1,
-        "only the root carries directories worth skipping — .github is a real repository name"
+        "only the root carries directories worth skipping: .github is a real repository name"
     );
 }
 

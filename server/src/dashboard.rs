@@ -28,7 +28,7 @@ pub fn render(overview: &Overview) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{namespace} — LFSX</title>
+<title>{namespace} | LFSX</title>
 <style>{STYLE}</style>
 </head>
 <body>

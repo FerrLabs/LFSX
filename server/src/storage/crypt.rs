@@ -65,7 +65,7 @@ impl Keyring {
             // and a duplicated line is the case that actually happens.
             if keys.iter().any(|(_, known)| *known == id) {
                 return Err(Error::Misconfigured(
-                    "two encryption keys hash to the same id — the same key is probably listed twice",
+                    "two encryption keys hash to the same id: the same key is probably listed twice",
                 ));
             }
 

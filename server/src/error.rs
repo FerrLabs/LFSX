@@ -28,16 +28,16 @@ pub enum Error {
     #[error("this repository holds {used} bytes of its {limit} byte budget")]
     OverQuota { used: u64, limit: u64 },
 
-    #[error("this server does not compress objects — set LFSX_COMPRESSION first")]
+    #[error("this server does not compress objects: set LFSX_COMPRESSION first")]
     CompressionDisabled,
 
-    #[error("this object is encrypted and this server holds no key — set LFSX_ENCRYPTION_KEY_FILE")]
+    #[error("this object is encrypted and this server holds no key: set LFSX_ENCRYPTION_KEY_FILE")]
     NotDecryptable,
 
     #[error("this object was encrypted with a key this server does not hold")]
     UnknownKey,
 
-    #[error("this object failed its integrity check — the bytes on disk are not what was stored")]
+    #[error("this object failed its integrity check: the bytes on disk are not what was stored")]
     Tampered,
 
     #[error("{0}")]
@@ -59,7 +59,7 @@ pub enum Error {
     // it is working, it has said when to come back, and the answer has to carry
     // that so a client waits instead of spending the next request on the same
     // exhausted quota.
-    #[error("the forge is rate-limiting this server — retry in {retry_after} seconds")]
+    #[error("the forge is rate-limiting this server: retry in {retry_after} seconds")]
     RateLimited { retry_after: u64 },
 
     // And distinct from that one, because the two read the same to a client and

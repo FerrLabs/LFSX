@@ -9,7 +9,7 @@ pub fn run(server: &Server, repository: &str, dry_run: bool) -> Result<Value> {
     if is_shallow()? {
         bail!(
             "this is a shallow clone, so it does not know every object the repository references. \
-             Collecting from here would sweep objects that are still in use — run it from a full clone"
+             Collecting from here would sweep objects that are still in use: run it from a full clone"
         );
     }
 

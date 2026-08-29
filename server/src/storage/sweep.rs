@@ -25,7 +25,7 @@ impl LocalStore {
     // the moment between that and the staging file appearing the directory is
     // empty, so a collection running alongside took it and the push failed on a
     // directory that had just been made for it. Nothing here can hold a lock the
-    // filesystem would honour, so the fix is to stop competing — the shared
+    // filesystem would honour, so the fix is to stop competing: the shared
     // .content tree has never pruned its directories either. What is left is an
     // inode and a block per prefix, reused by the next object that hashes into
     // it, against a push failing for a reason no operator could act on.
@@ -79,7 +79,7 @@ impl LocalStore {
 
     // The bytes live once under .content, linked from each repository that holds
     // them. Dropping this repository's link frees nothing until the last one
-    // goes, so only then is it counted as freed — and a dry run that counted
+    // goes, so only then is it counted as freed, and a dry run that counted
     // otherwise would promise space it cannot deliver.
     async fn collect(
         &self,
@@ -232,7 +232,7 @@ impl LocalStore {
 
     // The whole-store figure, because it just became wrong. Freeing gigabytes
     // and then reporting the old total for another minute is how an operator
-    // concludes the collection — or the migration — did nothing. What the
+    // concludes the collection (or the migration) did nothing. What the
     // repository holds is remembered a layer up and dropped there.
     pub(super) async fn forget_capacity(&self) {
         *self.usage.lock().await = None;
@@ -242,7 +242,7 @@ impl LocalStore {
     // repositories logically hold: an object shared by three projects is three
     // links to one set of bytes. Counting per-repository paths would report the
     // pre-deduplication total and grow every time another project links the
-    // same pack — the opposite of what the number is for.
+    // same pack: the opposite of what the number is for.
     async fn measure(&self) -> (u64, u64) {
         #[cfg(unix)]
         {
@@ -258,7 +258,7 @@ impl LocalStore {
     }
 
     // Every hard link to one object reports the same inode, so counting each
-    // inode once measures bytes on disk exactly — including the copy fallback,
+    // inode once measures bytes on disk exactly, including the copy fallback,
     // which really does duplicate them and really should be counted twice.
     #[cfg(unix)]
     async fn walk_unique(&self, from: PathBuf) -> (u64, u64) {

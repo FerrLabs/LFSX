@@ -10,7 +10,7 @@ use sha2::Digest;
 use std::time::Duration;
 
 // Where the objects live. A bucket decouples capacity from the machine, at the
-// price of the things a filesystem gave for nothing — hard links, a directory
+// price of the things a filesystem gave for nothing: hard links, a directory
 // walk, and a rename that is atomic. Each of those is answered here or refused
 // out loud; none of them is quietly skipped.
 pub struct Store {
@@ -86,7 +86,7 @@ impl Store {
     // Readiness has to ask the backend that actually serves. Once the objects
     // live in a bucket the volume is a write buffer, and an instance whose
     // credentials were rotated or whose bucket is gone passes a probe that only
-    // proves its scratch disk works — then fails every transfer it is handed.
+    // proves its scratch disk works, then fails every transfer it is handed.
     //
     // So both are asked, either failing takes the instance out, and they are
     // named apart: a full disk and a rotated key are not the same afternoon.
@@ -117,7 +117,7 @@ impl Store {
 
     // Where the client should fetch this object from, when that is somewhere
     // other than this server. None for a local store, and for a bucket the
-    // operator has not asked to redirect — which is the default, because the
+    // operator has not asked to redirect, which is the default, because the
     // streamed path is the one that counts the bytes and holds the ceiling.
     //
     // The caller is responsible for having established that this repository
@@ -284,7 +284,7 @@ impl Store {
     // store holds, and building one from a full listing would cost a request per
     // object on every scrape. Zero would be read as an empty bucket by every
     // dashboard that averages it, which is the one lie this seam otherwise
-    // refuses to tell — everything else it cannot do answers 501.
+    // refuses to tell: everything else it cannot do answers 501.
     pub async fn capacity(&self) -> Option<(u64, u64)> {
         match &self.backend {
             Backend::Local(store) => Some(store.usage().await),
@@ -295,7 +295,7 @@ impl Store {
     // Measured at most once a minute per repository, whichever backend is
     // behind it. A bucket answers this by listing the repository's markers and
     // asking the size of each, so one uncached call per object in a batch made
-    // a hundred-object push cost a hundred listings — the product, not the sum.
+    // a hundred-object push cost a hundred listings: the product, not the sum.
     pub async fn usage_of(&self, ns: &Namespace) -> (u64, u64) {
         if let Some(cached) = self.usage.cached(ns).await {
             return cached;
