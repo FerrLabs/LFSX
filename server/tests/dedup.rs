@@ -34,12 +34,15 @@ async fn get_from(app: Router, repo: &str, payload: &[u8]) -> StatusCode {
     app.oneshot(request).await.unwrap().status()
 }
 
+// Collected as the administrator, because a real run unlinks files and asks
+// for that level since #233. What these tests exercise is what happens to the
+// shared bytes, and the pushes above them stay ordinary writers.
 async fn retain(app: Router, repo: &str, oids: &[&str]) -> serde_json::Value {
     let request = Request::builder()
         .method("POST")
         .uri(format!("/FerrLabs/{repo}/objects/retain"))
         .header("content-type", "application/json")
-        .header("authorization", credentials("writer"))
+        .header("authorization", credentials("admin"))
         .body(Body::from(json!({ "oids": oids }).to_string()))
         .unwrap();
 
