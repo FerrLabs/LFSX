@@ -4,6 +4,29 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.29] - 2026-08-29
+
+### Features
+
+- feat(site): give the landing the Poster reference sections (#220)
+- feat(site): give the landing the Poster argument, comparison and FAQ (#219)
+- feat(chart): run more than one replica over a bucket (#217)
+
+### Bug Fixes
+
+- fix(api): collecting a repository for real is the administrator's call (#249)
+- fix(api): stop 5xx bodies quoting the operating system (#248)
+- fix(deps): pin esbuild to the version that verifies its binary (#246)
+- fix(test): stop the refusal capture losing the race for tracing's global level (#243)
+- fix(site): give the configuration descriptions room to read (#227)
+- fix(site): stop the landing overflowing a phone screen (#224)
+- fix(site): give the landing sections anchors and name every admin level (#223)
+
+### Refactoring
+
+- refactor(site): declare the landing band once (#221)
+- refactor(auth): give github the send helper its siblings have (#215)
+
 ## [2026.8.25] - 2026-08-25
 
 ### Bug Fixes

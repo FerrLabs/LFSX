@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.1] - 2026-08-29
+
+### Bug Fixes
+
+- fix(api): collecting a repository for real is the administrator's call (#249)
+
 ## [1.6.0] - 2026-08-29
 
 ### Features
