@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.0] - 2026-08-31
+
+### Features
+
+- feat(chart): claim the Artifact Hub listing and badge the README (#263)
+
 ## [1.6.5] - 2026-08-31
 
 ### Refactoring
