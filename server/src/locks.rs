@@ -150,7 +150,7 @@ impl LockStore {
         // full". Two creates racing under the ceiling can land one over it,
         // and that is fine, this is a backstop against a loop, not an
         // invariant anything downstream leans on.
-        if self.get(ns, &lock.id).await?.is_none() && self.list(ns).await?.len() >= self.capacity {
+        if self.get(ns, &lock.id).await?.is_none() && self.count(ns).await? >= self.capacity {
             return Err(Error::LockLimitReached {
                 limit: self.capacity,
             });
@@ -261,6 +261,28 @@ impl LockStore {
         };
 
         Ok(encoded.and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+    }
+
+    // How many, and nothing else. `list` reads and decodes every lock's body,
+    // which against a bucket is a GET per key, and the capacity guard runs on
+    // every genuinely new create: routing it through `list` made taking one
+    // lock cost a read of every lock already held. A count is a directory walk
+    // or a key listing, and neither opens a single body.
+    async fn count(&self, ns: &Namespace) -> Result<usize, Error> {
+        match &self.backend {
+            Backend::Local { root } => {
+                let Ok(mut entries) = fs::read_dir(Self::directory_in(root, ns)).await else {
+                    return Ok(0);
+                };
+
+                let mut found = 0;
+                while entries.next_entry().await?.is_some() {
+                    found += 1;
+                }
+                Ok(found)
+            }
+            Backend::Bucket(bucket) => Ok(bucket.keys(&Self::prefix(ns)).await?.len()),
+        }
     }
 
     pub async fn list(&self, ns: &Namespace) -> Result<Vec<Lock>, Error> {

@@ -392,3 +392,31 @@ async fn a_stale_lock_is_still_takeable_in_a_full_repository() {
 
     assert_eq!(taken.owner.name, "john");
 }
+
+// The review finding on the capacity guard: routed through `list`, taking one
+// lock read the body of every lock already held, a GET per key on a bucket,
+// paid on every genuinely new create. The guard counts keys instead, so the
+// only body read is the existence probe for the lock being taken.
+#[tokio::test]
+async fn creating_a_lock_counts_the_others_and_reads_none_of_them() {
+    crate::tls::install_crypto_provider();
+    let (endpoint, _objects, reads) = crate::storage::s3::tests::bucket_counting_key_reads().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+    for scene in 0..25 {
+        locks
+            .create(&ns, &format!("Assets/{scene:02}.unity"), "jane")
+            .await
+            .unwrap();
+    }
+
+    let before = reads.load(std::sync::atomic::Ordering::SeqCst);
+    locks.create(&ns, "Assets/new.unity", "jane").await.unwrap();
+    let cost = reads.load(std::sync::atomic::Ordering::SeqCst) - before;
+
+    assert!(
+        cost <= 1,
+        "taking one lock read {cost} lock bodies against 25 already held: the capacity \
+         guard is fetching every lock where a key listing would answer"
+    );
+}
