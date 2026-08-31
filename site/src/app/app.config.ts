@@ -5,8 +5,6 @@ import { provideContent, withMarkdownRenderer } from '@analogjs/content';
 import { provideFileRouter, requestContextInterceptor } from '@analogjs/router';
 import { provideI18n } from '@analogjs/router/i18n';
 import { injectLocale } from '@analogjs/router/tokens';
-import { provideSiteChrome } from '@ferrlabs/ui-ng';
-import { lfsxChrome } from './site-chrome';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -19,6 +17,5 @@ export const appConfig: ApplicationConfig = {
       loader: async (locale) => (await import(`../i18n/${locale}.json`)).default,
     }),
     { provide: LOCALE_ID, useFactory: () => injectLocale() ?? 'en' },
-    provideSiteChrome(lfsxChrome),
   ],
 };

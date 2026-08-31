@@ -1,0 +1,27 @@
+<header class="header">
+  <div class="header__inner">
+    <a class="header__brand" href="/" aria-label="LFSX">
+      <svg class="header__mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="0" y="0" width="14.5" height="14.5" fill="currentColor" />
+        <rect x="17.5" y="0" width="14.5" height="14.5" fill="currentColor" />
+        <rect x="0" y="17.5" width="14.5" height="14.5" fill="currentColor" />
+        <rect x="17.5" y="17.5" width="14.5" height="14.5" fill="var(--logo-alt, currentColor)" />
+      </svg>
+      <span class="header__wordmark" translate="no">LFS<span class="header__x">X</span></span>
+    </a>
+
+    <nav class="header__nav">
+      @for (section of sections; track section.key) {
+        <a class="header__link header__link--section" [href]="section.href">{{ section.label }}</a>
+      }
+      <a class="header__link" href="/docs/quickstart" i18n="@@nav.docs">Docs</a>
+      <a
+        class="header__link header__link--strong"
+        href="https://github.com/FerrLabs/LFSX"
+        rel="noreferrer noopener"
+        translate="no"
+        >GitHub</a
+      >
+    </nav>
+  </div>
+</header>

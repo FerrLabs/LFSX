@@ -1,0 +1,76 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--accent, #1d6b52);
+  border-bottom: 2px solid var(--color-paper, #f3f2f2);
+}
+
+.header__inner {
+  max-width: 77.5rem;
+  margin: 0 auto;
+  padding: 0 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 3.75rem;
+}
+
+.header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  text-decoration: none;
+  color: var(--color-paper, #f3f2f2);
+  --logo-alt: color-mix(in srgb, var(--accent, #1d6b52) 34%, var(--color-paper, #f3f2f2));
+}
+
+.header__mark {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.header__wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+}
+
+.header__x {
+  color: color-mix(in srgb, var(--accent, #1d6b52) 34%, var(--color-paper, #f3f2f2));
+}
+
+.header__nav {
+  display: flex;
+  align-items: center;
+  gap: 1.625rem;
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+
+.header__link {
+  color: var(--color-paper, #f3f2f2);
+  text-decoration: none;
+}
+
+.header__link:hover {
+  color: color-mix(in srgb, var(--color-paper, #f3f2f2) 68%, transparent);
+}
+
+.header__link--strong {
+  font-weight: 600;
+}
+
+@media (max-width: 60rem) {
+  .header__link--section {
+    display: none;
+  }
+}
+
+@media (max-width: 32rem) {
+  .header__inner {
+    padding: 0 1.25rem;
+    gap: 1rem;
+  }
+}
