@@ -77,7 +77,7 @@
       "sharedPaths": [
         "docs"
       ],
-      "versioning": "calver",
+      "versioning": "calver-seq",
       "tagTemplate": "site@{version}",
       "changelog": "site/CHANGELOG.md",
       "versionedFiles": [
