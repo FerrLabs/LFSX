@@ -4,6 +4,22 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.32] - 2026-08-31
+
+### Features
+
+- feat(site): speak French (#269)
+- feat(site): dress the site in the LFSX design (#265)
+- feat(chart): claim the Artifact Hub listing and badge the README (#263)
+
+### Bug Fixes
+
+- fix(release): version the site with a sequence so same-day releases publish (#268)
+
+### Refactoring
+
+- refactor(server): make the object id a type instead of a check (#262)
+
 ## [2026.8.31] - 2026-08-31
 
 ### Bug Fixes
