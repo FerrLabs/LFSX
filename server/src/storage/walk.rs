@@ -4,10 +4,11 @@ use tokio::fs;
 
 use super::LocalStore;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 pub(super) struct Found {
     pub path: PathBuf,
-    pub oid: String,
+    pub oid: Oid,
 }
 
 // Everything a repository holds, and whether that is everything. The second half
@@ -48,12 +49,11 @@ impl LocalStore {
                 };
 
                 for path in objects {
-                    let oid = path
+                    let parsed = path
                         .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_default();
+                        .and_then(|name| Oid::parse(&name.to_string_lossy()).ok());
 
-                    if Self::validate_oid(&oid).is_ok() {
+                    if let Some(oid) = parsed {
                         walk.objects.push(Found { path, oid });
                     }
                 }

@@ -264,7 +264,7 @@ async fn staged(payload: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
     (root, path)
 }
 
-async fn read_all(store: &S3Store, oid: &str, start: u64, length: u64) -> Vec<u8> {
+async fn read_all(store: &S3Store, oid: &Oid, start: u64, length: u64) -> Vec<u8> {
     let mut chunks = Box::pin(store.read(oid, start, length).await.unwrap());
     let mut out = Vec::new();
 
@@ -275,7 +275,9 @@ async fn read_all(store: &S3Store, oid: &str, start: u64, length: u64) -> Vec<u8
     out
 }
 
-const OID: &str = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
+static OID: std::sync::LazyLock<Oid> = std::sync::LazyLock::new(|| {
+    Oid::parse("5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03").unwrap()
+});
 
 #[tokio::test]
 async fn an_object_goes_up_once_and_comes_back_whole() {
@@ -285,12 +287,12 @@ async fn an_object_goes_up_once_and_comes_back_whole() {
     let (_root, path) = staged(&payload).await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
     assert_eq!(
-        read_all(&store, OID, 0, payload.len() as u64).await,
+        read_all(&store, &OID, 0, payload.len() as u64).await,
         payload
     );
     assert_eq!(
@@ -310,10 +312,10 @@ async fn a_second_repository_adds_a_marker_and_not_the_bytes() {
     let (_root, path) = staged(&payload).await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
-    store.store(&namespace("Arena"), OID, &path).await.unwrap();
+    store.store(&namespace("Arena"), &OID, &path).await.unwrap();
 
     let held = objects.lock().unwrap();
     assert_eq!(
@@ -333,13 +335,13 @@ async fn a_repository_that_never_pushed_an_object_does_not_hold_it() {
     let store = store(&endpoint);
     let (_root, path) = staged(b"an asset one project pushed").await;
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
-    assert!(store.exists(&namespace("Blastlands"), OID).await);
+    assert!(store.exists(&namespace("Blastlands"), &OID).await);
     assert!(
-        !store.exists(&namespace("Arena"), OID).await,
+        !store.exists(&namespace("Arena"), &OID).await,
         "the marker is the proof of possession: without it, guessing a digest would be enough to \
          read another project's assets out of the shared keyspace"
     );
@@ -352,11 +354,11 @@ async fn a_range_asks_the_bucket_for_that_range() {
     let payload: Vec<u8> = (0..=255u8).cycle().take(8192).collect();
     let (_root, path) = staged(&payload).await;
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
-    assert_eq!(read_all(&store, OID, 4096, 100).await, payload[4096..4196]);
+    assert_eq!(read_all(&store, &OID, 4096, 100).await, payload[4096..4196]);
 }
 
 #[tokio::test]
@@ -365,7 +367,7 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
     let store = store(&endpoint);
     let (_root, path) = staged(b"an asset worth counting").await;
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
@@ -381,22 +383,12 @@ async fn what_a_repository_holds_is_counted_from_its_markers() {
 
 #[tokio::test]
 async fn an_object_id_that_could_not_be_one_is_refused_rather_than_slicing_into_it() {
-    let (endpoint, _objects) = bucket().await;
-    let store = store(&endpoint);
-    let (_root, path) = staged(b"bytes nobody will store").await;
-
-    // The fanout takes the first four characters of the digest, so anything
-    // shorter is an index out of bounds: a panic where the client deserves a
-    // refusal.
+    // The refusal each store function used to repeat lives in the type now:
+    // there is no way to hand the store a name that is not a digest, so the
+    // fanout can never slice short. What is left to pin is the boundary that
+    // builds the type.
     for short in ["", "ab", "abc"] {
-        assert!(store.size_of(short).await.is_err());
-        assert!(store.read(short, 0, 1).await.is_err());
-        assert!(
-            store
-                .store(&namespace("Blastlands"), short, &path)
-                .await
-                .is_err()
-        );
+        assert!(Oid::parse(short).is_err(), "{short:?}");
     }
 }
 
@@ -404,7 +396,7 @@ async fn an_object_id_that_could_not_be_one_is_refused_rather_than_slicing_into_
 fn a_store_that_was_not_asked_to_redirect_hands_out_no_signature() {
     assert!(
         store("http://127.0.0.1:1")
-            .presigned_download(OID)
+            .presigned_download(&OID)
             .is_none(),
         "streaming through the server is what counts the bytes, serves the ranges and holds the \
              ceiling: giving that up is a choice an operator makes, not a default they discover"
@@ -414,11 +406,16 @@ fn a_store_that_was_not_asked_to_redirect_hands_out_no_signature() {
 #[test]
 fn a_pre_signed_url_points_at_the_shared_content_key_and_expires() {
     let signed = redirecting("http://s3.example")
-        .presigned_download(OID)
+        .presigned_download(&OID)
         .expect("a redirecting store signs");
 
     assert!(
-        signed.contains(&format!(".content/{}/{}/{OID}", &OID[0..2], &OID[2..4])),
+        signed.contains(&format!(
+            ".content/{}/{}/{}",
+            OID.fanout().0,
+            OID.fanout().1,
+            *OID
+        )),
         "the bytes live once, under their digest: {signed}"
     );
     assert!(
@@ -436,19 +433,20 @@ fn a_pre_signed_url_points_at_the_shared_content_key_and_expires() {
 
 #[test]
 fn an_object_id_that_could_not_be_one_is_never_signed_into_a_key() {
-    let store = redirecting("http://s3.example");
-
-    // The fanout slices the first four characters, so a short oid is a panic
-    // rather than a refusal, and a signature is handed to the client, which is
-    // the last place to discover it.
+    // A signature can only be cut for an `Oid`, and one of these can never
+    // become one, so the type is what keeps a crafted name out of a signed
+    // key. Pinned here because a signature handed to the client is the last
+    // place anyone would discover it.
     for short in ["", "ab", "abc", "../../etc/passwd"] {
-        assert!(store.presigned_download(short).is_none(), "{short:?}");
+        assert!(Oid::parse(short).is_err(), "{short:?}");
     }
 }
 
 // A second digest, so a test can tell an object that was collected apart from
 // one that merely was not looked at.
-const OTHER_OID: &str = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
+static OTHER_OID: std::sync::LazyLock<Oid> = std::sync::LazyLock::new(|| {
+    Oid::parse("6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b").unwrap()
+});
 
 async fn collect(store: &S3Store, repo: &str) -> crate::storage::SweepReport {
     store
@@ -480,21 +478,21 @@ async fn the_bytes_go_when_the_last_repository_holding_them_lets_go() {
     let (_root, path) = staged(&payload).await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
-    store.store(&namespace("Arena"), OID, &path).await.unwrap();
+    store.store(&namespace("Arena"), &OID, &path).await.unwrap();
 
     collect(&store, "Blastlands").await;
 
     assert!(
-        holds(&objects, &S3Store::content_key(OID)),
+        holds(&objects, &S3Store::content_key(&OID)),
         "Arena still holds the object, so dropping Blastlands' claim frees nothing"
     );
 
     let report = collect(&store, "Arena").await;
 
-    assert!(!holds(&objects, &S3Store::content_key(OID)));
+    assert!(!holds(&objects, &S3Store::content_key(&OID)));
     assert_eq!(
         report.bytes,
         payload.len() as u64,
@@ -505,7 +503,7 @@ async fn the_bytes_go_when_the_last_repository_holding_them_lets_go() {
             .lock()
             .unwrap()
             .keys()
-            .any(|key| key.starts_with(&format!(".refs/{OID}/"))),
+            .any(|key| key.starts_with(&format!(".refs/{}/", *OID))),
         "an object that is gone must leave no claim behind: a ref outliving its bytes would keep \\
          the next copy of them from ever being collected"
     );
@@ -524,24 +522,24 @@ async fn a_bucket_that_predates_the_index_is_never_swept_against_it() {
 
     {
         let mut held = objects.lock().unwrap();
-        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(S3Store::content_key(&OID), b"the shared asset".to_vec());
         held.insert(
-            S3Store::marker_key(&namespace("Blastlands"), OID),
+            S3Store::marker_key(&namespace("Blastlands"), &OID),
             Vec::new(),
         );
-        held.insert(S3Store::marker_key(&namespace("Arena"), OID), Vec::new());
+        held.insert(S3Store::marker_key(&namespace("Arena"), &OID), Vec::new());
     }
 
     collect(&store, "Blastlands").await;
 
     assert!(
-        holds(&objects, &S3Store::content_key(OID)),
+        holds(&objects, &S3Store::content_key(&OID)),
         "Arena's claim predates the index and has no ref, so only reading the whole bucket can see \\
          it, and missing it deletes an object Arena still holds"
     );
     assert!(!holds(
         &objects,
-        &S3Store::marker_key(&namespace("Blastlands"), OID)
+        &S3Store::marker_key(&namespace("Blastlands"), &OID)
     ));
 }
 
@@ -555,14 +553,14 @@ async fn the_pass_that_reads_the_whole_bucket_leaves_an_index_behind() {
 
     {
         let mut held = objects.lock().unwrap();
-        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(S3Store::content_key(&OID), b"the shared asset".to_vec());
         held.insert(
-            S3Store::marker_key(&namespace("Blastlands"), OID),
+            S3Store::marker_key(&namespace("Blastlands"), &OID),
             Vec::new(),
         );
-        held.insert(S3Store::marker_key(&namespace("Arena"), OID), Vec::new());
+        held.insert(S3Store::marker_key(&namespace("Arena"), &OID), Vec::new());
         held.insert(
-            S3Store::marker_key(&namespace("Arena"), OTHER_OID),
+            S3Store::marker_key(&namespace("Arena"), &OTHER_OID),
             Vec::new(),
         );
     }
@@ -571,7 +569,7 @@ async fn the_pass_that_reads_the_whole_bucket_leaves_an_index_behind() {
     store
         .sweep(
             &namespace("Blastlands"),
-            &std::collections::HashSet::from([OID.to_owned()]),
+            &std::collections::HashSet::from([OID.to_string()]),
             Duration::from_secs(0),
             false,
         )
@@ -581,10 +579,10 @@ async fn the_pass_that_reads_the_whole_bucket_leaves_an_index_behind() {
     let held = objects.lock().unwrap();
 
     assert!(held.contains_key(".refs/.complete"));
-    assert!(held.contains_key(&refs::key(&namespace("Blastlands"), OID)));
-    assert!(held.contains_key(&refs::key(&namespace("Arena"), OID)));
+    assert!(held.contains_key(&refs::key(&namespace("Blastlands"), &OID)));
+    assert!(held.contains_key(&refs::key(&namespace("Arena"), &OID)));
     assert!(
-        held.contains_key(&refs::key(&namespace("Arena"), OTHER_OID)),
+        held.contains_key(&refs::key(&namespace("Arena"), &OTHER_OID)),
         "every marker in the bucket earns a ref, including the ones belonging to repositories this \\
          sweep never touched"
     );
@@ -600,9 +598,9 @@ async fn a_dry_run_leaves_the_bucket_exactly_as_it_found_it() {
 
     {
         let mut held = objects.lock().unwrap();
-        held.insert(S3Store::content_key(OID), b"the shared asset".to_vec());
+        held.insert(S3Store::content_key(&OID), b"the shared asset".to_vec());
         held.insert(
-            S3Store::marker_key(&namespace("Blastlands"), OID),
+            S3Store::marker_key(&namespace("Blastlands"), &OID),
             Vec::new(),
         );
     }
@@ -635,7 +633,7 @@ async fn an_index_that_cannot_be_read_answers_that_somebody_still_holds_the_obje
     let keys = keyspace(&format!("http://{closed}"));
 
     assert!(
-        refs::claimed_by_another(&keys, &namespace("Blastlands"), OID).await,
+        refs::claimed_by_another(&keys, &namespace("Blastlands"), &OID).await,
         "an unreachable store must never be read as permission to delete"
     );
 }
@@ -650,9 +648,9 @@ async fn an_object_too_big_for_one_request_is_not_given_an_upload_url() {
     let ns = namespace("Blastlands");
     let ceiling = super::multipart::SINGLE_PUT_CEILING;
 
-    assert!(store.presigned_upload(&ns, OID, ceiling).is_some());
+    assert!(store.presigned_upload(&ns, &OID, ceiling).is_some());
     assert!(
-        store.presigned_upload(&ns, OID, ceiling + 1).is_none(),
+        store.presigned_upload(&ns, &OID, ceiling + 1).is_none(),
         "a client handed this URL would upload for an hour and be refused by the bucket at the end"
     );
 }
@@ -666,21 +664,21 @@ async fn an_object_too_big_for_one_request_is_not_given_an_upload_url() {
 // So the index gets the last word, asked again immediately before the delete.
 #[tokio::test]
 async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes() {
-    let arena = refs::key(&namespace("Arena"), OID);
+    let arena = refs::key(&namespace("Arena"), &OID);
     let (endpoint, objects) = bucket_where_a_claim_arrives_mid_sweep(&arena).await;
     let store = store(&endpoint);
     let payload = b"an asset pack a second project is about to want".repeat(8);
     let (_root, path) = staged(&payload).await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
     let report = collect(&store, "Blastlands").await;
 
     assert!(
-        holds(&objects, &S3Store::content_key(OID)),
+        holds(&objects, &S3Store::content_key(&OID)),
         "Arena claimed the object while this sweep was dropping Blastlands' marker, and its bytes \
          are the ones Arena skipped uploading"
     );
@@ -690,7 +688,7 @@ async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes() {
     );
     assert!(!holds(
         &objects,
-        &S3Store::marker_key(&namespace("Blastlands"), OID)
+        &S3Store::marker_key(&namespace("Blastlands"), &OID)
     ));
 }
 
@@ -700,13 +698,13 @@ async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes() {
 // again rather than trusting what they worked out earlier.
 #[tokio::test]
 async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes_on_the_indexed_path_too() {
-    let arena = refs::key(&namespace("Arena"), OID);
+    let arena = refs::key(&namespace("Arena"), &OID);
     let (endpoint, objects) = bucket_where_a_claim_arrives_mid_sweep(&arena).await;
     let store = store(&endpoint);
     let (_root, path) = staged(b"an asset pack two projects share").await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
@@ -719,7 +717,7 @@ async fn a_claim_that_arrives_mid_sweep_keeps_the_bytes_on_the_indexed_path_too(
 
     let report = collect(&store, "Blastlands").await;
 
-    assert!(holds(&objects, &S3Store::content_key(OID)));
+    assert!(holds(&objects, &S3Store::content_key(&OID)));
     assert_eq!(report.bytes, 0);
 }
 
@@ -735,7 +733,7 @@ async fn something_that_is_not_a_claim_arriving_mid_sweep_frees_the_bytes_anyway
     let (_root, path) = staged(b"an asset only one project ever held").await;
 
     store
-        .store(&namespace("Blastlands"), OID, &path)
+        .store(&namespace("Blastlands"), &OID, &path)
         .await
         .unwrap();
 
@@ -743,7 +741,7 @@ async fn something_that_is_not_a_claim_arriving_mid_sweep_frees_the_bytes_anyway
 
     assert_eq!(report.swept, 1);
     assert!(
-        !holds(&objects, &S3Store::content_key(OID)),
+        !holds(&objects, &S3Store::content_key(&OID)),
         "nothing claimed this object, so a write elsewhere in the bucket is not a reason to keep it"
     );
 }
@@ -760,7 +758,7 @@ async fn what_a_repository_holds_is_the_sum_of_every_object_in_it() {
 
     for size in [1usize, 7, 40, 300, 2, 91, 5000, 13] {
         let payload = vec![b'a'; size];
-        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let oid = Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
         let (_root, path) = staged(&payload).await;
 
         store.store(&ns, &oid, &path).await.unwrap();
@@ -775,7 +773,7 @@ async fn stored(store: &S3Store, ns: &Namespace, sizes: &[usize]) -> u64 {
 
     for size in sizes {
         let payload = vec![b'a'; *size];
-        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let oid = Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
         let (_root, path) = staged(&payload).await;
 
         store.store(ns, &oid, &path).await.unwrap();
@@ -815,7 +813,7 @@ async fn a_repository_written_before_the_index_is_measured_once_and_indexed() {
 
     for size in [12usize, 900, 4] {
         let payload = vec![b'b'; size];
-        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let oid = Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
         let mut held = objects.lock().unwrap();
 
         held.insert(S3Store::content_key(&oid), payload);

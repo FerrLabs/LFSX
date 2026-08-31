@@ -106,6 +106,21 @@ impl ObjectSpec {
         }
     }
 
+    // The oid never reaches storage: it failed to parse at the boundary, so
+    // nothing was looked up and 404 would be a lie. 422 is what the rest of
+    // the request's class gets, and the message is the parser's own.
+    pub fn malformed(id: ObjectId) -> Self {
+        Self {
+            id,
+            authenticated: None,
+            actions: None,
+            error: Some(ObjectError {
+                code: 422,
+                message: crate::error::Error::MalformedOid.to_string(),
+            }),
+        }
+    }
+
     pub fn too_large(id: ObjectId, limit: u64) -> Self {
         Self {
             error: Some(ObjectError {

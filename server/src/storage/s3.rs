@@ -15,6 +15,7 @@ use base64::Engine;
 
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 use crate::storage::Reclaimed;
 
 pub use keyspace::{Keyspace, Presigned};
@@ -60,8 +61,9 @@ impl S3Store {
         Self { keys, redirect }
     }
 
-    fn content_key(oid: &str) -> String {
-        format!(".content/{}/{}/{oid}", &oid[0..2], &oid[2..4])
+    fn content_key(oid: &Oid) -> String {
+        let (first, second) = oid.fanout();
+        format!(".content/{first}/{second}/{oid}")
     }
 
     // Where a client uploads to when the bytes never pass through this server.
@@ -70,24 +72,18 @@ impl S3Store {
     // uploaded an object from one that merely knew its digest. A key only this
     // repository was handed a signature for is the proof of possession that the
     // marker stands for everywhere else.
-    fn incoming_key(ns: &Namespace, oid: &str) -> String {
+    fn incoming_key(ns: &Namespace, oid: &Oid) -> String {
+        let (first, second) = oid.fanout();
         format!(
-            ".incoming/{}/{}/{}/{}/{oid}",
+            ".incoming/{}/{}/{first}/{second}/{oid}",
             ns.org(),
-            ns.repo(),
-            &oid[0..2],
-            &oid[2..4]
+            ns.repo()
         )
     }
 
-    fn marker_key(ns: &Namespace, oid: &str) -> String {
-        format!(
-            "{}/{}/{}/{}/{oid}",
-            ns.org(),
-            ns.repo(),
-            &oid[0..2],
-            &oid[2..4]
-        )
+    fn marker_key(ns: &Namespace, oid: &Oid) -> String {
+        let (first, second) = oid.fanout();
+        format!("{}/{}/{first}/{second}/{oid}", ns.org(), ns.repo())
     }
 
     fn own_prefix(ns: &Namespace) -> String {
@@ -98,21 +94,11 @@ impl S3Store {
         self.keys.reachable().await
     }
 
-    pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
-        if crate::storage::LocalStore::validate_oid(oid).is_err() {
-            return false;
-        }
-
+    pub async fn exists(&self, ns: &Namespace, oid: &Oid) -> bool {
         self.keys.head(&Self::marker_key(ns, oid)).await.is_ok()
     }
 
-    pub async fn size_of(&self, oid: &str) -> Result<u64, Error> {
-        // Every entry point validates before slicing an oid into a key: the
-        // fanout takes the first four characters, so a short one is a panic
-        // rather than a refusal, and a panic is a 500 for something that should
-        // have been a 422.
-        crate::storage::LocalStore::validate_oid(oid)?;
-
+    pub async fn size_of(&self, oid: &Oid) -> Result<u64, Error> {
         self.keys.head(&Self::content_key(oid)).await
     }
 
@@ -123,12 +109,10 @@ impl S3Store {
     // bandwidth than their own.
     pub async fn read(
         &self,
-        oid: &str,
+        oid: &Oid,
         start: u64,
         length: u64,
     ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>> + use<>, Error> {
-        crate::storage::LocalStore::validate_oid(oid)?;
-
         self.keys
             .get_range(&Self::content_key(oid), start, length)
             .await
@@ -139,8 +123,8 @@ impl S3Store {
     // settled by the marker before this is called: the signature is scoped to
     // one content key and expires, and it grants nothing the batch response was
     // not about to grant anyway.
-    pub fn presigned_download(&self, oid: &str) -> Option<String> {
-        if !self.redirect || crate::storage::LocalStore::validate_oid(oid).is_err() {
+    pub fn presigned_download(&self, oid: &Oid) -> Option<String> {
+        if !self.redirect {
             return None;
         }
 
@@ -163,15 +147,13 @@ impl S3Store {
     //
     // It also keeps `adopt` honest: `CopyObject` stops at the same 5 GiB, and
     // nothing can reach `.incoming/` above it while this holds.
-    pub fn presigned_upload(&self, ns: &Namespace, oid: &str, size: u64) -> Option<Presigned> {
-        if !self.redirect
-            || size > multipart::SINGLE_PUT_CEILING
-            || crate::storage::LocalStore::validate_oid(oid).is_err()
-        {
+    pub fn presigned_upload(&self, ns: &Namespace, oid: &Oid, size: u64) -> Option<Presigned> {
+        if !self.redirect || size > multipart::SINGLE_PUT_CEILING {
             return None;
         }
 
-        let digest = base64::engine::general_purpose::STANDARD.encode(hex::decode(oid).ok()?);
+        let digest =
+            base64::engine::general_purpose::STANDARD.encode(hex::decode(oid.as_str()).ok()?);
 
         Some(self.keys.signed_upload(
             &Self::incoming_key(ns, oid),
@@ -181,18 +163,14 @@ impl S3Store {
 
     // How big the object a client uploaded actually is, which is the first thing
     // this server learns about it: nothing measured the bytes on the way past.
-    pub async fn uploaded_size(&self, ns: &Namespace, oid: &str) -> Result<u64, Error> {
-        crate::storage::LocalStore::validate_oid(oid)?;
-
+    pub async fn uploaded_size(&self, ns: &Namespace, oid: &Oid) -> Result<u64, Error> {
         self.keys.head(&Self::incoming_key(ns, oid)).await
     }
 
     // Take an upload that landed under this repository's own key into the shared
     // keyspace. The bytes are already known to hash to the oid, because the store
     // refused everything else.
-    pub async fn adopt(&self, ns: &Namespace, oid: &str, size: u64) -> Result<(), Error> {
-        crate::storage::LocalStore::validate_oid(oid)?;
-
+    pub async fn adopt(&self, ns: &Namespace, oid: &Oid, size: u64) -> Result<(), Error> {
         let incoming = Self::incoming_key(ns, oid);
         let content = Self::content_key(oid);
 
@@ -247,11 +225,9 @@ impl S3Store {
     pub async fn store(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         staged: &std::path::Path,
     ) -> Result<(), Error> {
-        crate::storage::LocalStore::validate_oid(oid)?;
-
         // Before the content is even looked at, for the reason `adopt` gives:
         // this is what a sweep re-reads before deleting bytes, so a claim
         // recorded here cannot be missed by one that is already deciding.

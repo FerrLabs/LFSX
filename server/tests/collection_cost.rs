@@ -27,7 +27,7 @@ async fn a_dry_run_over_a_store_with_many_repositories() {
     let swept = Namespace::new("FerrLabs", "Swept").unwrap();
     for index in 0..OBJECTS {
         let payload = format!("object {index}").into_bytes();
-        let oid = hex::encode(Sha256::digest(&payload));
+        let oid = lfsx_server::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
         store
             .write(
                 &swept,
@@ -45,7 +45,7 @@ async fn a_dry_run_over_a_store_with_many_repositories() {
     for repo in 0..REPOS {
         let ns = Namespace::new("FerrLabs", format!("Other{repo}").as_str()).unwrap();
         let payload = format!("filler {repo}").into_bytes();
-        let oid = hex::encode(Sha256::digest(&payload));
+        let oid = lfsx_server::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
         store
             .write(
                 &ns,

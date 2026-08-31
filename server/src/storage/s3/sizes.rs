@@ -1,6 +1,7 @@
 use super::keyspace::Keyspace;
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 // What a repository holds, answerable from a listing instead of a request per
 // object.
@@ -22,7 +23,7 @@ use crate::namespace::Namespace;
 
 const PREFIX: &str = ".sizes/";
 
-pub(crate) fn key(ns: &Namespace, oid: &str, size: u64) -> String {
+pub(crate) fn key(ns: &Namespace, oid: &Oid, size: u64) -> String {
     format!("{}/{}/{PREFIX}{oid}.{size}", ns.org(), ns.repo())
 }
 
@@ -34,12 +35,10 @@ pub(crate) fn is_one(key: &str) -> bool {
 }
 
 // The oid and the size a key carries, or None if it carries neither.
-pub(crate) fn read(key: &str) -> Option<(String, u64)> {
+pub(crate) fn read(key: &str) -> Option<(Oid, u64)> {
     let (oid, size) = key.rsplit('/').next()?.rsplit_once('.')?;
 
-    crate::storage::LocalStore::validate_oid(oid).ok()?;
-
-    Some((oid.to_owned(), size.parse().ok()?))
+    Some((Oid::parse(oid).ok()?, size.parse().ok()?))
 }
 
 // After the marker, always. The marker is what a repository holding an object
@@ -49,7 +48,7 @@ pub(crate) fn read(key: &str) -> Option<(String, u64)> {
 pub(crate) async fn write(
     keys: &Keyspace,
     ns: &Namespace,
-    oid: &str,
+    oid: &Oid,
     size: u64,
 ) -> Result<(), Error> {
     keys.put(&key(ns, oid, size), reqwest::Body::from(Vec::new()), 0)

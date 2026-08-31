@@ -44,7 +44,7 @@ fn store_uncompressed(root: &Path, repo: &str, payload: &[u8]) -> PathBuf {
 async fn read_back(store: &LocalStore, repo: &str, payload: &[u8]) -> Vec<u8> {
     use futures_util::StreamExt;
 
-    let oid = hex::encode(Sha256::digest(payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(payload))).unwrap();
     let object = store.open(&namespace(repo), &oid).await.unwrap();
     let size = object.size();
 

@@ -9,6 +9,7 @@ use crate::auth::Permission;
 use crate::error::Error;
 use crate::model::{Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation};
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 use crate::range::Range;
 use crate::state::Shared;
 use crate::storage::Budget;
@@ -111,17 +112,24 @@ fn negotiate(advertised: &[String]) -> &'static str {
 }
 
 async fn resolve_download(state: &Shared, base: &str, ns: &Namespace, id: ObjectId) -> ObjectSpec {
+    // Parsed here, where the digest enters, and typed from then on. A name
+    // that is not a digest cannot name an object this store holds, so the
+    // answer is the same one a well-formed absent digest gets.
+    let Ok(oid) = Oid::parse(&id.oid) else {
+        return ObjectSpec::missing(id);
+    };
+
     // The marker is what says this repository holds the object, and it is
     // consulted before anything else, including before a signature is cut, so
     // a redirect is never a way around the check that a plain download makes.
-    if !state.store.exists(ns, &id.oid).await {
+    if !state.store.exists(ns, &oid).await {
         return ObjectSpec::missing(id);
     }
 
     // A pre-signed bucket URL is the one href this server hands out that
     // genuinely carries its own credentials, so it is the one case where saying
     // so is true rather than the trap it is everywhere else.
-    let (href, authenticated) = match state.store.redirect(&id.oid) {
+    let (href, authenticated) = match state.store.redirect(&oid) {
         Some(signed) => (signed, Some(true)),
         None => (state.config.object_url(base, ns, &id.oid), None),
     };
@@ -156,9 +164,16 @@ async fn resolve_upload(
         return ObjectSpec::too_large(id, limit);
     }
 
+    // Refused per object, before an upload URL is cut. The old path handed one
+    // out and let the transfer fail on it later, which told the client to
+    // spend the bytes before learning the name was never a digest.
+    let Ok(oid) = Oid::parse(&id.oid) else {
+        return ObjectSpec::malformed(id);
+    };
+
     // An object the repository already holds costs it no room, so it is never
     // refused for want of budget.
-    if state.store.exists(ns, &id.oid).await {
+    if state.store.exists(ns, &oid).await {
         return ObjectSpec {
             id,
             authenticated: None,
@@ -180,7 +195,7 @@ async fn resolve_upload(
     // shared content key would have taken bytes from anyone allowed to write,
     // and then nothing would distinguish a repository that has an object from
     // one that merely knows its digest.
-    if let Some(signed) = state.store.presigned_upload(ns, &id.oid, id.size) {
+    if let Some(signed) = state.store.presigned_upload(ns, &oid, id.size) {
         return ObjectSpec {
             id,
             authenticated: Some(true),
@@ -219,6 +234,7 @@ pub(super) async fn upload(
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
 
+    let oid = Oid::parse(&oid)?;
     let size = headers
         .get(header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
@@ -259,6 +275,7 @@ pub(super) async fn download(
     Path((.., oid)): Path<(String, String, String)>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Error> {
+    let oid = Oid::parse(&oid)?;
     let object = state.store.open(&ns, &oid).await?;
     let size = object.size();
 
@@ -329,11 +346,12 @@ pub(super) async fn verify(
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
 
-    if state.store.exists(&ns, &id.oid).await {
+    let oid = Oid::parse(&id.oid)?;
+    if state.store.exists(&ns, &oid).await {
         return Ok(StatusCode::OK);
     }
 
-    let Some(arrived) = state.store.uploaded_size(&ns, &id.oid).await? else {
+    let Some(arrived) = state.store.uploaded_size(&ns, &oid).await? else {
         return Err(Error::NotFound);
     };
 
@@ -368,7 +386,7 @@ pub(super) async fn verify(
     // never crossed this server, which is why lfsx_uploaded_bytes does not move:
     // counting a figure nothing here measured would make that counter mean two
     // different things.
-    state.store.adopt(&ns, &id.oid, arrived).await?;
+    state.store.adopt(&ns, &oid, arrived).await?;
     state.metrics.object_size.observe(arrived as f64);
 
     Ok(StatusCode::OK)

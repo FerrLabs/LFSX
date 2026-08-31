@@ -6,6 +6,7 @@ pub mod locks;
 pub mod metrics;
 pub mod model;
 pub mod namespace;
+pub mod oid;
 pub mod page;
 pub mod range;
 pub mod routes;

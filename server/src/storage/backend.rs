@@ -4,6 +4,7 @@ use super::s3::S3Store;
 use super::{Budget, CompressReport, DedupeReport, LocalStore, Object, SweepReport, VerifyReport};
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 #[cfg(test)]
 use sha2::Digest;
 #[cfg(test)]
@@ -108,7 +109,7 @@ impl Store {
         self.staging().scans()
     }
 
-    pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
+    pub async fn exists(&self, ns: &Namespace, oid: &Oid) -> bool {
         match &self.backend {
             Backend::Local(store) => store.exists(ns, oid).await,
             Backend::Bucket { bucket, .. } => bucket.exists(ns, oid).await,
@@ -122,7 +123,7 @@ impl Store {
     //
     // The caller is responsible for having established that this repository
     // holds the object. This hands out a signature, not a permission.
-    pub fn redirect(&self, oid: &str) -> Option<String> {
+    pub fn redirect(&self, oid: &Oid) -> Option<String> {
         match &self.backend {
             Backend::Local(_) => None,
             // A pre-signed URL hands over whatever sits under that key, and with
@@ -147,7 +148,7 @@ impl Store {
     pub fn presigned_upload(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         size: u64,
     ) -> Option<super::s3::Presigned> {
         match &self.backend {
@@ -166,7 +167,7 @@ impl Store {
     // How big an object waiting under this repository's own upload key is. None
     // when there is nothing waiting, which is every local deployment and every
     // client that has not used its URL.
-    pub async fn uploaded_size(&self, ns: &Namespace, oid: &str) -> Result<Option<u64>, Error> {
+    pub async fn uploaded_size(&self, ns: &Namespace, oid: &Oid) -> Result<Option<u64>, Error> {
         match &self.backend {
             Backend::Local(_) => Ok(None),
             Backend::Bucket { bucket, .. } => Ok(bucket.uploaded_size(ns, oid).await.ok()),
@@ -176,7 +177,7 @@ impl Store {
     // Take an upload this repository made into the shared keyspace. Only reachable
     // for a bucket, because only there does a client write anywhere this server
     // did not.
-    pub async fn adopt(&self, ns: &Namespace, oid: &str, arrived: u64) -> Result<(), Error> {
+    pub async fn adopt(&self, ns: &Namespace, oid: &Oid, arrived: u64) -> Result<(), Error> {
         let outcome = match &self.backend {
             Backend::Local(_) => Err(Error::Unsupported(
                 "objects are written through this server, so there is nothing to adopt",
@@ -193,7 +194,7 @@ impl Store {
         outcome
     }
 
-    pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
+    pub async fn open(&self, ns: &Namespace, oid: &Oid) -> Result<Object, Error> {
         match &self.backend {
             Backend::Local(store) => store.open(ns, oid).await,
             Backend::Bucket { bucket, staging } => {
@@ -233,7 +234,7 @@ impl Store {
     pub async fn write<S, E>(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         expected_size: Option<u64>,
         budget: Option<Budget>,
         chunks: S,

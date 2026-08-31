@@ -4,6 +4,7 @@ use std::time::Duration;
 use super::{S3Store, refs, sizes};
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 use crate::storage::SweepReport;
 use crate::storage::s3::keyspace;
 
@@ -63,29 +64,29 @@ impl S3Store {
     async fn drop_marker(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         marker: &str,
-        sized: &HashMap<String, String>,
+        sized: &HashMap<Oid, String>,
     ) -> Result<(), Error> {
         self.keys.delete(marker).await?;
 
         if let Err(error) = self.keys.delete(&refs::key(ns, oid)).await {
-            tracing::warn!(%error, oid, "a dropped marker left its index entry behind");
+            tracing::warn!(%error, %oid, "a dropped marker left its index entry behind");
         }
 
         if let Some(key) = sized.get(oid)
             && let Err(error) = self.keys.delete(key).await
         {
-            tracing::warn!(%error, oid, "a dropped marker left its size behind");
+            tracing::warn!(%error, %oid, "a dropped marker left its size behind");
         }
 
         Ok(())
     }
 
-    async fn claimed_since(&self, ns: &Namespace, oid: &str) -> bool {
+    async fn claimed_since(&self, ns: &Namespace, oid: &Oid) -> bool {
         if refs::claimed_by_another(&self.keys, ns, oid).await {
             tracing::info!(
-                oid,
+                %oid,
                 "another repository claimed this object while it was being collected, so its bytes \
                  stay"
             );
@@ -100,14 +101,14 @@ impl S3Store {
     // says it still needs; the grace window is what keeps a push still in flight
     // from being read as an abandoned object.
     fn droppable(
-        mine: Vec<(keyspace::Entry, String)>,
+        mine: Vec<(keyspace::Entry, Oid)>,
         retained: &HashSet<String>,
         grace: Duration,
         report: &mut SweepReport,
-    ) -> Vec<(keyspace::Entry, String)> {
+    ) -> Vec<(keyspace::Entry, Oid)> {
         mine.into_iter()
             .filter(|(entry, oid)| {
-                if retained.contains(oid) {
+                if retained.contains(oid.as_str()) {
                     return false;
                 }
 
@@ -154,10 +155,12 @@ impl S3Store {
                 continue;
             }
 
-            let Some(oid) = entry.key.rsplit('/').next().map(str::to_owned) else {
-                continue;
-            };
-            if crate::storage::LocalStore::validate_oid(&oid).is_ok() {
+            if let Some(oid) = entry
+                .key
+                .rsplit('/')
+                .next()
+                .and_then(|raw| Oid::parse(raw).ok())
+            {
                 mine.push((entry, oid));
             }
         }
@@ -263,7 +266,12 @@ impl S3Store {
                 continue;
             }
 
-            let Some(oid) = entry.key.rsplit('/').next().map(str::to_owned) else {
+            let Some(oid) = entry
+                .key
+                .rsplit('/')
+                .next()
+                .and_then(|raw| Oid::parse(raw).ok())
+            else {
                 continue;
             };
 
@@ -301,7 +309,7 @@ impl S3Store {
             // and a dry run that said otherwise would promise space it cannot
             // deliver.
             let frees = listing.complete && !claimed_elsewhere.contains(&oid);
-            let size = content_sizes.get(&oid).copied().unwrap_or_default();
+            let size = content_sizes.get(oid.as_str()).copied().unwrap_or_default();
 
             if dry_run {
                 if frees {

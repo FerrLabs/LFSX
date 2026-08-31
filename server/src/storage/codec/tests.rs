@@ -2,7 +2,10 @@ use futures_util::StreamExt;
 
 use super::*;
 
-pub(crate) const OID: &str = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
+pub(crate) static OID: std::sync::LazyLock<crate::oid::Oid> = std::sync::LazyLock::new(|| {
+    crate::oid::Oid::parse("5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03")
+        .unwrap()
+});
 
 fn keyring() -> Keyring {
     Keyring::parse(&hex::encode([7u8; crypt::KEY])).unwrap()
@@ -20,7 +23,7 @@ async fn write_with(
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("object");
     let file = fs::File::create(&path).await.unwrap();
-    let mut writer = Writer::open(file, level, keys.map(Keyring::writing), OID)
+    let mut writer = Writer::open(file, level, keys.map(Keyring::writing), &OID)
         .await
         .unwrap();
     for chunk in payload.chunks(1024 * 1024) {
@@ -43,7 +46,7 @@ async fn read_with(
 ) -> Result<Vec<u8>, Error> {
     let file = fs::File::open(path).await.unwrap();
     let on_disk = file.metadata().await.unwrap().len();
-    let framed = Framed::open(Reader::File(file), on_disk, keys, OID)
+    let framed = Framed::open(Reader::File(file), on_disk, keys, &OID)
         .await?
         .expect("the file is one this codec wrote");
 
@@ -128,7 +131,7 @@ async fn a_file_written_before_this_existed_is_read_as_itself() {
     let on_disk = file.metadata().await.unwrap().len();
 
     assert!(
-        Framed::open(Reader::File(file), on_disk, None, OID)
+        Framed::open(Reader::File(file), on_disk, None, &OID)
             .await
             .unwrap()
             .is_none(),
@@ -149,7 +152,7 @@ async fn a_file_that_merely_starts_like_a_header_is_not_mistaken_for_one() {
     let on_disk = file.metadata().await.unwrap().len();
 
     assert!(
-        Framed::open(Reader::File(file), on_disk, None, OID)
+        Framed::open(Reader::File(file), on_disk, None, &OID)
             .await
             .unwrap()
             .is_none(),
@@ -187,7 +190,7 @@ async fn sniffs(bytes: &[u8]) -> bool {
     let file = fs::File::open(&path).await.unwrap();
     let on_disk = file.metadata().await.unwrap().len();
 
-    Framed::open(Reader::File(file), on_disk, None, OID)
+    Framed::open(Reader::File(file), on_disk, None, &OID)
         .await
         .unwrap()
         .is_some()
@@ -309,7 +312,7 @@ async fn the_length_a_client_is_promised_is_the_plaintext_not_the_file() {
 
     let file = fs::File::open(&path).await.unwrap();
     let on_disk = file.metadata().await.unwrap().len();
-    let framed = Framed::open(Reader::File(file), on_disk, Some(&keyring()), OID)
+    let framed = Framed::open(Reader::File(file), on_disk, Some(&keyring()), &OID)
         .await
         .unwrap()
         .unwrap();

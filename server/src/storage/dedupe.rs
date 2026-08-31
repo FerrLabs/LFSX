@@ -8,6 +8,7 @@ use tokio::io::AsyncReadExt;
 use super::LocalStore;
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 #[derive(Debug, Default, Serialize, PartialEq, Eq)]
 pub struct DedupeReport {
@@ -70,7 +71,7 @@ impl LocalStore {
         &self,
         path: &Path,
         content: &Path,
-        oid: &str,
+        oid: &Oid,
         size: u64,
         report: &mut DedupeReport,
     ) -> Result<(), Error> {
@@ -82,7 +83,7 @@ impl LocalStore {
 
         if !hashes_to(content, oid).await {
             tracing::warn!(
-                oid,
+                %oid,
                 "shared copy does not hash to its own name, leaving the repository's own file alone"
             );
             report.refused += 1;
@@ -111,7 +112,7 @@ impl LocalStore {
         &self,
         path: &Path,
         content: &Path,
-        oid: &str,
+        oid: &Oid,
         report: &mut DedupeReport,
     ) -> Result<(), Error> {
         if report.dry_run {
@@ -121,7 +122,7 @@ impl LocalStore {
 
         if !hashes_to(path, oid).await {
             tracing::warn!(
-                oid,
+                %oid,
                 "object does not hash to its own name, leaving it out of the shared store"
             );
             report.refused += 1;
@@ -167,7 +168,7 @@ pub(super) async fn shares_bytes_with(_path: &Path, _content: &Path) -> bool {
     false
 }
 
-async fn hashes_to(path: &Path, oid: &str) -> bool {
+async fn hashes_to(path: &Path, oid: &Oid) -> bool {
     let Ok(mut file) = fs::File::open(path).await else {
         return false;
     };
@@ -183,7 +184,7 @@ async fn hashes_to(path: &Path, oid: &str) -> bool {
         }
     }
 
-    hex::encode(hasher.finalize()) == oid
+    hex::encode(hasher.finalize()) == oid.as_str()
 }
 
 #[cfg(test)]
