@@ -1,166 +1,271 @@
-<section class="band hero" id="hero">
-  <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
+<section class="hero" id="top">
+  <div class="hero__inner">
+    <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
 
-  <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
+    <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
 
-  <p class="hero__sub" i18n="@@landing.sub">
-    LFSX stores the large binaries of a Git repository, game assets, textures, models and video, so
-    they never touch your host's LFS quota. Your repository stays on GitHub, GitLab, Gitea or
-    Forgejo. Only the LFS transfer is redirected to your own server.
-  </p>
+    <p class="hero__sub" i18n="@@landing.sub">
+      LFSX stores the large binaries of a Git repository, game assets, textures, models and video,
+      so they never touch your host's LFS quota.
+    </p>
 
-  <div class="hero__actions">
-    <a class="hero__cta" href="/docs/quickstart" i18n="@@landing.cta">Quick start</a>
-    <a class="hero__repo" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
-      >github.com/FerrLabs/LFSX</a
-    >
+    <div class="hero__actions">
+      <a class="hero__cta" href="#quickstart" i18n="@@landing.cta">Quick start</a>
+      <a class="hero__repo" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
+        >github.com/FerrLabs/LFSX</a
+      >
+    </div>
   </div>
-
-  <pre class="hero__run" translate="no"><code>{{ run }}</code></pre>
 </section>
 
-<section class="band properties" id="properties">
-  @for (property of properties; track property.key) {
-    <article class="property">
-      <h2 class="property__title">{{ property.title }}</h2>
-      <p class="property__body">{{ property.body }}</p>
-    </article>
-  }
+<section class="properties" id="properties">
+  <div class="properties__inner">
+    @for (property of properties; track property.key) {
+      <article class="property">
+        <h3 class="property__title">{{ property.title }}</h3>
+        <p class="property__body">{{ property.body }}</p>
+      </article>
+    }
+  </div>
 </section>
 
-<section class="band why" id="why">
-  <h2 class="band__title why__title" i18n="@@landing.why.title">
-    A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
-  </h2>
-  <p class="why__body" i18n="@@landing.why.body">
-    GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal project
-    burns through the free tier in a single push. Self-hosting removes the meter entirely: the cost
-    becomes a disk you already own.
-  </p>
+<section class="band" id="why">
+  <div class="band__rule">
+    <h2 class="band__title band__title--measured" i18n="@@landing.why.title">
+      A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
+    </h2>
+    <p class="band__lead" i18n="@@landing.why.body">
+      GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal
+      project burns through the free tier in a single push. Self-hosting removes the meter
+      entirely: the cost becomes a disk you already own.
+    </p>
+  </div>
 </section>
 
 <section class="band" id="compare">
-  <h2 class="band__title compare__title" i18n="@@landing.compare.title">What actually changes</h2>
+  <div class="band__rule">
+    <h2 class="band__title" i18n="@@landing.compare.title">What actually changes</h2>
 
-  <div class="compare__columns">
-    <div class="compare__column">
-      <p class="compare__label" translate="no">GitHub / GitLab LFS</p>
-      @for (row of comparisons; track row.key) {
-        <p class="compare__row">{{ row.metered }}</p>
-      }
-    </div>
+    <div class="compare__columns">
+      <div class="compare__column">
+        <p class="compare__label" translate="no">GitHub / GitLab LFS</p>
+        @for (row of comparisons; track row.key) {
+          <p class="compare__row">{{ row.metered }}</p>
+        }
+      </div>
 
-    <div class="compare__column">
-      <p class="compare__label" translate="no">LFSX</p>
-      @for (row of comparisons; track row.key) {
-        <p class="compare__row compare__row--owned">{{ row.owned }}</p>
-      }
+      <div class="compare__column">
+        <p class="compare__label compare__label--ours" translate="no">LFSX</p>
+        @for (row of comparisons; track row.key) {
+          <p class="compare__row compare__row--owned">{{ row.owned }}</p>
+        }
+      </div>
     </div>
   </div>
 </section>
 
 <section class="band" id="quickstart">
-  <h2 class="band__title" i18n="@@landing.quickstart.title">Quick start</h2>
+  <div class="band__rule">
+    <h2 class="band__title" i18n="@@landing.quickstart.title">Quick start</h2>
 
-  @for (step of steps; track step.key) {
-    <article class="step">
-      <h3 class="step__title">{{ step.title }}</h3>
-      @if (step.body) {
-        <p class="step__body">{{ step.body }}</p>
+    <div class="steps">
+      @for (step of steps; track step.key) {
+        <article class="step">
+          <h4 class="step__title">{{ step.title }}</h4>
+          @if (step.body) {
+            <p class="step__body">{{ step.body }}</p>
+          }
+          <pre
+            class="code"
+            [class.code--dark]="step.dark"
+            translate="no"
+          ><code>{{ step.code }}</code></pre>
+          @if (step.note) {
+            <div class="callout">
+              <p class="callout__body">{{ step.note }}</p>
+            </div>
+          }
+        </article>
       }
-      <pre class="step__code" translate="no"><code>{{ step.code }}</code></pre>
-      @if (step.note) {
-        <p class="step__note">{{ step.note }}</p>
-      }
-    </article>
-  }
+    </div>
+  </div>
 </section>
 
-<section class="band" id="access">
-  <h2 class="band__title" i18n="@@landing.access.title">No accounts to manage</h2>
-  <p class="access__body" i18n="@@landing.access.body">
-    A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what that
-    token is allowed to do. There is no user table, no invitations, and nothing to revoke twice.
-  </p>
-  <a class="access__link" href="/docs/authentication" i18n="@@landing.access.link"
-    >How authentication works</a
-  >
+<section class="auth" id="auth">
+  <div class="auth__inner">
+    <h2 class="band__title" i18n="@@landing.auth.title">There are no accounts to manage.</h2>
+    <p class="auth__lead" i18n="@@landing.auth.lead">
+      A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what
+      that token is allowed to do. Each answer is cached, so a push of two hundred objects costs
+      one API call rather than two hundred.
+    </p>
+
+    <div class="auth__table" role="table">
+      <div class="auth__head" translate="no">GitHub</div>
+      <div class="auth__head" translate="no">GitLab</div>
+      <div class="auth__head" translate="no">Gitea, Forgejo</div>
+      <div class="auth__head" i18n="@@landing.auth.objects">Objects</div>
+      @for (row of authRows; track row.key) {
+        <div class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
+          {{ row.github }}
+        </div>
+        <div class="auth__cell" [class.auth__cell--muted]="row.rejected">{{ row.gitlab }}</div>
+        <div class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
+          {{ row.gitea }}
+        </div>
+        <div class="auth__cell" [class.auth__cell--rejected]="row.rejected">{{ row.objects }}</div>
+      }
+    </div>
+
+    <p class="auth__note" i18n="@@landing.auth.ci">
+      In CI, the token the workflow already holds is enough, with no secret to provision.
+    </p>
+    <pre class="code code--outline-dark" translate="no"><code>{{ ciSnippet }}</code></pre>
+  </div>
 </section>
 
 <section class="band" id="config">
-  <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
-  <p class="band__body" i18n="@@landing.config.body">
-    All configuration is by environment variable. There is no config file to template and no
-    database to migrate.
-  </p>
+  <div class="band__rule">
+    <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
+    <p class="band__lead" i18n="@@landing.config.body">
+      All configuration is by environment variable. There is no config file to template and no
+      database to migrate.
+    </p>
 
-  <dl class="settings">
-    @for (setting of settings; track setting.key) {
-      <div class="setting">
-        <dt class="setting__name" translate="no">{{ setting.name }}</dt>
-        <dd class="setting__purpose">{{ setting.purpose }}</dd>
-      </div>
-    }
-  </dl>
+    <dl class="settings">
+      @for (setting of settings; track setting.key) {
+        <div class="setting">
+          <dt class="setting__name" translate="no">{{ setting.name }}</dt>
+          <dd class="setting__purpose">{{ setting.purpose }}</dd>
+        </div>
+      }
+    </dl>
 
-  <p class="band__note" i18n="@@landing.config.note">
-    <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the client
-    reconnects to it for every object. If it is wrong, negotiation succeeds and every transfer then
-    fails.
-  </p>
+    <p class="band__note" i18n="@@landing.config.note">
+      <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the client
+      reconnects to it for every object. If it is wrong, negotiation succeeds and every transfer
+      then fails.
+    </p>
 
-  <a class="band__link" href="/docs/configuration" i18n="@@landing.config.link"
-    >Every variable</a
-  >
+    <a class="band__link" href="/docs/configuration" i18n="@@landing.config.link">Every variable</a>
+  </div>
 </section>
 
 <section class="band" id="deploy">
-  <h2 class="band__title" i18n="@@landing.deploy.title">Self-hosting</h2>
+  <div class="band__rule">
+    <h2 class="band__title" i18n="@@landing.deploy.title">Self-hosting</h2>
 
-  <div class="installs">
-    @for (install of installs; track install.key) {
-      <article class="install">
-        <h3 class="install__title" translate="no">{{ install.title }}</h3>
-        <pre class="install__code" translate="no"><code>{{ install.code }}</code></pre>
-        @if (install.note) {
-          <p class="install__note">{{ install.note }}</p>
-        }
-      </article>
-    }
+    <div class="rows">
+      @for (install of installs; track install.key) {
+        <div class="row">
+          <h5 class="row__label" translate="no">{{ install.title }}</h5>
+          <div class="row__body">
+            <pre class="code code--bare" translate="no"><code>{{ install.code }}</code></pre>
+            @if (install.note) {
+              <p class="row__note">{{ install.note }}</p>
+            }
+          </div>
+        </div>
+      }
+    </div>
   </div>
 </section>
 
 <section class="band" id="storage">
-  <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
-  <p class="band__body" i18n="@@landing.storage.body">
-    Objects live on the filesystem by default, addressed by digest. A bucket, compression and
-    encryption are each one environment variable, and they compose.
-  </p>
+  <div class="band__rule">
+    <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
+    <p class="band__lead" i18n="@@landing.storage.body">
+      Objects live on the filesystem by default, addressed by digest. A bucket, compression and
+      encryption are each one environment variable, and they compose.
+    </p>
 
-  <div class="stores">
-    @for (store of stores; track store.key) {
-      <article class="store">
-        <h3 class="store__title">{{ store.title }}</h3>
-        <p class="store__flag" translate="no">{{ store.flag }}</p>
-        <p class="store__body">{{ store.body }}</p>
-      </article>
-    }
+    <div class="rows rows--top">
+      @for (store of stores; track store.key) {
+        <div class="row">
+          <div class="row__label-group">
+            <h5 class="row__label">{{ store.title }}</h5>
+            <p class="row__flag" translate="no">{{ store.flag }}</p>
+          </div>
+          <div class="row__body">
+            <p class="store__lead">{{ store.lead }}</p>
+            <p class="store__detail">{{ store.body }}</p>
+            @if (store.key === 'compression') {
+              <div class="ratios">
+                @for (ratio of ratios; track ratio.key) {
+                  <div class="ratio">
+                    <p class="ratio__format" translate="no">{{ ratio.format }}</p>
+                    <p class="ratio__figure" [class.ratio__figure--muted]="ratio.muted">
+                      {{ ratio.figure }}
+                    </p>
+                  </div>
+                }
+              </div>
+              <p class="ratios__measured" i18n="@@landing.storage.measured">
+                Measured on two real Unity projects: 71% smaller overall.
+              </p>
+            }
+            @if (store.key === 'encryption') {
+              <div class="callout">
+                <p class="callout__body callout__body--strong" i18n="@@landing.storage.threat">
+                  It does not protect against anyone who has the running server, because that
+                  process holds the key by construction.
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="storage__snippets">
+      <pre class="code code--dark" translate="no"><code>{{ s3Snippet }}</code></pre>
+      <pre class="code" translate="no"><code>{{ codecSnippet }}</code></pre>
+    </div>
+
+    <a class="band__link" href="/docs/buckets" i18n="@@landing.storage.link"
+      >How a bucket deployment works</a
+    >
   </div>
-
-  <a class="band__link" href="/docs/buckets" i18n="@@landing.storage.link"
-    >How a bucket deployment works</a
-  >
 </section>
 
-<section class="band faq" id="faq">
-  <h2 class="band__title faq__title" i18n="@@landing.faq.title">FAQ</h2>
+<section class="band" id="faq">
+  <div class="band__rule band__rule--last">
+    <h2 class="band__title" translate="no">FAQ</h2>
 
-  <div class="faq__list">
-    @for (question of questions; track question.key) {
-      <article class="faq__entry">
-        <h3 class="faq__asked">{{ question.asked }}</h3>
-        <p class="faq__answered">{{ question.answered }}</p>
-      </article>
-    }
+    <div class="faq__list">
+      @for (question of questions; track question.key) {
+        <div class="faq__entry">
+          <h5 class="faq__asked">{{ question.asked }}</h5>
+          <p class="faq__answered">{{ question.answered }}</p>
+        </div>
+      }
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="cta__inner">
+    <h2 class="cta__title" i18n="@@landing.cta.title">Self-hosting removes the meter entirely.</h2>
+    <div class="cta__actions">
+      <a class="cta__primary" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
+        >github.com/FerrLabs/LFSX</a
+      >
+      <a
+        class="cta__secondary"
+        href="https://github.com/FerrLabs/LFSX/releases"
+        rel="noreferrer noopener"
+        i18n="@@landing.cta.releases"
+        >Releases and checksums</a
+      >
+    </div>
+  </div>
+
+  <div class="cta__strip">
+    <div class="cta__strip-inner">
+      <span class="cta__mark" translate="no">LFS<span class="cta__x">X</span></span>
+      <span translate="no">MPL-2.0</span>
+      <a href="https://ferrlabs.com" rel="noreferrer noopener" translate="no">FerrLabs</a>
+      <a class="cta__home" href="https://lfsx.dev" translate="no">lfsx.dev</a>
+    </div>
   </div>
 </section>

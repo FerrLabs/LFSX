@@ -1,15 +1,15 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { SiteShellComponent } from '@ferrlabs/ui-ng';
+import { SiteFrameComponent } from '../chrome/site-frame.component';
 import { LandingComponent } from '../components/landing.component';
 
 @Component({
   selector: 'flr-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SiteShellComponent, LandingComponent],
+  imports: [SiteFrameComponent, LandingComponent],
   template: `
-    <flr-site-shell [title]="title" [description]="description">
+    <flr-site-frame [title]="title" [description]="description">
       <flr-landing />
-    </flr-site-shell>
+    </flr-site-frame>
   `,
 })
 export default class HomePage {

@@ -1,0 +1,16 @@
+<flr-site-header />
+
+<main class="frame__main">
+  <ng-content />
+</main>
+
+@if (docFooter()) {
+  <footer class="frame__footer">
+    <div class="frame__footer-inner">
+      <span class="frame__footer-mark" translate="no">LFS<span class="frame__footer-x">X</span></span>
+      <span translate="no">MPL-2.0</span>
+      <a href="https://ferrlabs.com" rel="noreferrer noopener" translate="no">FerrLabs</a>
+      <a class="frame__footer-home" href="/" translate="no">lfsx.dev</a>
+    </div>
+  </footer>
+}

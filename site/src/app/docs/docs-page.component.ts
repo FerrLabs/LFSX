@@ -1,18 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, LOCALE_ID } from '@angular/core';
 import { DocsLayoutComponent } from '@ferrlabs/ui-ng/docs';
-import { resolveLocale, SiteShellComponent } from '@ferrlabs/ui-ng';
+import { resolveLocale } from '@ferrlabs/ui-ng';
+import { SiteFrameComponent } from '../chrome/site-frame.component';
 import { DOCS_NAV } from './docs-nav';
 
 @Component({
   selector: 'flr-docs-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SiteShellComponent, DocsLayoutComponent],
+  imports: [SiteFrameComponent, DocsLayoutComponent],
   template: `
-    <flr-site-shell [title]="metaTitle()" [description]="description()">
+    <flr-site-frame [title]="metaTitle()" [description]="description()" docFooter>
       <flr-docs-layout [nav]="DOCS_NAV" [lang]="locale" [slug]="slug()">
         <ng-content />
       </flr-docs-layout>
-    </flr-site-shell>
+    </flr-site-frame>
   `,
 })
 export class DocsPageComponent {
