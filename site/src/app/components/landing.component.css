@@ -309,18 +309,29 @@
 }
 
 .auth__table {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 2fr);
+  width: 100%;
+  border-collapse: collapse;
   border-top: 2px solid var(--color-neutral-700, #605d5d);
 }
 
 .auth__head {
+  width: 19%;
+  text-align: left;
+  font-weight: 400;
   padding: 0.75rem 1rem 0.75rem 0;
   font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-neutral-500, #9b9797);
   border-bottom: 1px solid var(--color-neutral-700, #605d5d);
+}
+
+.auth__head:nth-child(2) {
+  width: 23%;
+}
+
+.auth__head:last-child {
+  width: 39%;
 }
 
 .auth__cell {
@@ -635,12 +646,10 @@
     border-bottom: none;
   }
 
-  .auth__table {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  }
-
-  .auth__table > :nth-child(4n + 2),
-  .auth__table > :nth-child(4n + 3) {
+  .auth__table th:nth-child(2),
+  .auth__table th:nth-child(3),
+  .auth__table td:nth-child(2),
+  .auth__table td:nth-child(3) {
     display: none;
   }
 

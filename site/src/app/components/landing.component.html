@@ -22,7 +22,7 @@
   <div class="properties__inner">
     @for (property of properties; track property.key) {
       <article class="property">
-        <h3 class="property__title">{{ property.title }}</h3>
+        <h2 class="property__title">{{ property.title }}</h2>
         <p class="property__body">{{ property.body }}</p>
       </article>
     }
@@ -71,7 +71,7 @@
     <div class="steps">
       @for (step of steps; track step.key) {
         <article class="step">
-          <h4 class="step__title">{{ step.title }}</h4>
+          <h3 class="step__title">{{ step.title }}</h3>
           @if (step.body) {
             <p class="step__body">{{ step.body }}</p>
           }
@@ -100,22 +100,32 @@
       one API call rather than two hundred.
     </p>
 
-    <div class="auth__table" role="table">
-      <div class="auth__head" translate="no">GitHub</div>
-      <div class="auth__head" translate="no">GitLab</div>
-      <div class="auth__head" translate="no">Gitea, Forgejo</div>
-      <div class="auth__head" i18n="@@landing.auth.objects">Objects</div>
-      @for (row of authRows; track row.key) {
-        <div class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
-          {{ row.github }}
-        </div>
-        <div class="auth__cell" [class.auth__cell--muted]="row.rejected">{{ row.gitlab }}</div>
-        <div class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
-          {{ row.gitea }}
-        </div>
-        <div class="auth__cell" [class.auth__cell--rejected]="row.rejected">{{ row.objects }}</div>
-      }
-    </div>
+    <table class="auth__table">
+      <thead>
+        <tr>
+          <th class="auth__head" translate="no">GitHub</th>
+          <th class="auth__head" translate="no">GitLab</th>
+          <th class="auth__head" translate="no">Gitea, Forgejo</th>
+          <th class="auth__head" i18n="@@landing.auth.objects">Objects</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of authRows; track row.key) {
+          <tr>
+            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
+              {{ row.github }}
+            </td>
+            <td class="auth__cell" [class.auth__cell--muted]="row.rejected">{{ row.gitlab }}</td>
+            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
+              {{ row.gitea }}
+            </td>
+            <td class="auth__cell" [class.auth__cell--rejected]="row.rejected">
+              {{ row.objects }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
 
     <p class="auth__note" i18n="@@landing.auth.ci">
       In CI, the token the workflow already holds is enough, with no secret to provision.
@@ -158,7 +168,7 @@
     <div class="rows">
       @for (install of installs; track install.key) {
         <div class="row">
-          <h5 class="row__label" translate="no">{{ install.title }}</h5>
+          <h3 class="row__label" translate="no">{{ install.title }}</h3>
           <div class="row__body">
             <pre class="code code--bare" translate="no"><code>{{ install.code }}</code></pre>
             @if (install.note) {
@@ -183,7 +193,7 @@
       @for (store of stores; track store.key) {
         <div class="row">
           <div class="row__label-group">
-            <h5 class="row__label">{{ store.title }}</h5>
+            <h3 class="row__label">{{ store.title }}</h3>
             <p class="row__flag" translate="no">{{ store.flag }}</p>
           </div>
           <div class="row__body">
@@ -235,7 +245,7 @@
     <div class="faq__list">
       @for (question of questions; track question.key) {
         <div class="faq__entry">
-          <h5 class="faq__asked">{{ question.asked }}</h5>
+          <h3 class="faq__asked">{{ question.asked }}</h3>
           <p class="faq__answered">{{ question.answered }}</p>
         </div>
       }
