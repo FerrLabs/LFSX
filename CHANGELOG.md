@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.5] - 2026-08-31
+
+### Refactoring
+
+- refactor(server): make the object id a type instead of a check (#262)
+
 ## [1.6.4] - 2026-08-31
 
 ### Bug Fixes
