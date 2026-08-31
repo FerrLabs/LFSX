@@ -73,6 +73,12 @@ pub enum Error {
     #[error("lock path must not be empty")]
     MalformedLockPath,
 
+    #[error("lock path is {actual} bytes, and this server accepts at most {limit}")]
+    LockPathTooLong { actual: usize, limit: usize },
+
+    #[error("this repository already holds {limit} locks, and this server refuses to add more")]
+    LockLimitReached { limit: usize },
+
     #[error("the file is already locked")]
     LockHeld(Box<crate::locks::Lock>),
 
@@ -96,12 +102,15 @@ impl Error {
         match self {
             Self::MalformedOid
             | Self::MalformedLockPath
+            | Self::LockPathTooLong { .. }
             | Self::MalformedNamespace
             | Self::OidMismatch { .. }
             | Self::SizeMismatch { .. }
             | Self::BatchTooLarge { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
-            Self::OverQuota { .. } => StatusCode::INSUFFICIENT_STORAGE,
+            Self::OverQuota { .. } | Self::LockLimitReached { .. } => {
+                StatusCode::INSUFFICIENT_STORAGE
+            }
             Self::CompressionDisabled => StatusCode::CONFLICT,
             // The object is there and the request was fine; this server cannot
             // serve it, which is a fact about the deployment.
@@ -130,6 +139,8 @@ impl Error {
             Self::MalformedOid => "malformed_oid",
             Self::MalformedNamespace => "malformed_namespace",
             Self::MalformedLockPath => "malformed_lock_path",
+            Self::LockPathTooLong { .. } => "lock_path_too_long",
+            Self::LockLimitReached { .. } => "lock_limit_reached",
             Self::OidMismatch { .. } => "oid_mismatch",
             Self::SizeMismatch { .. } => "size_mismatch",
             Self::TooLarge { .. } => "too_large",

@@ -39,6 +39,11 @@ a path, a timestamp and an owner, with nowhere to put a "stale" flag, so no phra
 would make the client display it. The repository page shows it, which is where somebody goes to ask
 why they cannot take a scene.
 
+Two bounds guard the store, sized so that no real workflow meets either. A lock path is capped at
+4096 bytes, far above anything git itself accepts, and a repository holds at most 10,000 locks:
+the eleventh thousand is what a scripting loop produces, not a studio. The dashboard shows the
+first fifty and counts the rest; `git lfs locks` pages through everything.
+
 Locks live next to the objects, under `.locks/`, so they are covered by the same backup and
 disappear with the repository. That means `$LFSX_STORAGE_ROOT/.locks/` on a volume and the same
 prefix in the bucket when objects are in one: whatever holds the objects holds the locks, because a

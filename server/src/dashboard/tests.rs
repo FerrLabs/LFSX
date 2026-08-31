@@ -99,3 +99,31 @@ fn an_age_below_a_minute_is_said_in_seconds() {
     assert_eq!(human_age(Duration::from_secs(1)), "1 second");
     assert_eq!(human_age(Duration::from_secs(90)), "1 minute");
 }
+
+#[test]
+fn the_page_shows_a_pages_worth_of_locks_and_counts_the_rest() {
+    let many: Vec<Lock> = (0..120)
+        .map(|i| lock(&format!("Assets/{i:03}.unity"), "jane"))
+        .collect();
+
+    let page = render(&overview(many));
+
+    assert!(page.contains("Assets/049.unity"));
+    assert!(
+        !page.contains("Assets/050.unity"),
+        "the fifty-first lock is summarised, not rendered"
+    );
+    assert!(page.contains("and 70 more"), "{page}");
+}
+
+#[test]
+fn a_pages_worth_of_locks_carries_no_summary_row() {
+    let exactly: Vec<Lock> = (0..50)
+        .map(|i| lock(&format!("Assets/{i:03}.unity"), "jane"))
+        .collect();
+
+    let page = render(&overview(exactly));
+
+    assert!(page.contains("Assets/049.unity"));
+    assert!(!page.contains("more, list them"), "{page}");
+}

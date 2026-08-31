@@ -18,6 +18,16 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 // the authentication tests run against: a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
+    let (endpoint, objects, _) = stub(true, true, None).await;
+    (endpoint, objects)
+}
+
+// The same store, with an eye on how many times a key's body is read. What it
+// exists to catch is a caller that fetches every object under a prefix when a
+// listing would have answered: the counter moves on GET, hit or miss, and
+// stays still for LIST, HEAD, PUT and DELETE.
+pub(crate) async fn bucket_counting_key_reads()
+-> (String, Objects, Arc<std::sync::atomic::AtomicUsize>) {
     stub(true, true, None).await
 }
 
@@ -28,7 +38,8 @@ pub(crate) async fn bucket() -> (String, Objects) {
 // It is the one interleaving that matters and the one a test cannot otherwise
 // produce, since both sides are a handful of requests wide.
 pub(crate) async fn bucket_where_a_claim_arrives_mid_sweep(key: &str) -> (String, Objects) {
-    stub(true, true, Some(key.to_owned())).await
+    let (endpoint, objects, _) = stub(true, true, Some(key.to_owned())).await;
+    (endpoint, objects)
 }
 
 // The store the checksum probe exists to find: it takes the header, stores the
@@ -36,23 +47,27 @@ pub(crate) async fn bucket_where_a_claim_arrives_mid_sweep(key: &str) -> (String
 // accept `x-amz-checksum-*` this way, which is why the server asks rather than
 // assumes.
 pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
-    stub(false, true, None).await
+    let (endpoint, objects, _) = stub(false, true, None).await;
+    (endpoint, objects)
 }
 
 // And the one the locking probe exists to find: it accepts `If-None-Match: *`
 // and writes anyway, so two callers racing for the same lock are both told they
 // took it.
 pub(crate) async fn bucket_ignoring_conditions() -> (String, Objects) {
-    stub(true, false, None).await
+    let (endpoint, objects, _) = stub(true, false, None).await;
+    (endpoint, objects)
 }
 
 async fn stub(
     enforces_checksums: bool,
     enforces_conditions: bool,
     arriving: Option<String>,
-) -> (String, Objects) {
+) -> (String, Objects, Arc<std::sync::atomic::AtomicUsize>) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
     let arriving = Arc::new(Mutex::new(arriving));
+    let key_reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = key_reads.clone();
 
     let app = Router::new()
         .route(
@@ -65,6 +80,7 @@ async fn stub(
                       method: axum::http::Method,
                       body: axum::body::Body| {
                     let arriving = arriving.clone();
+                    let counted = counted.clone();
                     async move {
                         let query = query.unwrap_or_default();
 
@@ -132,7 +148,10 @@ async fn stub(
 
                                 StatusCode::NO_CONTENT.into_response()
                             }
-                            _ => get(&objects, &key, &headers),
+                            _ => {
+                                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                get(&objects, &key, &headers)
+                            }
                         }
                     }
                 },
@@ -144,7 +163,7 @@ async fn stub(
     let address = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-    (format!("http://{address}"), objects)
+    (format!("http://{address}"), objects, key_reads)
 }
 
 // A request with no checksum header is nothing to disagree with. One that has it
