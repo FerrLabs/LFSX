@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.4] - 2026-08-31
+
+### Bug Fixes
+
+- fix(locks): bound the lock path, the lock count and the dashboard table (#257)
+
 ## [1.6.3] - 2026-08-29
 
 ### Bug Fixes

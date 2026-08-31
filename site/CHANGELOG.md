@@ -4,6 +4,14 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.8.31] - 2026-08-31
+
+### Bug Fixes
+
+- fix(locks): bound the lock path, the lock count and the dashboard table (#257)
+- fix(test): start the wrapped lines of an intentional newline at column zero (#251)
+- fix(cli): print the multi-line messages without their indentation (#250)
+
 ## [2026.8.29] - 2026-08-29
 
 ### Features
