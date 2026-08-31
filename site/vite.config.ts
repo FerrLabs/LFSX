@@ -41,13 +41,15 @@ export default defineConfig({
   plugins: [
     analog({
       static: true,
-      // Only the locales beyond the default. Passing the default one as well
-      // makes Analog prerender the whole site a second time under `/en/`, and a
-      // docs site whose reason to exist is being found does not want two of
-      // every page, each canonical to itself.
+      // The full list, default first: the runtime treats the first entry as
+      // the source locale whose messages are baked into the templates, and
+      // only loads a catalog for the others. Filtering the default out hands
+      // the runtime a list whose first entry is the translated locale, which
+      // silently makes it the one that never loads. Same shape as the
+      // FerrFlow-Cloud site, which is the deployment this mirrors.
       i18n: {
         defaultLocale: DEFAULT_LOCALE,
-        locales: LOCALES.filter((locale) => locale !== DEFAULT_LOCALE),
+        locales: [...LOCALES],
       },
       content: {
         highlighter: 'prism',

@@ -9,7 +9,7 @@ import { DOCS_NAV } from './docs-nav';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SiteFrameComponent, DocsLayoutComponent],
   template: `
-    <flr-site-frame [title]="metaTitle()" [description]="description()" docFooter>
+    <flr-site-frame [title]="metaTitle()" [description]="description()" docFooter localizedContent="false">
       <flr-docs-layout [nav]="DOCS_NAV" [lang]="locale" [slug]="slug()">
         <ng-content />
       </flr-docs-layout>
