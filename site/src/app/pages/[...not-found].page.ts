@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { SiteShellComponent } from '@ferrlabs/ui-ng';
+import { SiteFrameComponent } from '../chrome/site-frame.component';
 
 @Component({
   selector: 'flr-not-found',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SiteShellComponent],
+  imports: [SiteFrameComponent],
   template: `
-    <flr-site-shell [title]="title" [description]="description">
+    <flr-site-frame [title]="title" [description]="description" docFooter>
       <section class="not-found">
         <h1 i18n="@@notfound.title">That page is not here</h1>
         <p i18n="@@notfound.body">
@@ -14,7 +14,7 @@ import { SiteShellComponent } from '@ferrlabs/ui-ng';
         </p>
         <a href="/docs/quickstart" i18n="@@notfound.link">Go to the docs</a>
       </section>
-    </flr-site-shell>
+    </flr-site-frame>
   `,
   styles: `
     .not-found {

@@ -1,6 +1,6 @@
 <header class="header">
   <div class="header__inner">
-    <a class="header__brand" href="/" aria-label="LFSX">
+    <a class="header__brand" [href]="homeHref" aria-label="LFSX">
       <svg class="header__mark" viewBox="0 0 32 32" aria-hidden="true">
         <rect x="0" y="0" width="14.5" height="14.5" fill="currentColor" />
         <rect x="17.5" y="0" width="14.5" height="14.5" fill="currentColor" />
@@ -14,6 +14,15 @@
       @for (section of sections; track section.key) {
         <a class="header__link header__link--section" [href]="section.href">{{ section.label }}</a>
       }
+      <div class="header__lang">
+        @if (isFrench) {
+          <a class="header__lang-link" [href]="enHref()" translate="no">EN</a>
+          <span class="header__lang-active" translate="no">FR</span>
+        } @else {
+          <span class="header__lang-active" translate="no">EN</span>
+          <a class="header__lang-link" [href]="frHref()" translate="no">FR</a>
+        }
+      </div>
       <a class="header__link" href="/docs/quickstart" i18n="@@nav.docs">Docs</a>
       <a
         class="header__link header__link--strong"

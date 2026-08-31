@@ -62,6 +62,37 @@
   font-weight: 600;
 }
 
+.header__lang {
+  display: flex;
+  border: 1px solid var(--color-paper, #f3f2f2);
+  margin-left: 0.375rem;
+}
+
+.header__lang-active,
+.header__lang-link {
+  padding: 0.25rem 0.5625rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.header__lang-active {
+  background: var(--color-paper, #f3f2f2);
+  color: var(--accent, #1d6b52);
+}
+
+.header__lang-link {
+  color: var(--color-paper, #f3f2f2);
+  text-decoration: none;
+}
+
+.header__lang-link:hover {
+  color: color-mix(in srgb, var(--color-paper, #f3f2f2) 68%, transparent);
+}
+
+.header__lang > * + * {
+  border-left: 1px solid var(--color-paper, #f3f2f2);
+}
+
 @media (max-width: 60rem) {
   .header__link--section {
     display: none;

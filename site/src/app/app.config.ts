@@ -2,14 +2,22 @@ import { ApplicationConfig, LOCALE_ID, provideZonelessChangeDetection } from '@a
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideClientHydration } from '@angular/platform-browser';
 import { provideContent, withMarkdownRenderer } from '@analogjs/content';
-import { provideFileRouter, requestContextInterceptor } from '@analogjs/router';
+import {
+  provideFileRouter,
+  requestContextInterceptor,
+  routes,
+  withExtraRoutes,
+} from '@analogjs/router';
 import { provideI18n } from '@analogjs/router/i18n';
 import { injectLocale } from '@analogjs/router/tokens';
+import { LOCALES } from './i18n/locales';
+
+const localizedRoutes = LOCALES.map((locale) => ({ path: locale, children: routes }));
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
-    provideFileRouter(),
+    provideFileRouter(withExtraRoutes(localizedRoutes)),
     provideClientHydration(),
     provideHttpClient(withFetch(), withInterceptors([requestContextInterceptor])),
     provideContent(withMarkdownRenderer()),
