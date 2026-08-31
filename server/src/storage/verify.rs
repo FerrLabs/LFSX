@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use super::LocalStore;
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 #[derive(Debug, Default, Serialize, PartialEq, Eq)]
 pub struct VerifyReport {
@@ -38,16 +39,16 @@ impl LocalStore {
                 Ok((digest, read)) => {
                     report.bytes += read;
 
-                    if digest != found.oid {
-                        report.corrupt.push(found.oid);
+                    if digest != found.oid.as_str() {
+                        report.corrupt.push(found.oid.to_string());
                     }
                 }
                 // A file that cannot be read is its own kind of answer, and the
                 // one a failing disk gives first. Reporting it as corrupt would
                 // send an operator looking for the wrong problem.
                 Err(error) => {
-                    tracing::warn!(oid = found.oid, %error, "object could not be read");
-                    report.unreadable.push(found.oid);
+                    tracing::warn!(oid = %found.oid, %error, "object could not be read");
+                    report.unreadable.push(found.oid.to_string());
                 }
             }
         }
@@ -55,7 +56,7 @@ impl LocalStore {
         Ok(report)
     }
 
-    async fn digest_of(&self, ns: &Namespace, oid: &str) -> Result<(String, u64), Error> {
+    async fn digest_of(&self, ns: &Namespace, oid: &Oid) -> Result<(String, u64), Error> {
         let object = self.open(ns, oid).await?;
         let size = object.size();
 

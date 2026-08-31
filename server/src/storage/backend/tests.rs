@@ -16,7 +16,7 @@ fn bucket_store(root: &tempfile::TempDir, endpoint: &str) -> Store {
     Store::bucket(store(endpoint), LocalStore::new(root.path()))
 }
 
-async fn read_back(store: &Store, ns: &Namespace, oid: &str) -> Vec<u8> {
+async fn read_back(store: &Store, ns: &Namespace, oid: &crate::oid::Oid) -> Vec<u8> {
     let object = store.open(ns, oid).await.unwrap();
     let size = object.size();
     let mut chunks = object.stream(0, size).await.unwrap();
@@ -35,7 +35,7 @@ async fn an_upload_lands_in_the_bucket_and_reads_back_through_the_same_seam() {
     let (endpoint, _objects) = bucket().await;
     let store = bucket_store(&root, &endpoint);
     let payload = b"an asset that never touches this disk for long".repeat(32);
-    let oid = hex::encode(sha2::Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
 
     let written = store
         .write(
@@ -69,7 +69,7 @@ async fn a_bucket_holds_the_object_even_when_the_server_was_told_to_compress() {
         LocalStore::new(root.path()).with_compression(Some(3)),
     );
     let payload = b"a mesh that gives up most of its ground to zstd ".repeat(4096);
-    let oid = hex::encode(sha2::Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
 
     store
         .write(
@@ -88,7 +88,7 @@ async fn a_bucket_holds_the_object_even_when_the_server_was_told_to_compress() {
 
     assert_eq!(
         hex::encode(sha2::Sha256::digest(&restored)),
-        oid,
+        oid.as_str(),
         "the client asked for the object named by this digest and has no way to know the \
              server framed it on the way past: {} bytes came back",
         restored.len()
@@ -102,7 +102,7 @@ async fn the_staging_file_does_not_outlive_the_upload() {
     let (endpoint, _objects) = bucket().await;
     let store = bucket_store(&root, &endpoint);
     let payload = b"an asset passing through".to_vec();
-    let oid = hex::encode(sha2::Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
 
     store
         .write(
@@ -190,7 +190,7 @@ async fn a_download_is_never_redirected_to_a_frame() {
         let store = Store::bucket(redirecting(&endpoint), staging);
 
         let payload = b"a scene file that compresses and must still come back whole ".repeat(512);
-        let oid = hex::encode(sha2::Sha256::digest(&payload));
+        let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
 
         store
             .write(
@@ -242,7 +242,7 @@ async fn a_bucket_holding_the_object_itself_still_redirects() {
     let store = Store::bucket(redirecting(&endpoint), LocalStore::new(root.path()));
 
     let payload = b"an object stored as it arrived".repeat(32);
-    let oid = hex::encode(sha2::Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
 
     store
         .write(

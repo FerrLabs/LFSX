@@ -9,6 +9,7 @@ use tokio::fs;
 use super::LocalStore;
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 #[derive(Debug, Default, Serialize)]
 pub struct SweepReport {
@@ -50,7 +51,7 @@ impl LocalStore {
         let elsewhere = self.other_repositories(ns).await;
 
         for found in walk.objects {
-            if retained.contains(&found.oid) {
+            if retained.contains(found.oid.as_str()) {
                 continue;
             }
 
@@ -84,7 +85,7 @@ impl LocalStore {
     async fn collect(
         &self,
         path: &Path,
-        oid: &str,
+        oid: &Oid,
         held: u64,
         elsewhere: &[PathBuf],
         report: &mut SweepReport,
@@ -131,7 +132,7 @@ impl LocalStore {
     // The filesystem already keeps this count, so on Unix it is one stat rather
     // than a walk of the store: the shared entry under .content, plus one link
     // per repository holding the object.
-    async fn referenced_elsewhere(&self, oid: &str, elsewhere: &[PathBuf], ours: u64) -> bool {
+    async fn referenced_elsewhere(&self, oid: &Oid, elsewhere: &[PathBuf], ours: u64) -> bool {
         if let Some(links) = links_to(&self.content_path(oid)).await {
             return links > 1 + ours;
         }
@@ -140,7 +141,8 @@ impl LocalStore {
         // shared store looks like, or a platform without link counts. Probing the
         // repositories resolved at the start of the sweep is what is left.
         for repo in elsewhere {
-            let candidate = repo.join(&oid[0..2]).join(&oid[2..4]).join(oid);
+            let (first, second) = oid.fanout();
+            let candidate = repo.join(first).join(second).join(oid.as_str());
             if fs::metadata(candidate).await.is_ok() {
                 return true;
             }
@@ -297,8 +299,8 @@ impl LocalStore {
                 match entry.metadata().await {
                     Ok(metadata) if metadata.is_dir() => directories.push(entry.path()),
                     Ok(metadata)
-                        if LocalStore::validate_oid(&name).is_ok()
-                            && fs::metadata(self.content_path(&name)).await.is_err() =>
+                        if let Ok(oid) = Oid::parse(&name)
+                            && fs::metadata(self.content_path(&oid)).await.is_err() =>
                     {
                         objects += 1;
                         bytes += metadata.len();
@@ -340,10 +342,7 @@ impl LocalStore {
 
                 match entry.metadata().await {
                     Ok(metadata) if metadata.is_dir() => directories.push(entry.path()),
-                    Ok(metadata)
-                        if LocalStore::validate_oid(&name).is_ok()
-                            && counts(&metadata, &mut state) =>
-                    {
+                    Ok(metadata) if Oid::parse(&name).is_ok() && counts(&metadata, &mut state) => {
                         objects += 1;
                         bytes += metadata.len();
                     }

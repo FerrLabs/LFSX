@@ -4,6 +4,7 @@ use futures_util::StreamExt;
 
 use super::{S3Store, SIZES_AT_ONCE, sizes};
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 // What a repository holds, which is the size index read back. It lives beside
 // the index rather than among the object operations, because the two only make
@@ -38,10 +39,8 @@ impl S3Store {
         for key in keys {
             if let Some((oid, size)) = sizes::read(&key) {
                 indexed.insert(oid, size);
-            } else if let Some(oid) = key.rsplit('/').next()
-                && crate::storage::LocalStore::validate_oid(oid).is_ok()
-            {
-                held.push(oid.to_owned());
+            } else if let Some(oid) = key.rsplit('/').next().and_then(|raw| Oid::parse(raw).ok()) {
+                held.push(oid);
             }
         }
 
@@ -51,7 +50,7 @@ impl S3Store {
         let objects = held.len() as u64;
         let mut bytes = held.iter().filter_map(|oid| indexed.get(oid)).sum();
 
-        let unindexed: Vec<String> = held
+        let unindexed: Vec<Oid> = held
             .into_iter()
             .filter(|oid| !indexed.contains_key(oid))
             .collect();
@@ -70,7 +69,7 @@ impl S3Store {
     // and no sizes, and the first reading measures it exactly as this server
     // always did and leaves the answer behind. There is nothing to run and no
     // flag to set: it converges by being used.
-    async fn measure_and_index(&self, ns: &Namespace, oids: Vec<String>) -> u64 {
+    async fn measure_and_index(&self, ns: &Namespace, oids: Vec<Oid>) -> u64 {
         tracing::info!(
             count = oids.len(),
             "measuring objects the size index does not cover yet, and indexing them"
@@ -83,7 +82,7 @@ impl S3Store {
                     let size = store.size_of(&oid).await.unwrap_or_default();
 
                     if let Err(error) = sizes::write(&store.keys, ns, &oid, size).await {
-                        tracing::warn!(%error, oid, "an object could not be added to the size index");
+                        tracing::warn!(%error, %oid, "an object could not be added to the size index");
                     }
 
                     size

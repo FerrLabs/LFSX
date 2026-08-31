@@ -26,6 +26,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 pub use backend::Store;
 pub use dedupe::DedupeReport;
@@ -74,7 +75,7 @@ pub enum Object {
     Framed(codec::Framed),
     Remote {
         bucket: s3::S3Store,
-        oid: String,
+        oid: Oid,
         size: u64,
     },
 }
@@ -209,30 +210,23 @@ impl LocalStore {
         self.compression.is_some() || self.keys.is_some()
     }
 
-    pub fn validate_oid(oid: &str) -> Result<(), Error> {
-        let well_formed = oid.len() == 64
-            && oid
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
-
-        well_formed.then_some(()).ok_or(Error::MalformedOid)
-    }
-
-    fn object_path(&self, ns: &Namespace, oid: &str) -> PathBuf {
+    fn object_path(&self, ns: &Namespace, oid: &Oid) -> PathBuf {
+        let (first, second) = oid.fanout();
         self.root
             .join(ns.org())
             .join(ns.repo())
-            .join(&oid[0..2])
-            .join(&oid[2..4])
-            .join(oid)
+            .join(first)
+            .join(second)
+            .join(oid.as_str())
     }
 
-    fn content_path(&self, oid: &str) -> PathBuf {
+    fn content_path(&self, oid: &Oid) -> PathBuf {
+        let (first, second) = oid.fanout();
         self.root
             .join(".content")
-            .join(&oid[0..2])
-            .join(&oid[2..4])
-            .join(oid)
+            .join(first)
+            .join(second)
+            .join(oid.as_str())
     }
 
     pub fn scans(&self) -> u64 {
@@ -251,12 +245,11 @@ impl LocalStore {
         Ok(())
     }
 
-    pub async fn exists(&self, ns: &Namespace, oid: &str) -> bool {
-        Self::validate_oid(oid).is_ok() && fs::metadata(self.object_path(ns, oid)).await.is_ok()
+    pub async fn exists(&self, ns: &Namespace, oid: &Oid) -> bool {
+        fs::metadata(self.object_path(ns, oid)).await.is_ok()
     }
 
-    pub async fn open(&self, ns: &Namespace, oid: &str) -> Result<Object, Error> {
-        Self::validate_oid(oid)?;
+    pub async fn open(&self, ns: &Namespace, oid: &Oid) -> Result<Object, Error> {
         let path = self.object_path(ns, oid);
         let file = fs::File::open(&path).await.map_err(|_| Error::NotFound)?;
         let on_disk = file.metadata().await?.len();
@@ -285,7 +278,7 @@ impl LocalStore {
     pub async fn stage<S, E>(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         expected_size: Option<u64>,
         budget: Option<Budget>,
         mut chunks: S,
@@ -294,8 +287,6 @@ impl LocalStore {
         S: Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
     {
-        Self::validate_oid(oid)?;
-
         if let Some(limit) = self.max_object_size
             && expected_size.is_some_and(|declared| declared > limit)
         {
@@ -333,7 +324,7 @@ impl LocalStore {
     }
 
     fn agrees(
-        oid: &str,
+        oid: &Oid,
         expected_size: Option<u64>,
         digest: &str,
         written: u64,
@@ -345,9 +336,9 @@ impl LocalStore {
             });
         }
 
-        if digest != oid {
+        if digest != oid.as_str() {
             return Err(Error::OidMismatch {
-                declared: oid.to_owned(),
+                declared: oid.to_string(),
                 actual: digest.to_owned(),
             });
         }
@@ -358,7 +349,7 @@ impl LocalStore {
     pub async fn write<S, E>(
         &self,
         ns: &Namespace,
-        oid: &str,
+        oid: &Oid,
         expected_size: Option<u64>,
         budget: Option<Budget>,
         chunks: S,
@@ -378,7 +369,7 @@ impl LocalStore {
         })
     }
 
-    fn staging_path(&self, parent: &Path, oid: &str) -> PathBuf {
+    fn staging_path(&self, parent: &Path, oid: &Oid) -> PathBuf {
         let ticket = self.counter.fetch_add(1, Ordering::Relaxed);
         parent.join(format!("{oid}.{ticket}.part"))
     }
@@ -386,7 +377,7 @@ impl LocalStore {
     async fn stream_to<S, E>(
         &self,
         staged: &Path,
-        oid: &str,
+        oid: &Oid,
         budget: Option<Budget>,
         chunks: &mut S,
     ) -> Result<(String, u64), Error>
@@ -438,7 +429,7 @@ impl LocalStore {
     // nothing can leak a repository's contents to another and nothing needs a
     // migration: objects already sitting at their repository path keep working as
     // ordinary files with one link.
-    async fn link_or_move(&self, staged: &Path, final_path: &Path, oid: &str) -> Result<(), Error> {
+    async fn link_or_move(&self, staged: &Path, final_path: &Path, oid: &Oid) -> Result<(), Error> {
         let content = self.content_path(oid);
         let parent = content.parent().expect("content paths have a parent");
         fs::create_dir_all(parent).await?;

@@ -7,6 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use super::crypt::{self, Keyring, ObjectKey};
 use crate::error::Error;
+use crate::oid::Oid;
 
 // An object compressed or encrypted at rest is still named after the digest of
 // its plaintext, because that name is what every other part of the server
@@ -53,7 +54,7 @@ pub enum Reader {
     File(fs::File),
     Bucket {
         bucket: super::s3::S3Store,
-        oid: String,
+        oid: Oid,
     },
 }
 
@@ -92,14 +93,14 @@ pub struct Framed {
     offsets: Vec<u64>,
     stored: Vec<bool>,
     key: Option<ObjectKey>,
-    oid: String,
+    oid: Oid,
 }
 
 pub struct Writer {
     file: fs::File,
     level: Option<i32>,
     key: Option<ObjectKey>,
-    oid: String,
+    oid: Oid,
     lengths: Vec<u32>,
     plaintext: u64,
     pending: Vec<u8>,
@@ -113,7 +114,7 @@ impl Writer {
         mut file: fs::File,
         level: Option<i32>,
         key: Option<ObjectKey>,
-        oid: &str,
+        oid: &Oid,
     ) -> Result<Self, Error> {
         let version = if key.is_some() { V_SEALED } else { V_PLAIN };
         file.write_all(&vec![0u8; header_len(version) as usize])
@@ -218,7 +219,7 @@ impl Writer {
 
         let index = self.lengths.len() as u32;
         let body = match &self.key {
-            Some(key) => key.seal(index, last, &self.oid, &body)?,
+            Some(key) => key.seal(index, last, self.oid.as_str(), &body)?,
             None => body,
         };
 
@@ -264,7 +265,7 @@ impl Framed {
         mut reader: Reader,
         on_disk: u64,
         keys: Option<&Keyring>,
-        oid: &str,
+        oid: &Oid,
     ) -> Result<Option<Self>, Error> {
         if on_disk < header_len(V_PLAIN) {
             return Ok(None);
@@ -381,7 +382,7 @@ impl Framed {
             Some(key) => key.open(
                 index as u32,
                 index as u32 + 1 == self.frames,
-                &self.oid,
+                self.oid.as_str(),
                 &body,
             )?,
             None => body,

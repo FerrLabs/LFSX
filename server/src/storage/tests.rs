@@ -8,7 +8,10 @@ use futures_util::stream;
 
 use super::*;
 
-const OID: &str = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
+static OID: std::sync::LazyLock<crate::oid::Oid> = std::sync::LazyLock::new(|| {
+    crate::oid::Oid::parse("5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03")
+        .unwrap()
+});
 const CHUNK: usize = 1024;
 
 fn namespace() -> Namespace {
@@ -83,7 +86,7 @@ async fn an_upload_survives_a_collection_emptying_its_fanout() {
 
     for asset in 0..100u32 {
         let payload = format!("an asset worth pushing {asset}").into_bytes();
-        let oid = hex::encode(Sha256::digest(&payload));
+        let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
 
         let written = store
             .write(
@@ -111,7 +114,7 @@ async fn a_body_that_outgrows_the_limit_is_cut_off_rather_than_written_to_comple
     let store = LocalStore::new(root.path()).with_max_object_size(Some(4 * CHUNK as u64));
     let (body, pulled) = body(4096);
 
-    let refused = store.write(&namespace(), OID, None, None, body).await;
+    let refused = store.write(&namespace(), &OID, None, None, body).await;
 
     assert!(matches!(refused, Err(Error::TooLarge { limit: 4096 })));
     assert_eq!(
@@ -132,7 +135,9 @@ async fn a_declared_size_over_the_limit_never_touches_the_disk() {
     let store = LocalStore::new(root.path()).with_max_object_size(Some(1024));
     let (body, pulled) = body(1);
 
-    let refused = store.write(&namespace(), OID, Some(4096), None, body).await;
+    let refused = store
+        .write(&namespace(), &OID, Some(4096), None, body)
+        .await;
 
     assert!(matches!(refused, Err(Error::TooLarge { limit: 1024 })));
     assert_eq!(
@@ -147,7 +152,7 @@ async fn a_declared_size_over_the_limit_never_touches_the_disk() {
 async fn an_object_at_the_limit_is_accepted() {
     let root = tempfile::tempdir().unwrap();
     let payload = vec![0u8; CHUNK];
-    let oid = hex::encode(Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
     let store = LocalStore::new(root.path()).with_max_object_size(Some(CHUNK as u64));
 
     let written = store
@@ -171,7 +176,7 @@ async fn an_object_at_the_limit_is_accepted() {
 async fn without_a_limit_a_large_object_still_goes_through() {
     let root = tempfile::tempdir().unwrap();
     let payload = vec![0u8; 64 * CHUNK];
-    let oid = hex::encode(Sha256::digest(&payload));
+    let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
     let store = LocalStore::new(root.path());
 
     let written = store

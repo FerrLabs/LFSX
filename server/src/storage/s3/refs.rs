@@ -3,6 +3,7 @@ use futures_util::StreamExt;
 use super::keyspace::Keyspace;
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 // One empty object per repository holding an oid, so the question collection
 // actually asks (does anybody else still claim these bytes?) is a listing of
@@ -24,11 +25,11 @@ const COMPLETE: &str = ".refs/.complete";
 
 const CONCURRENCY: usize = 16;
 
-pub(crate) fn key(ns: &Namespace, oid: &str) -> String {
+pub(crate) fn key(ns: &Namespace, oid: &Oid) -> String {
     format!(".refs/{oid}/{}/{}", ns.org(), ns.repo())
 }
 
-fn prefix(oid: &str) -> String {
+fn prefix(oid: &Oid) -> String {
     format!(".refs/{oid}/")
 }
 
@@ -36,7 +37,7 @@ pub(crate) async fn ready(keys: &Keyspace) -> bool {
     keys.head(COMPLETE).await.is_ok()
 }
 
-pub(crate) async fn write(keys: &Keyspace, ns: &Namespace, oid: &str) -> Result<(), Error> {
+pub(crate) async fn write(keys: &Keyspace, ns: &Namespace, oid: &Oid) -> Result<(), Error> {
     keys.put(&key(ns, oid), reqwest::Body::from(Vec::new()), 0)
         .await
 }
@@ -46,7 +47,7 @@ pub(crate) async fn write(keys: &Keyspace, ns: &Namespace, oid: &str) -> Result<
 // Every failure answers yes. This is asked to decide whether to delete bytes,
 // and the cost of being wrong is not symmetric: a false yes leaves an object
 // nobody reads, a false no destroys one somebody does.
-pub(crate) async fn claimed_by_another(keys: &Keyspace, ns: &Namespace, oid: &str) -> bool {
+pub(crate) async fn claimed_by_another(keys: &Keyspace, ns: &Namespace, oid: &Oid) -> bool {
     let ours = key(ns, oid);
 
     match keys.keys(&prefix(oid)).await {
@@ -54,7 +55,7 @@ pub(crate) async fn claimed_by_another(keys: &Keyspace, ns: &Namespace, oid: &st
         Err(error) => {
             tracing::warn!(
                 %error,
-                oid,
+                %oid,
                 "the claim index could not be read, so the object is kept"
             );
             true
@@ -73,7 +74,7 @@ fn from_marker(marker: &str) -> Option<String> {
     let bb = parts.next()?;
     let oid = parts.next()?;
 
-    if parts.next().is_some() || crate::storage::LocalStore::validate_oid(oid).is_err() {
+    if parts.next().is_some() || Oid::parse(oid).is_err() {
         return None;
     }
 

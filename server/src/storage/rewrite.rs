@@ -9,6 +9,7 @@ use super::{LocalStore, shares_bytes_with};
 use super::{codec, crypt};
 use crate::error::Error;
 use crate::namespace::Namespace;
+use crate::oid::Oid;
 
 #[derive(Debug, Default, Serialize, PartialEq, Eq)]
 pub struct CompressReport {
@@ -59,7 +60,7 @@ impl LocalStore {
         Ok(report)
     }
 
-    async fn is_framed(&self, path: &Path, oid: &str, on_disk: u64) -> Result<bool, Error> {
+    async fn is_framed(&self, path: &Path, oid: &Oid, on_disk: u64) -> Result<bool, Error> {
         let file = fs::File::open(path).await?;
 
         Ok(codec::Framed::open(
@@ -75,7 +76,7 @@ impl LocalStore {
     async fn compress_object(
         &self,
         path: &Path,
-        oid: &str,
+        oid: &Oid,
         on_disk: u64,
         level: i32,
         report: &mut CompressReport,
@@ -94,8 +95,8 @@ impl LocalStore {
         // The name is the digest, so this is the same check an operator would
         // run by hand, and the last chance to run it, since afterwards the file
         // is no longer the bytes it is named after.
-        if digest != oid {
-            tracing::warn!(oid, %digest, "object does not hash to its own name, leaving it alone");
+        if digest != oid.as_str() {
+            tracing::warn!(%oid, %digest, "object does not hash to its own name, leaving it alone");
             let _ = fs::remove_file(&staged).await;
             report.refused += 1;
             return Ok(on_disk);
@@ -125,7 +126,7 @@ impl LocalStore {
     // deduplication just built. The shared copy is what gets replaced, and this
     // repository is relinked to it. Repositories that have not run this yet keep
     // the old bytes alive through their own links until their turn.
-    async fn swap_in(&self, path: &Path, staged: &Path, oid: &str) -> Result<(), Error> {
+    async fn swap_in(&self, path: &Path, staged: &Path, oid: &Oid) -> Result<(), Error> {
         let content = self.content_path(oid);
 
         if !shares_bytes_with(path, &content).await {
@@ -145,7 +146,7 @@ impl LocalStore {
         &self,
         path: &Path,
         staged: &Path,
-        oid: &str,
+        oid: &Oid,
         level: i32,
     ) -> Result<(String, u64), Error> {
         let mut source = fs::File::open(path).await?;

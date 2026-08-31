@@ -643,3 +643,47 @@ async fn a_range_past_the_object_is_refused_with_its_real_size() {
         "the client needs the real size to work out what it may ask for"
     );
 }
+
+// The boundary the Oid type made explicit. A name that is not a digest never
+// reaches storage: a download of one is the same absent object a well-formed
+// missing digest is, an upload of one is refused per object instead of being
+// handed a URL whose transfer was always going to fail, and the transfer
+// routes answer 422 for it themselves.
+#[tokio::test]
+async fn a_name_that_is_not_a_digest_never_reaches_storage() {
+    let root = tempfile::tempdir().unwrap();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "download",
+            "transfers": ["basic"],
+            "objects": [{ "oid": "../../etc/passwd", "size": 1 }]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["objects"][0]["error"]["code"], 404);
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "upload",
+            "transfers": ["basic"],
+            "objects": [{ "oid": "not-a-digest", "size": 1 }]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["objects"][0]["error"]["code"], 422,
+        "an upload URL for a name that can never verify tells the client to \
+         spend the bytes first: {body}"
+    );
+    assert!(body["objects"][0]["actions"].is_null(), "{body}");
+
+    assert_eq!(
+        put(app(&root), "abc", b"payload").await,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+}
