@@ -23,6 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      - uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
 
       - id: meta
         env:
@@ -51,3 +52,18 @@ jobs:
           helm push "lfsx-${VERSION}.tgz" oci://ghcr.io/ferrlabs/charts
 
           echo "Pushed chart ${VERSION} to ghcr.io/ferrlabs/charts/lfsx"
+
+      # The metadata Artifact Hub reads to mark the listing as coming from the
+      # publisher itself: the repositoryID it assigned, pushed as an OCI
+      # artifact beside the chart under the tag it looks for. Re-pushed on
+      # every release, which is idempotent and keeps it from going stale.
+      - name: Claim the Artifact Hub listing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          oras login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
+          cd chart
+          oras push ghcr.io/ferrlabs/charts/lfsx:artifacthub.io             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml             artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
