@@ -20,9 +20,9 @@ and shipped with a CycloneDX SBOM.
 
 ## Verifying what you downloaded
 
-Every release archive ships three things: a `.sha256` beside it, a build provenance attestation,
-and the release carries a CycloneDX SBOM per crate (`lfsx-server.cdx.json`, `lfsx.cdx.json`).
-They answer different questions.
+Every release ships three kinds of proof: a `.sha256` beside each archive, a build provenance
+attestation on each archive, and a CycloneDX SBOM per crate (`lfsx-server.cdx.json`,
+`lfsx.cdx.json`). They answer different questions.
 
 The checksum proves the download survived the wire:
 
