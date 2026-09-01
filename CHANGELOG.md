@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.9.0] - 2026-09-01
+
+### Features
+
+- feat(chart): a values schema and a cosign signature on every push (#285)
+
 ## [1.8.0] - 2026-09-01
 
 ### Features
