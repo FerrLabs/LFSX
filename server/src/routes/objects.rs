@@ -234,6 +234,7 @@ pub(super) async fn upload(
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
 
+    let _transfer = state.transfer_permit()?;
     let oid = Oid::parse(&oid)?;
     let size = headers
         .get(header::CONTENT_LENGTH)
@@ -275,6 +276,7 @@ pub(super) async fn download(
     Path((.., oid)): Path<(String, String, String)>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Error> {
+    let transfer = state.transfer_permit()?;
     let oid = Oid::parse(&oid)?;
     let object = state.store.open(&ns, &oid).await?;
     let size = object.size();
@@ -300,7 +302,10 @@ pub(super) async fn download(
     let length = range.length(size);
     let counted = state.clone();
     let chunks = object.stream(start, length).await?;
+    // The permit rides in the closure: a download occupies its slot for as
+    // long as the client keeps reading, not for the handler's brief lifetime.
     let body = Body::from_stream(chunks.inspect(move |chunk| {
+        let _held = &transfer;
         if let Ok(bytes) = chunk {
             counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
         }

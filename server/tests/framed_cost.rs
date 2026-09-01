@@ -29,6 +29,7 @@ fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Ro
         staging_max_age: Duration::from_secs(86400),
         lock_max_age: None,
         max_object_size: None,
+        max_concurrent_transfers: 128,
         repo_quota: None,
         compression,
         encryption_key_file: None,

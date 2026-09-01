@@ -67,6 +67,11 @@ async fn scrape(State(state): State<Shared>) -> Response {
 
     state.metrics.store_scans.set(state.store.scans() as i64);
 
+    if let Some(transfers) = &state.transfers {
+        let in_flight = state.config.max_concurrent_transfers - transfers.available_permits();
+        state.metrics.transfers_in_flight.set(in_flight as i64);
+    }
+
     state.metrics.render().into_response()
 }
 

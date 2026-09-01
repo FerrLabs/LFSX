@@ -20,6 +20,7 @@ All configuration is by environment variable.
 | `LFSX_LOCK_MAX_AGE` | never | seconds a lock may go untouched before anyone can take it |
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
+| `LFSX_MAX_CONCURRENT_TRANSFERS` | `128` | uploads and downloads served at once; the transfer past the cap is answered `503` with `Retry-After` rather than queued; `0` removes the cap |
 | `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume |
 | `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | unset | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | unset | credentials for it, required with `LFSX_STORAGE=s3` |

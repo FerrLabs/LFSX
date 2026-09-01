@@ -23,6 +23,7 @@ pub struct Metrics {
     pub objects_stored: IntGauge,
     pub store_bytes: IntGauge,
     pub store_scans: IntGauge,
+    pub transfers_in_flight: IntGauge,
 }
 
 const SIZE_BUCKETS: &[f64] = &[
@@ -101,6 +102,14 @@ impl Metrics {
                 opts!(
                     "lfsx_store_scans",
                     "Full walks of the store performed to measure it"
+                ),
+                registry
+            )
+            .expect("metric"),
+            transfers_in_flight: register_int_gauge_with_registry!(
+                opts!(
+                    "lfsx_transfers_in_flight",
+                    "Uploads and downloads holding a transfer slot right now"
                 ),
                 registry
             )
