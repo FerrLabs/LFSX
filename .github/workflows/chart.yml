@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
   packages: write
+  # For the keyless chart signature: the OIDC token is the identity cosign
+  # binds into the certificate, which is what lets anyone verify the chart
+  # was pushed by this workflow rather than by someone with a stolen PAT.
+  id-token: write
 
 jobs:
   publish:
@@ -24,6 +28,7 @@ jobs:
           persist-credentials: false
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
       - uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - id: meta
         env:
@@ -49,9 +54,17 @@ jobs:
 
           helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
           helm package chart --version "$VERSION" --app-version "$VERSION"
-          helm push "lfsx-${VERSION}.tgz" oci://ghcr.io/ferrlabs/charts
+          helm push "lfsx-${VERSION}.tgz" oci://ghcr.io/ferrlabs/charts 2>&1 | tee push.log
 
-          echo "Pushed chart ${VERSION} to ghcr.io/ferrlabs/charts/lfsx"
+          DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1)
+          if [ -z "$DIGEST" ]; then
+            echo "::error::helm push printed no digest, so there is nothing to sign"
+            exit 1
+          fi
+
+          cosign sign --yes "ghcr.io/ferrlabs/charts/lfsx@${DIGEST}"
+
+          echo "Pushed and signed chart ${VERSION} at ${DIGEST}"
 
       # The metadata Artifact Hub reads to mark the listing as coming from the
       # publisher itself: the repositoryID it assigned, pushed as an OCI
