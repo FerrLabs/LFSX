@@ -1,5 +1,5 @@
 mod backend;
-mod codec;
+pub(crate) mod codec;
 pub mod crypt;
 mod dedupe;
 mod rewrite;
