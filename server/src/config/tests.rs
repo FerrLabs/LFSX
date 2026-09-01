@@ -82,6 +82,23 @@ fn a_lookup_budget_is_taken_as_written() {
     assert_eq!(lookup_budget(Some("25")), Some(25));
 }
 
+#[test]
+fn a_transfer_cap_is_taken_as_written_and_zero_turns_it_off() {
+    assert_eq!(transfer_cap(Some("64")), 64);
+    assert_eq!(transfer_cap(Some(" 0 ")), 0);
+}
+
+#[test]
+fn an_unset_or_unreadable_transfer_cap_keeps_the_default() {
+    for kept in [None, Some("nonsense"), Some(""), Some("-1"), Some("6.5")] {
+        assert_eq!(
+            transfer_cap(kept),
+            TRANSFER_CAP,
+            "{kept:?} must not take the backstop away, and must not stop the server either"
+        );
+    }
+}
+
 fn asked_from(host: &str, scheme: Option<&str>) -> String {
     let mut headers = HeaderMap::new();
     headers.insert(header::HOST, host.parse().unwrap());

@@ -107,9 +107,9 @@ spec:
             - name: LFSX_REPO_QUOTA
               value: {{ . | quote }}
             {{- end }}
-            {{- with .Values.limits.maxConcurrentTransfers }}
+            {{- if ne (.Values.limits.maxConcurrentTransfers | toString) "" }}
             - name: LFSX_MAX_CONCURRENT_TRANSFERS
-              value: {{ . | quote }}
+              value: {{ .Values.limits.maxConcurrentTransfers | quote }}
             {{- end }}
             {{- with .Values.locks.maxAge }}
             - name: LFSX_LOCK_MAX_AGE

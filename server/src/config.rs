@@ -150,6 +150,7 @@ const REJECTION_TTL: Duration = Duration::from_secs(10);
 // request, and tight enough that a flood costs ten a second instead of whatever
 // the network will carry.
 const LOOKUP_BUDGET: u32 = 600;
+const TRANSFER_CAP: usize = 128;
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const STAGING_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
@@ -178,10 +179,11 @@ impl Config {
             staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
             lock_max_age: seconds("LFSX_LOCK_MAX_AGE"),
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
-            max_concurrent_transfers: std::env::var("LFSX_MAX_CONCURRENT_TRANSFERS")
-                .ok()
-                .and_then(|raw| raw.parse().ok())
-                .unwrap_or(128),
+            max_concurrent_transfers: transfer_cap(
+                std::env::var("LFSX_MAX_CONCURRENT_TRANSFERS")
+                    .ok()
+                    .as_deref(),
+            ),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),
             encryption_key_file: std::env::var("LFSX_ENCRYPTION_KEY_FILE")
@@ -370,6 +372,21 @@ fn compression() -> Option<i32> {
                 None
             }
         },
+    }
+}
+
+// Same posture as the lookup budget: this bounds a cost, so an unparseable
+// value falls back to the default with a warning rather than refusing to start.
+fn transfer_cap(value: Option<&str>) -> usize {
+    match value.map(str::trim).map(str::parse) {
+        Some(Ok(cap)) => cap,
+        None => TRANSFER_CAP,
+        Some(Err(_)) => {
+            tracing::warn!(
+                "LFSX_MAX_CONCURRENT_TRANSFERS is not a number, keeping the default of {TRANSFER_CAP}"
+            );
+            TRANSFER_CAP
+        }
     }
 }
 
