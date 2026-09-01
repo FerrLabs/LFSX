@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.2] - 2026-09-01
+
+### Features
+
+- feat(fuzz): regenerate the codec seeds through a seed binary (#282)
+
 ## [2026.9.1] - 2026-09-01
 
 ### Features
