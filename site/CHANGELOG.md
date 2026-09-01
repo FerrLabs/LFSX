@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.1] - 2026-09-01
+
+### Features
+
+- feat(fuzz): fuzz the codec, the key parsers and the range header (#281)
+
 ## [2026.8.32] - 2026-08-31
 
 ### Features

@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.0] - 2026-09-01
+
+### Features
+
+- feat(fuzz): fuzz the codec, the key parsers and the range header (#281)
+
 ## [1.7.0] - 2026-08-31
 
 ### Features
