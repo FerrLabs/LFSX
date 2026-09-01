@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.3] - 2026-09-01
+
+### Features
+
+- feat(release): attest the archives and ship an SBOM per crate (#283)
+
 ## [2026.9.2] - 2026-09-01
 
 ### Features
