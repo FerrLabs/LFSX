@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.10.0] - 2026-09-01
+
+### Features
+
+- feat(server): cap concurrent transfers with a 503 backstop (#288)
+
 ## [1.9.0] - 2026-09-01
 
 ### Features

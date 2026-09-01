@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.4] - 2026-09-01
+
+### Features
+
+- feat(server): cap concurrent transfers with a 503 backstop (#288)
+
 ## [2026.9.3] - 2026-09-01
 
 ### Features
