@@ -31,3 +31,10 @@ path = "fuzz_targets/range.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "seed"
+path = "seed.rs"
+test = false
+doc = false
+bench = false

@@ -49,7 +49,9 @@ cargo fuzz run range
 
 The committed corpus under `fuzz/corpus/` holds real seeds (a framed
 compressed object, a sealed one, genuine key shapes), so past discoveries
-replay on every run. A panic, an out-of-memory or a hang is a finding: the
+replay on every run. The framed seeds are regenerated through the codec's own
+writer with `cargo run --bin seed` from `fuzz/`, so they can always be
+rebuilt from the current format. A panic, an out-of-memory or a hang is a finding: the
 contract everywhere is that malformed input is an `Err`, and the release
 profile turns any panic into a crash. If a run leaves a file in
 `fuzz/artifacts/`, minimise it with `cargo fuzz tmin <target> <file>` and
