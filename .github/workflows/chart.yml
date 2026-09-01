@@ -53,6 +53,9 @@ jobs:
           set -euo pipefail
 
           helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
+          # helm's login lands in helm's own config; cosign reads the Docker
+          # one, so it logs in separately or the signature push is refused.
+          cosign login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
           helm package chart --version "$VERSION" --app-version "$VERSION"
           helm push "lfsx-${VERSION}.tgz" oci://ghcr.io/ferrlabs/charts 2>&1 | tee push.log
 
