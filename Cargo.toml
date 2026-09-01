@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["server", "cli"]
+exclude = ["fuzz"]
 
 [workspace.package]
 license = "MPL-2.0"

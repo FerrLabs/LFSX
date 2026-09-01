@@ -33,3 +33,24 @@ The same command CI runs before handing the report to
 [sonar.ferrlabs.com](https://sonar.ferrlabs.com), which tracks coverage, duplication and smells
 over time. A pull request is analysed into its own project and the workflow comments what that
 change introduced, since the Community edition has no pull-request analysis of its own.
+
+## Fuzzing
+
+The parsers that read bytes nobody this server trusts (the codec's on-disk
+format, the key and marker names read back from listings, the `Range` header)
+have libFuzzer targets under `fuzz/`. CI runs each nightly for ten minutes;
+locally, with a nightly toolchain and `cargo install cargo-fuzz`:
+
+```bash
+cargo fuzz run codec
+cargo fuzz run keys
+cargo fuzz run range
+```
+
+The committed corpus under `fuzz/corpus/` holds real seeds (a framed
+compressed object, a sealed one, genuine key shapes), so past discoveries
+replay on every run. A panic, an out-of-memory or a hang is a finding: the
+contract everywhere is that malformed input is an `Err`, and the release
+profile turns any panic into a crash. If a run leaves a file in
+`fuzz/artifacts/`, minimise it with `cargo fuzz tmin <target> <file>` and
+commit the minimised input to the corpus alongside the fix.

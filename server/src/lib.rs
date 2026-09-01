@@ -2,6 +2,8 @@ pub mod auth;
 pub mod config;
 pub mod dashboard;
 pub mod error;
+#[cfg(feature = "fuzzing")]
+pub mod fuzzing;
 pub mod locks;
 pub mod metrics;
 pub mod model;

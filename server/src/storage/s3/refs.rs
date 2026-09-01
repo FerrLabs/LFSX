@@ -66,7 +66,7 @@ pub(crate) async fn claimed_by_another(keys: &Keyspace, ns: &Namespace, oid: &Oi
 // A marker is `{org}/{repo}/{aa}/{bb}/{oid}`, and nothing else in the bucket has
 // that shape. Anything that does not parse is not a marker and gets no ref,
 // which is what keeps a stray key from inventing a holder.
-fn from_marker(marker: &str) -> Option<String> {
+pub(crate) fn from_marker(marker: &str) -> Option<String> {
     let mut parts = marker.split('/');
     let org = parts.next()?;
     let repo = parts.next()?;
