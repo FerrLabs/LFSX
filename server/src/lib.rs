@@ -52,6 +52,8 @@ pub fn app(config: Config) -> Router {
 
     let (store, locks) = backends(&config);
     let authorizer = Authorizer::new(&config.auth);
+    let transfers = (config.max_concurrent_transfers > 0)
+        .then(|| Arc::new(tokio::sync::Semaphore::new(config.max_concurrent_transfers)));
 
     routes::router(Arc::new(AppState {
         store,
@@ -59,6 +61,7 @@ pub fn app(config: Config) -> Router {
         config,
         authorizer,
         metrics: Metrics::new(),
+        transfers,
     }))
 }
 

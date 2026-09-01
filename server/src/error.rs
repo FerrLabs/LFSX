@@ -70,6 +70,9 @@ pub enum Error {
     #[error("this server is not asking the forge again yet, retry in {retry_after} seconds")]
     LookupBudgetSpent { retry_after: u64 },
 
+    #[error("this server is at its concurrent transfer limit, retry in {retry_after} seconds")]
+    TransfersSaturated { retry_after: u64 },
+
     #[error("lock path must not be empty")]
     MalformedLockPath,
 
@@ -125,9 +128,9 @@ impl Error {
             Self::Forge => StatusCode::BAD_GATEWAY,
             // Not 502: a bad gateway invites an immediate retry, which is the
             // one thing that must not happen here.
-            Self::RateLimited { .. } | Self::LookupBudgetSpent { .. } => {
-                StatusCode::SERVICE_UNAVAILABLE
-            }
+            Self::RateLimited { .. }
+            | Self::LookupBudgetSpent { .. }
+            | Self::TransfersSaturated { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Self::Storage(_) | Self::Serialisation(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -159,6 +162,7 @@ impl Error {
             // different afternoons, and sharing one label hides which.
             Self::RateLimited { .. } => "forge_rate_limited",
             Self::LookupBudgetSpent { .. } => "lookup_budget_spent",
+            Self::TransfersSaturated { .. } => "transfers_saturated",
             Self::LockHeld(_) => "lock_held",
             Self::LockNotFound => "lock_not_found",
             Self::NotFound => "not_found",
@@ -192,7 +196,10 @@ impl IntoResponse for Error {
             return response;
         }
 
-        if let Self::RateLimited { retry_after } | Self::LookupBudgetSpent { retry_after } = &self {
+        if let Self::RateLimited { retry_after }
+        | Self::LookupBudgetSpent { retry_after }
+        | Self::TransfersSaturated { retry_after } = &self
+        {
             let mut response = (
                 status,
                 [(header::RETRY_AFTER, retry_after.to_string())],

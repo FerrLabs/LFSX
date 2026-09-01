@@ -13,6 +13,7 @@ the one moment you cannot get them.
 | `lfsx_rejections_total{cause}` | counter | why requests are refused, by cause rather than by status |
 | `lfsx_objects_stored`, `lfsx_store_bytes` | gauge | how full the disk is getting, counting shared objects once |
 | `lfsx_store_scans` | gauge | how often the expensive walk behind those two actually ran |
+| `lfsx_transfers_in_flight` | gauge | uploads and downloads holding a transfer slot right now, against `LFSX_MAX_CONCURRENT_TRANSFERS` |
 
 Routes are labelled by their template, never by the path, so the object id can never turn into a
 label and the series count stays bounded whatever you store.

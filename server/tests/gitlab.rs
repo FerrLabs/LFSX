@@ -79,6 +79,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
         staging_max_age: Duration::from_secs(86400),
         lock_max_age: None,
         max_object_size: None,
+        max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
         encryption_key_file: None,

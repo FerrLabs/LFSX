@@ -47,6 +47,7 @@ locks:
 limits:
   maxObjectSize: ""
   repoQuota: ""
+  maxConcurrentTransfers: ""
 
 compression: ""
 

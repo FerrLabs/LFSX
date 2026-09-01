@@ -120,6 +120,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         staging_max_age: Duration::from_secs(86400),
         lock_max_age: None,
         max_object_size: None,
+        max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
         encryption_key_file: None,
@@ -172,6 +173,7 @@ pub fn app_collecting_immediately(root: &tempfile::TempDir, api_url: &str) -> Ro
 pub fn app_capped(root: &tempfile::TempDir, api_url: &str, max_object_size: u64) -> Router {
     lfsx_server::app(Config {
         max_object_size: Some(max_object_size),
+        max_concurrent_transfers: 128,
         ..config(root, api_url)
     })
 }

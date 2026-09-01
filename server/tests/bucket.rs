@@ -129,6 +129,7 @@ fn bucket_config(
         staging_max_age: Duration::from_secs(86400),
         lock_max_age,
         max_object_size: None,
+        max_concurrent_transfers: 128,
         repo_quota: None,
         compression,
         encryption_key_file,

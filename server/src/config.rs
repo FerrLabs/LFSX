@@ -20,6 +20,11 @@ pub struct Config {
     // not thought about it yet should keep getting.
     pub lock_max_age: Option<Duration>,
     pub max_object_size: Option<u64>,
+    // How many uploads and downloads may hold this server's disk and network
+    // open at once. A backstop for the bare deployment with nothing in front:
+    // the expensive thing here is a transfer held open, not a request counted,
+    // and anything smarter belongs to the reverse proxy.
+    pub max_concurrent_transfers: usize,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
     // A path rather than the key itself: a key in the environment is in the pod
@@ -173,6 +178,10 @@ impl Config {
             staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
             lock_max_age: seconds("LFSX_LOCK_MAX_AGE"),
             max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
+            max_concurrent_transfers: std::env::var("LFSX_MAX_CONCURRENT_TRANSFERS")
+                .ok()
+                .and_then(|raw| raw.parse().ok())
+                .unwrap_or(128),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),
             encryption_key_file: std::env::var("LFSX_ENCRYPTION_KEY_FILE")
