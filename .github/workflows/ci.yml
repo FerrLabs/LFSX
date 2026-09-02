@@ -213,6 +213,14 @@ jobs:
 
           helm template lfsx chart             --set config.publicUrl=http://lfsx.internal             --set auth.mode=disabled             --set persistence.existingClaim=objects >/dev/null
 
+          helm template lfsx chart             --set config.publicUrl=https://lfs.example.com             --set auth.mode=gitea             --set auth.giteaApiUrl=https://git.example.com/api/v1 > gitea.yaml
+
+          grep -q 'LFSX_GITEA_API_URL' gitea.yaml             || { echo "::error::auth.mode=gitea did not reach the server"; exit 1; }
+          grep -q 'https://git.example.com/api/v1' gitea.yaml             || { echo "::error::auth.giteaApiUrl was not rendered"; exit 1; }
+          if grep -q 'LFSX_GITHUB_API_URL' gitea.yaml; then
+            echo "::error::a gitea deployment fell into the GitHub branch"; exit 1
+          fi
+
       - name: A bucket deployment carries its credentials by reference
         run: |
           set -euo pipefail
@@ -246,6 +254,7 @@ jobs:
           refuses --set config.publicUrl=https://lfs.example.com --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com --set storage.s3.bucket=assets             --set storage.s3.existingSecret=lfsx-s3 --set replicaCount=2
           refuses --set config.publicUrl=https://lfs.example.com --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com --set storage.s3.bucket=assets
           refuses --set config.publicUrl=https://lfs.example.com --set storage.type=nfs
+          refuses --set config.publicUrl=https://lfs.example.com --set auth.mode=gitea
 
       - name: Two pods over one bucket is the shape that carries HA
         run: |
