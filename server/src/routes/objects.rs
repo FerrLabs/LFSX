@@ -398,7 +398,7 @@ pub(super) async fn verify(
 
     // The one moment bytes nobody streamed through this server become a
     // repository's, which earns it a place on the trail beside the deletions.
-    crate::audit::audit!(
+    crate::audit::audit_log!(
         actor,
         namespace = %ns,
         oid = %oid,

@@ -4,10 +4,10 @@
 // without turning anything else up, and it costs nothing unrouted. The
 // server has no database on purpose, so durability belongs to whatever the
 // operator ships logs to.
-macro_rules! audit {
+macro_rules! audit_log {
     ($($arg:tt)*) => {
         tracing::info!(target: "lfsx::audit", $($arg)*)
     };
 }
 
-pub(crate) use audit;
+pub(crate) use audit_log;

@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::{Extension, Json};
 
-use crate::audit::audit;
+use crate::audit::audit_log;
 use crate::auth::{Actor, Permission};
 use crate::error::Error;
 use crate::model::{CompressRequest, DedupeRequest, RetainRequest};
@@ -39,7 +39,7 @@ pub(super) async fn retain(
         .await?;
 
     if let Some(Actor(actor)) = actor {
-        audit!(
+        audit_log!(
             actor,
             namespace = %ns,
             swept = report.swept,
@@ -67,7 +67,7 @@ pub(super) async fn dedupe(
     let report = state.store.dedupe(&ns, request.dry_run).await?;
 
     if let Some(Actor(actor)) = actor {
-        audit!(
+        audit_log!(
             actor,
             namespace = %ns,
             adopted = report.adopted,
@@ -94,7 +94,7 @@ pub(super) async fn compress(
     let report = state.store.compress(&ns, request.dry_run).await?;
 
     if let Some(Actor(actor)) = actor {
-        audit!(
+        audit_log!(
             actor,
             namespace = %ns,
             compressed = report.compressed,
