@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.13.0] - 2026-09-02
+
+### Features
+
+- feat(server): export request traces over OTLP behind an opt-in endpoint (#301)
+
 ## [1.12.1] - 2026-09-02
 
 ### Refactoring

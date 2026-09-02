@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.8] - 2026-09-02
+
+### Features
+
+- feat(server): export request traces over OTLP behind an opt-in endpoint (#301)
+
 ## [2026.9.7] - 2026-09-02
 
 ### Features
