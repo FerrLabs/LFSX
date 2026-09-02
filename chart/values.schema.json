@@ -113,6 +113,7 @@
           "enum": [
             "github",
             "gitlab",
+            "gitea",
             "disabled"
           ]
         },
@@ -126,6 +127,10 @@
         "gitlabApiUrl": {
           "type": "string",
           "format": "uri"
+        },
+        "giteaApiUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://"
         },
         "cacheTtl": {
           "type": "integer",

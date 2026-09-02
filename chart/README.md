@@ -61,9 +61,10 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `image.tag` | chart `appVersion` | override to pin a different build |
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
 | `config.logLevel` | `info` | `RUST_LOG` filter |
-| `auth.mode` | `github` | `github`, `gitlab`, or `disabled` which accepts every request |
+| `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |
+| `auth.giteaApiUrl` | `""` | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1`; required with `auth.mode: gitea`, there is no default host to fall back to |
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |

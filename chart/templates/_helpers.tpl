@@ -55,6 +55,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- toYaml $annotations -}}
 {{- end -}}
 
+{{- define "lfsx.forgeApiUrl" -}}
+{{- if eq .Values.auth.mode "gitlab" -}}
+{{- .Values.auth.gitlabApiUrl -}}
+{{- else if eq .Values.auth.mode "gitea" -}}
+{{- .Values.auth.giteaApiUrl -}}
+{{- else -}}
+{{- .Values.auth.githubApiUrl -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "lfsx.validate" -}}
 {{- if eq .Values.storage.type "s3" -}}
   {{- if not .Values.storage.s3.endpoint -}}
@@ -68,6 +78,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end -}}
 {{- else if ne .Values.storage.type "local" -}}
   {{- fail (printf "storage.type must be local or s3, got %q" .Values.storage.type) -}}
+{{- end -}}
+{{- if eq .Values.auth.mode "gitea" -}}
+  {{- if not .Values.auth.giteaApiUrl -}}
+    {{- fail "auth.mode=gitea needs auth.giteaApiUrl: Gitea and Forgejo have no default API host, point it at https://git.example.com/api/v1" -}}
+  {{- end -}}
 {{- end -}}
 {{- if gt (int .Values.replicaCount) 1 -}}
   {{- if ne .Values.storage.type "s3" -}}
