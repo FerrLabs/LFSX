@@ -1,6 +1,6 @@
 [package]
 name = "lfsx"
-version = "1.11.1"
+version = "1.12.0"
 description = "Command line companion for the LFSX Git LFS server: diagnose a deployment and reclaim space"
 license.workspace = true
 edition.workspace = true

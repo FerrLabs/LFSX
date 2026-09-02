@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.12.0] - 2026-09-02
+
+### Features
+
+- feat(server): put the privileged operations on an audit trail naming the actor (#299)
+
 ## [1.11.1] - 2026-09-02
 
 ### Bug Fixes

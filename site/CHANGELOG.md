@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.7] - 2026-09-02
+
+### Features
+
+- feat(server): put the privileged operations on an audit trail naming the actor (#299)
+
 ## [2026.9.5] - 2026-09-02
 
 ### Bug Fixes
