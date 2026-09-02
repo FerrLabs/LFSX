@@ -1,24 +1,17 @@
 <section class="hero" id="top">
   <div class="hero__inner">
-    <p class="hero__meta" translate="no">
-      Git LFS server / Rust / MPL-2.0 / FerrLabs
-    </p>
+    <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
 
     <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
 
     <p class="hero__sub" i18n="@@landing.sub">
-      LFSX stores the large binaries of a Git repository, game assets, textures,
-      models and video, so they never touch your host's LFS quota.
+      LFSX stores the large binaries of a Git repository, game assets, textures, models and video,
+      so they never touch your host's LFS quota.
     </p>
 
     <div class="hero__actions">
-      <a class="hero__cta" href="#quickstart" i18n="@@landing.cta"
-        >Quick start</a
-      >
-      <a
-        class="hero__repo"
-        href="https://github.com/FerrLabs/LFSX"
-        rel="noreferrer noopener"
+      <a class="hero__cta" href="#quickstart" i18n="@@landing.cta">Quick start</a>
+      <a class="hero__repo" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
         >github.com/FerrLabs/LFSX</a
       >
     </div>
@@ -28,23 +21,19 @@
 <section class="band" id="why">
   <div class="band__rule">
     <h2 class="band__title band__title--measured" i18n="@@landing.why.title">
-      A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered
-      traffic.
+      A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
     </h2>
     <p class="band__lead" i18n="@@landing.why.body">
-      GitHub bills LFS storage and bandwidth separately from your plan, and a
-      Unity or Unreal project burns through the free tier in a single push.
-      Self-hosting removes the meter entirely: the cost becomes a disk you
-      already own.
+      GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal
+      project burns through the free tier in a single push. Self-hosting removes the meter entirely:
+      the cost becomes a disk you already own.
     </p>
   </div>
 </section>
 
 <section class="band" id="compare">
   <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.compare.title">
-      What actually changes
-    </h2>
+    <h2 class="band__title" i18n="@@landing.compare.title">What actually changes</h2>
 
     <div class="compare__columns">
       <div class="compare__column">
@@ -93,13 +82,11 @@
 
 <section class="auth" id="auth">
   <div class="auth__inner">
-    <h2 class="band__title" i18n="@@landing.auth.title">
-      There are no accounts to manage.
-    </h2>
+    <h2 class="band__title" i18n="@@landing.auth.title">There are no accounts to manage.</h2>
     <p class="auth__lead" i18n="@@landing.auth.lead">
-      A client presents the token it would use to clone over HTTPS, and LFSX
-      asks the forge what that token is allowed to do. Each answer is cached, so
-      a push of two hundred objects costs one API call rather than two hundred.
+      A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what
+      that token is allowed to do. Each answer is cached, so a push of two hundred objects costs one
+      API call rather than two hundred.
     </p>
 
     <table class="auth__table">
@@ -114,19 +101,13 @@
       <tbody>
         @for (row of authRows; track row.key) {
           <tr>
-            <td
-              class="auth__cell auth__cell--mono"
-              [class.auth__cell--muted]="row.rejected"
-            >
+            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
               {{ row.github }}
             </td>
             <td class="auth__cell" [class.auth__cell--muted]="row.rejected">
               {{ row.gitlab }}
             </td>
-            <td
-              class="auth__cell auth__cell--mono"
-              [class.auth__cell--muted]="row.rejected"
-            >
+            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
               {{ row.gitea }}
             </td>
             <td class="auth__cell" [class.auth__cell--rejected]="row.rejected">
@@ -138,13 +119,9 @@
     </table>
 
     <p class="auth__note" i18n="@@landing.auth.ci">
-      In CI, the token the workflow already holds is enough, with no secret to
-      provision.
+      In CI, the token the workflow already holds is enough, with no secret to provision.
     </p>
-    <pre
-      class="code code--outline-dark"
-      translate="no"
-    ><code>{{ ciSnippet }}</code></pre>
+    <pre class="code code--outline-dark" translate="no"><code>{{ ciSnippet }}</code></pre>
   </div>
 </section>
 
@@ -152,8 +129,8 @@
   <div class="band__rule">
     <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
     <p class="band__lead" i18n="@@landing.config.body">
-      All configuration is by environment variable. There is no config file to
-      template and no database to migrate.
+      All configuration is by environment variable. There is no config file to template and no
+      database to migrate.
     </p>
 
     <dl class="settings">
@@ -166,17 +143,12 @@
     </dl>
 
     <p class="band__note" i18n="@@landing.config.note">
-      <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch
-      response and the client reconnects to it for every object. If it is wrong,
-      negotiation succeeds and every transfer then fails.
+      <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the client
+      reconnects to it for every object. If it is wrong, negotiation succeeds and every transfer
+      then fails.
     </p>
 
-    <a
-      class="band__link"
-      href="/docs/configuration"
-      i18n="@@landing.config.link"
-      >Every variable</a
-    >
+    <a class="band__link" href="/docs/configuration" i18n="@@landing.config.link">Every variable</a>
   </div>
 </section>
 
@@ -189,10 +161,7 @@
         <div class="row">
           <h3 class="row__label" translate="no">{{ install.title }}</h3>
           <div class="row__body">
-            <pre
-              class="code code--bare"
-              translate="no"
-            ><code>{{ install.code }}</code></pre>
+            <pre class="code code--bare" translate="no"><code>{{ install.code }}</code></pre>
             @if (install.note) {
               <p class="row__note">{{ install.note }}</p>
             }
@@ -207,9 +176,8 @@
   <div class="band__rule">
     <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
     <p class="band__lead" i18n="@@landing.storage.body">
-      Objects live on the filesystem by default, addressed by digest. A bucket,
-      compression and encryption are each one environment variable, and they
-      compose.
+      Objects live on the filesystem by default, addressed by digest. A bucket, compression and
+      encryption are each one environment variable, and they compose.
     </p>
 
     <div class="rows rows--top">
@@ -222,17 +190,14 @@
           <div class="row__body">
             <p class="store__lead">{{ store.lead }}</p>
             <p class="store__detail">{{ store.body }}</p>
-            @if (store.key === "compression") {
+            @if (store.key === 'compression') {
               <div class="ratios">
                 @for (ratio of ratios; track ratio.key) {
                   <div class="ratio">
                     <p class="ratio__format" translate="no">
                       {{ ratio.format }}
                     </p>
-                    <p
-                      class="ratio__figure"
-                      [class.ratio__figure--muted]="ratio.muted"
-                    >
+                    <p class="ratio__figure" [class.ratio__figure--muted]="ratio.muted">
                       {{ ratio.figure }}
                     </p>
                   </div>
@@ -242,14 +207,11 @@
                 Measured on two real Unity projects: 71% smaller overall.
               </p>
             }
-            @if (store.key === "encryption") {
+            @if (store.key === 'encryption') {
               <div class="callout">
-                <p
-                  class="callout__body callout__body--strong"
-                  i18n="@@landing.storage.threat"
-                >
-                  It does not protect against anyone who has the running server,
-                  because that process holds the key by construction.
+                <p class="callout__body callout__body--strong" i18n="@@landing.storage.threat">
+                  It does not protect against anyone who has the running server, because that
+                  process holds the key by construction.
                 </p>
               </div>
             }
@@ -259,10 +221,7 @@
     </div>
 
     <div class="storage__snippets">
-      <pre
-        class="code code--dark"
-        translate="no"
-      ><code>{{ s3Snippet }}</code></pre>
+      <pre class="code code--dark" translate="no"><code>{{ s3Snippet }}</code></pre>
       <pre class="code" translate="no"><code>{{ codecSnippet }}</code></pre>
     </div>
 
@@ -289,14 +248,9 @@
 
 <section class="cta">
   <div class="cta__inner">
-    <h2 class="cta__title" i18n="@@landing.cta.title">
-      Self-hosting removes the meter entirely.
-    </h2>
+    <h2 class="cta__title" i18n="@@landing.cta.title">Self-hosting removes the meter entirely.</h2>
     <div class="cta__actions">
-      <a
-        class="cta__primary"
-        href="https://github.com/FerrLabs/LFSX"
-        rel="noreferrer noopener"
+      <a class="cta__primary" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
         >github.com/FerrLabs/LFSX</a
       >
       <a
@@ -311,13 +265,9 @@
 
   <div class="cta__strip">
     <div class="cta__strip-inner">
-      <span class="cta__mark" translate="no"
-        >LFS<span class="cta__x">X</span></span
-      >
+      <span class="cta__mark" translate="no">LFS<span class="cta__x">X</span></span>
       <span translate="no">MPL-2.0</span>
-      <a href="https://ferrlabs.com" rel="noreferrer noopener" translate="no"
-        >FerrLabs</a
-      >
+      <a href="https://ferrlabs.com" rel="noreferrer noopener" translate="no">FerrLabs</a>
       <a class="cta__home" href="https://lfsx.dev" translate="no">lfsx.dev</a>
     </div>
   </div>

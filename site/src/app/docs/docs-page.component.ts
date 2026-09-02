@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, LOCALE_ID } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  LOCALE_ID,
+} from '@angular/core';
 import { DocsLayoutComponent } from '@ferrlabs/ui-ng/docs';
 import { resolveLocale } from '@ferrlabs/ui-ng';
 import { SiteFrameComponent } from '../chrome/site-frame.component';
@@ -9,7 +16,12 @@ import { DOCS_NAV } from './docs-nav';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SiteFrameComponent, DocsLayoutComponent],
   template: `
-    <flr-site-frame [title]="metaTitle()" [description]="description()" docFooter localizedContent="false">
+    <flr-site-frame
+      [title]="metaTitle()"
+      [description]="description()"
+      docFooter
+      localizedContent="false"
+    >
       <flr-docs-layout [nav]="DOCS_NAV" [lang]="locale" [slug]="slug()">
         <ng-content />
       </flr-docs-layout>
