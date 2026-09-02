@@ -92,6 +92,7 @@ impl Authorizer {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns))]
     async fn permission(&self, headers: &HeaderMap, ns: &Namespace) -> Result<Permission, Error> {
         let Self::Forge {
             provider,
@@ -155,6 +156,7 @@ impl Authorizer {
 }
 
 impl Authorizer {
+    #[tracing::instrument(skip_all)]
     pub async fn actor(&self, headers: &HeaderMap) -> Result<Actor, Error> {
         let Self::Forge {
             provider,

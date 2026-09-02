@@ -32,6 +32,21 @@ per request.
 `lfsx_downloaded_bytes_total` counts bytes as they are streamed, so a client that disconnects
 halfway is not recorded as a full download.
 
+## Traces
+
+Metrics say a push was slow; the trace says where the time went. Set `LFSX_OTLP_ENDPOINT` to the
+HTTP traces URL of an OTLP collector and every request becomes a span, with the storage and forge
+calls as children: the batch resolver's per-object fan-out, the forge permission lookup, the
+codec work on the way past. Outbound forge calls carry W3C trace context, so anything on the path
+that participates lands in the same trace.
+
+```bash
+LFSX_OTLP_ENDPOINT=http://collector:4318/v1/traces
+```
+
+Unset, the layer is not installed at all, which is the default and costs nothing. Metrics stay
+Prometheus either way; there is no OTLP metrics export and no reason for one.
+
 ## Audit trail
 
 Every privileged mutation lands on the `lfsx::audit` tracing target as one event naming who acted.

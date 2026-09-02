@@ -29,6 +29,7 @@ All configuration is by environment variable.
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
+| `LFSX_OTLP_ENDPOINT` | unset | HTTP traces URL of an OTLP collector (`http://collector:4318/v1/traces`); unset means the tracing layer is not even installed |
 
 **Set `LFSX_PUBLIC_URL` behind a proxy.** Unset, the origin is built from the `Host` and
 `X-Forwarded-Proto` the caller sent, and those are a fact about the deployment only for as long as

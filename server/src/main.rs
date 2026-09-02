@@ -1,12 +1,9 @@
 use lfsx_server::config::Config;
 use tokio::net::TcpListener;
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let telemetry = lfsx_server::telemetry::init();
 
     let mut config = Config::from_env();
     tokio::fs::create_dir_all(&config.storage_root).await?;
@@ -39,6 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, lfsx_server::app(config))
         .with_graceful_shutdown(shutdown())
         .await?;
+
+    if let Some(provider) = telemetry
+        && let Err(error) = provider.shutdown()
+    {
+        tracing::warn!(%error, "the last batch of spans may not have been exported");
+    }
 
     Ok(())
 }

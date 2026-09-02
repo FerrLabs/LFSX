@@ -61,6 +61,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `image.tag` | chart `appVersion` | override to pin a different build |
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
 | `config.logLevel` | `info` | `RUST_LOG` filter |
+| `config.otlpEndpoint` | `""` | HTTP traces URL of an OTLP collector; empty keeps traces off |
 | `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |

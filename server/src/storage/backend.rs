@@ -109,6 +109,7 @@ impl Store {
         self.staging().scans()
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, oid = %oid))]
     pub async fn exists(&self, ns: &Namespace, oid: &Oid) -> bool {
         match &self.backend {
             Backend::Local(store) => store.exists(ns, oid).await,
@@ -167,6 +168,7 @@ impl Store {
     // How big an object waiting under this repository's own upload key is. None
     // when there is nothing waiting, which is every local deployment and every
     // client that has not used its URL.
+    #[tracing::instrument(skip_all, fields(namespace = %ns, oid = %oid))]
     pub async fn uploaded_size(&self, ns: &Namespace, oid: &Oid) -> Result<Option<u64>, Error> {
         match &self.backend {
             Backend::Local(_) => Ok(None),
@@ -177,6 +179,7 @@ impl Store {
     // Take an upload this repository made into the shared keyspace. Only reachable
     // for a bucket, because only there does a client write anywhere this server
     // did not.
+    #[tracing::instrument(skip_all, fields(namespace = %ns, oid = %oid))]
     pub async fn adopt(&self, ns: &Namespace, oid: &Oid, arrived: u64) -> Result<(), Error> {
         let outcome = match &self.backend {
             Backend::Local(_) => Err(Error::Unsupported(
@@ -194,6 +197,7 @@ impl Store {
         outcome
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, oid = %oid))]
     pub async fn open(&self, ns: &Namespace, oid: &Oid) -> Result<Object, Error> {
         match &self.backend {
             Backend::Local(store) => store.open(ns, oid).await,
@@ -231,6 +235,7 @@ impl Store {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, oid = %oid))]
     pub async fn write<S, E>(
         &self,
         ns: &Namespace,
@@ -312,6 +317,7 @@ impl Store {
         measured
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, dry_run))]
     pub async fn sweep(
         &self,
         ns: &Namespace,
@@ -342,6 +348,7 @@ impl Store {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, dry_run))]
     pub async fn dedupe(&self, ns: &Namespace, dry_run: bool) -> Result<DedupeReport, Error> {
         match &self.backend {
             Backend::Local(store) => {
@@ -363,6 +370,7 @@ impl Store {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns, dry_run))]
     pub async fn compress(&self, ns: &Namespace, dry_run: bool) -> Result<CompressReport, Error> {
         match &self.backend {
             Backend::Local(store) => {
@@ -384,6 +392,7 @@ impl Store {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(namespace = %ns))]
     pub async fn verify(&self, ns: &Namespace) -> Result<VerifyReport, Error> {
         match &self.backend {
             Backend::Local(store) => store.verify(ns).await,
