@@ -61,9 +61,7 @@ export class SiteFrameComponent {
   }
 
   private setLink(rel: string, hreflang: string | null, href: string): void {
-    const selector = hreflang
-      ? `link[rel="${rel}"][hreflang="${hreflang}"]`
-      : `link[rel="${rel}"]`;
+    const selector = hreflang ? `link[rel="${rel}"][hreflang="${hreflang}"]` : `link[rel="${rel}"]`;
     let link = this.document.head.querySelector<HTMLLinkElement>(selector);
     if (!link) {
       link = this.document.createElement('link');
