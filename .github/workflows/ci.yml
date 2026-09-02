@@ -129,6 +129,78 @@ jobs:
         env:
           LFSX_TEST_S3_ENDPOINT: http://127.0.0.1:9000
 
+  bucket-garage:
+    # Same suite, second dialect. The startup probes ask the implementation
+    # what it enforces instead of assuming, and MinIO alone cannot catch a
+    # probe that trusts something MinIO happens to do. Garage is what the
+    # homelab deployments this server courts actually run, and its answers
+    # to conditional writes are the ones verify_locking has to classify.
+    name: Objects in a Garage bucket
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # The version is pinned on purpose: the dialect is the thing under test,
+      # so it must not drift underneath the suite on someone else's schedule.
+      - name: Start Garage
+        run: |
+          set -euo pipefail
+
+          cat > garage.toml <<EOF
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "sqlite"
+          replication_factor = 1
+
+          rpc_bind_addr = "[::]:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+          rpc_secret = "$(openssl rand -hex 32)"
+
+          [s3_api]
+          s3_region = "us-east-1"
+          api_bind_addr = "[::]:3900"
+          root_domain = ".s3.garage.localhost"
+          EOF
+
+          docker run -d --name garage -p 3900:3900             -v "$PWD/garage.toml:/etc/garage.toml"             dxflrs/garage:v1.1.0
+
+          for _ in $(seq 60); do
+            if docker exec garage /garage status >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec garage /garage status >/dev/null             || { docker logs garage; echo "::error::Garage never came up"; exit 1; }
+
+          NODE=$(docker exec garage /garage node id -q | cut -d@ -f1)
+          docker exec garage /garage layout assign -z ci -c 1G "$NODE"
+          docker exec garage /garage layout apply --version 1
+
+          docker exec garage /garage key create ci-key > key.txt
+          docker exec garage /garage bucket create lfsx-test
+          docker exec garage /garage bucket allow --read --write lfsx-test --key ci-key
+
+          {
+            awk '/Key ID:/{print "LFSX_TEST_S3_ACCESS_KEY=" $3}' key.txt
+            awk '/Secret key:/{print "LFSX_TEST_S3_SECRET_KEY=" $3}' key.txt
+          } >> "$GITHUB_ENV"
+
+      - run: cargo test --locked --test bucket
+        env:
+          LFSX_TEST_S3_ENDPOINT: http://127.0.0.1:3900
+
   e2e:
     # The audience is a studio: artists on Windows, programmers on macOS, CI on
     # Linux, and whatever git-lfs their tooling happened to bundle. One job on
