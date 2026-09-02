@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.5] - 2026-09-02
+
+### Bug Fixes
+
+- fix(site): drop the fast-lightweight-secure triptych from the landing (#292)
+
 ## [2026.9.4] - 2026-09-01
 
 ### Features
