@@ -147,6 +147,33 @@ fn bucket_config(
     }
 }
 
+// The classification production makes before serving: `main` runs
+// `verify_locking`, and a store that cannot arbitrate `If-None-Match: *` gets
+// locking turned off, so taking a lock answers 501 instead of being handed to
+// two people. The tests that assert a refusal are specifying an arbitrating
+// store, so they ask the same question first and step aside where production
+// would never run naive locking. Garage 1.x is such a store; MinIO arbitrates.
+async fn store_arbitrates(bucket: &Bucket) -> bool {
+    let root = tempfile::tempdir().unwrap();
+    let mut config = bucket_config(&root, bucket, false, None, None, false);
+    lfsx_server::verify_locking(&mut config).await;
+    match config.storage {
+        Storage::Bucket { locking, .. } => locking,
+        Storage::Local => unreachable!("this file only builds bucket configs"),
+    }
+}
+
+macro_rules! arbitration_or_skip {
+    ($bucket:expr) => {
+        if !store_arbitrates($bucket).await {
+            eprintln!(
+                "skipped: this store does not arbitrate `If-None-Match: *`, so production                  answers 501 here instead of taking locks"
+            );
+            return;
+        }
+    };
+}
+
 // Distinct bytes per test and per run. Per test so nothing here depends on the
 // bucket being empty when it starts; per run because an object already under
 // its content key is not uploaded again, so a fixed payload would quietly stop
@@ -414,6 +441,7 @@ fn scene(what: &str) -> String {
 #[tokio::test]
 async fn a_lock_taken_on_one_replica_is_refused_on_the_other() {
     let bucket = bucket_or_skip!();
+    arbitration_or_skip!(&bucket);
     let (_first, _second, one, two) = replicas(&bucket);
     let path = scene("arena");
 
@@ -479,12 +507,37 @@ async fn releasing_on_one_replica_frees_it_on_the_other() {
     );
 }
 
+// What the probe promises has to be what the store then does. MinIO refuses
+// the second conditional write; Garage 1.x accepts the header and writes
+// anyway. Either answer is livable, the two paths disagreeing is not: a probe
+// that says Enforced over a store that writes twice hands the same lock to two
+// people, and a probe that trusts something one implementation happens to do
+// is exactly what a second dialect in CI exists to catch.
+#[tokio::test]
+async fn the_locking_probe_matches_what_the_store_actually_does() {
+    let bucket = bucket_or_skip!();
+    let (_first, _second, one, two) = replicas(&bucket);
+    let path = scene("probe-truth");
+
+    let (first, _) = lock(one, "ProbeTruth", &path).await;
+    assert_eq!(first, StatusCode::CREATED);
+    let (second, _) = lock(two, "ProbeTruth", &path).await;
+    let refused = second == StatusCode::CONFLICT;
+
+    assert_eq!(
+        store_arbitrates(&bucket).await,
+        refused,
+        "the probe and the store disagree about who wins a race for the same lock"
+    );
+}
+
 // The mutual exclusion the whole design rests on, asked of the store directly.
 // `create_new` gives it on a filesystem; in a bucket it is a conditional write,
 // and a store that ignored the condition would accept both writers silently.
 #[tokio::test]
 async fn the_store_itself_refuses_the_second_writer() {
     let bucket = bucket_or_skip!();
+    arbitration_or_skip!(&bucket);
     let (_first, _second, one, two) = replicas(&bucket);
     let path = scene("conditional");
 
@@ -510,6 +563,7 @@ async fn the_store_itself_refuses_the_second_writer() {
 #[tokio::test]
 async fn a_maximum_lock_age_applies_to_a_bucket_too() {
     let bucket = bucket_or_skip!();
+    arbitration_or_skip!(&bucket);
     let root = tempfile::tempdir().unwrap();
     let second = Duration::from_secs(1);
     let path = scene("expiring");
