@@ -149,6 +149,7 @@ pub fn anonymous_forge_auth(
         rejection_ttl,
         lookup_budget: None,
         anonymous_read,
+        github_app: None,
     }
 }
 
@@ -193,6 +194,7 @@ pub fn app_with_lookup_budget(
             rejection_ttl: Duration::from_secs(10),
             lookup_budget: Some(lookup_budget),
             anonymous_read: false,
+            github_app: None,
         },
         ..config(root, api_url)
     })

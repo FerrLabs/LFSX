@@ -143,6 +143,29 @@
         "rejectionTtl": {
           "type": "integer",
           "minimum": 0
+        },
+        "githubApp": {
+          "type": "object",
+          "properties": {
+            "appId": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

@@ -167,3 +167,34 @@ field is not a claim about the server's own authentication; it is a claim about 
 set only when the URL was signed.
 
 Authentication therefore lives in the server, which is what the section above describes.
+
+## A GitHub App identity for the server's own calls
+
+Permission lookups authenticate with the client's own token, and that is the model: the quota
+being spent is the caller's, and the answer is about the caller. The one call with nobody behind
+it is the anonymous public-repository lookup, which spends GitHub's 60-an-hour unauthenticated
+budget. A GitHub App gives that call the server's own identity instead.
+
+1. Create an App on your org (Settings, Developer settings, GitHub Apps). It needs no webhook and
+   a single permission: repository **Metadata, read-only**.
+2. Install it on the organizations this server serves.
+3. Generate a private key, mount the `.pem` where the server can read it, and set both variables:
+
+```bash
+LFSX_GITHUB_APP_ID=41
+LFSX_GITHUB_APP_KEY_FILE=/etc/lfsx/github-app/private-key.pem
+```
+
+The server signs a short-lived JWT, exchanges it for an installation token, and caches the token
+per organization until shortly before expiry, so a busy server exchanges once an hour rather than
+once a request. A repository the App is not installed on falls back to the plain anonymous ask.
+
+One behaviour is deliberate and worth knowing: an installation token is admitted to every private
+repository the App covers, so when asking as the App the server grants anonymous read only if the
+repository says it is public, never merely because the answer arrived. Installing the App on
+private repositories does not open them.
+
+Nothing else changes. The permission check for an authenticated client still uses that client's
+token, because "what may this token do here" is a question only that token can answer. There is
+no OIDC and no login flow: this changes which quota the server's own questions spend, nothing
+about whose repository it is.

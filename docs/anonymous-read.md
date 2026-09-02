@@ -35,3 +35,12 @@ sees it rather than discovers it.
 `LFSX_AUTH=disabled` turns the server into an open one. It exists for local development and closed
 networks, it is logged loudly at startup, and it is never the right setting for anything reachable
 from the internet.
+
+## The quota the anonymous question spends
+
+Unauthenticated calls to GitHub are limited to 60 an hour per address, which makes the anonymous
+path the weakest quota in the system even though the cache keeps consumption low. A GitHub App
+turns it into the strongest: with `LFSX_GITHUB_APP_ID` and `LFSX_GITHUB_APP_KEY_FILE` set, the
+same question is asked as the App's installation, whose budget is 5,000 an hour and scales with
+repository count. See [Authentication](authentication.md#a-github-app-identity-for-the-servers-own-calls)
+for the setup. Repositories the App is not installed on fall back to the plain anonymous ask.

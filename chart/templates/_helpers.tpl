@@ -79,6 +79,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else if ne .Values.storage.type "local" -}}
   {{- fail (printf "storage.type must be local or s3, got %q" .Values.storage.type) -}}
 {{- end -}}
+{{- if .Values.auth.githubApp.appId -}}
+  {{- if not .Values.auth.githubApp.existingSecret -}}
+    {{- fail "auth.githubApp.appId needs auth.githubApp.existingSecret: the chart never takes the private key as a value, because a Helm value ends up in the release secret and in whatever CI printed the command" -}}
+  {{- end -}}
+  {{- if ne .Values.auth.mode "github" -}}
+    {{- fail "auth.githubApp only means something with auth.mode=github" -}}
+  {{- end -}}
+{{- end -}}
 {{- if eq .Values.auth.mode "gitea" -}}
   {{- if not .Values.auth.giteaApiUrl -}}
     {{- fail "auth.mode=gitea needs auth.giteaApiUrl: Gitea and Forgejo have no default API host, point it at https://git.example.com/api/v1" -}}

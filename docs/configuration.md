@@ -15,6 +15,8 @@ All configuration is by environment variable.
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_AUTH_LOOKUP_BUDGET` | `600` | forge lookups a minute this server will spend, counting only what the caches could not answer; `0` removes the ceiling |
+| `LFSX_GITHUB_APP_ID` | unset | a GitHub App id, giving the server its own identity (and quota) for the anonymous public-repository lookup |
+| `LFSX_GITHUB_APP_KEY_FILE` | unset | path to the App's RSA private key in PEM form; comes together with the id, one without the other refuses to start |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an interrupted upload's leftovers are reclaimed, on the volume and in the bucket |
 | `LFSX_LOCK_MAX_AGE` | never | seconds a lock may go untouched before anyone can take it |
