@@ -101,6 +101,10 @@
             "warn",
             "error"
           ]
+        },
+        "otlpEndpoint": {
+          "type": "string",
+          "pattern": "^$|^https?://"
         }
       },
       "additionalProperties": false

@@ -88,10 +88,13 @@ pub async fn public(
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/projects/{}", urlencoding(&ns.to_string()));
 
-    let response = client.get(&url).send().await.map_err(|error| {
-        tracing::warn!(%error, %url, "forge request failed");
-        Error::Forge
-    })?;
+    let response = crate::telemetry::propagated(client.get(&url))
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, %url, "forge request failed");
+            Error::Forge
+        })?;
 
     match response.status() {
         StatusCode::OK => Ok(Permission::Read),
@@ -140,9 +143,7 @@ async fn send(
     url: &str,
     token: &str,
 ) -> Result<reqwest::Response, Error> {
-    let response = client
-        .get(url)
-        .bearer_auth(token)
+    let response = crate::telemetry::propagated(client.get(url).bearer_auth(token))
         .send()
         .await
         .map_err(|error| {

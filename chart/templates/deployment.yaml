@@ -102,6 +102,10 @@ spec:
             {{- end }}
             - name: LFSX_GC_GRACE
               value: {{ .Values.gc.grace | quote }}
+            {{- with .Values.config.otlpEndpoint }}
+            - name: LFSX_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.limits.maxObjectSize }}
             - name: LFSX_MAX_OBJECT_SIZE
               value: {{ . | quote }}

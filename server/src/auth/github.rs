@@ -158,8 +158,7 @@ async fn send(
     token: &str,
     refusal: &'static str,
 ) -> Result<reqwest::Response, Error> {
-    let response = asking(client, url)
-        .bearer_auth(token)
+    let response = crate::telemetry::propagated(asking(client, url).bearer_auth(token))
         .send()
         .await
         .map_err(|error| {

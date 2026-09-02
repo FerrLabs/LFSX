@@ -76,10 +76,13 @@ pub async fn public(
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/repos/{ns}");
 
-    let response = client.get(&url).send().await.map_err(|error| {
-        tracing::warn!(%error, %url, "forge request failed");
-        Error::Forge
-    })?;
+    let response = crate::telemetry::propagated(client.get(&url))
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, %url, "forge request failed");
+            Error::Forge
+        })?;
 
     if response.status() == StatusCode::OK {
         return Ok(Permission::Read);
@@ -132,14 +135,16 @@ async fn send(
     url: &str,
     token: &str,
 ) -> Result<reqwest::Response, Error> {
-    let response = client
+    // `token`, not `Bearer`. It is the scheme Gitea documents for the access
+    // tokens a user creates, it is what Forgejo inherited, and it has worked
+    // since long before either accepted anything else. Bearer works on a
+    // current instance and is the sort of thing that stops working on an old
+    // one, which is most self-hosted instances.
+    let asking = client
         .get(url)
-        // `token`, not `Bearer`. It is the scheme Gitea documents for the access
-        // tokens a user creates, it is what Forgejo inherited, and it has worked
-        // since long before either accepted anything else. Bearer works on a
-        // current instance and is the sort of thing that stops working on an old
-        // one, which is most self-hosted instances.
-        .header(AUTHORIZATION, format!("token {token}"))
+        .header(AUTHORIZATION, format!("token {token}"));
+
+    let response = crate::telemetry::propagated(asking)
         .send()
         .await
         .map_err(|error| {

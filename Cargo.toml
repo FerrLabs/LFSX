@@ -36,6 +36,10 @@ getrandom = "0.4"
 rusty-s3 = "0.10"
 thiserror = "2"
 tracing = "0.1"
+tracing-opentelemetry = "0.33"
+opentelemetry = "0.32"
+opentelemetry_sdk = "0.32"
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "http-proto", "reqwest-client"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"

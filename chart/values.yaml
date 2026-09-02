@@ -24,6 +24,9 @@ fullnameOverride: ""
 config:
   publicUrl: ""
   logLevel: info
+  # HTTP traces URL of an OTLP collector, http://collector:4318/v1/traces.
+  # Empty keeps traces off entirely.
+  otlpEndpoint: ""
 
 auth:
   mode: github

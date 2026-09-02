@@ -148,7 +148,8 @@ pub async fn record(State(state): State<Shared>, request: Request, next: Next) -
         .unwrap_or_else(|| "<unmatched>".to_owned());
 
     let started = Instant::now();
-    let response = next.run(request).await;
+    let span = tracing::info_span!("request", method = %request.method(), route);
+    let response = tracing::Instrument::instrument(next.run(request), span).await;
 
     let metrics = &state.metrics;
     metrics
