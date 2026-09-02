@@ -90,10 +90,13 @@ pub async fn public(
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/repos/{ns}");
 
-    let response = asking(client, &url).send().await.map_err(|error| {
-        tracing::warn!(%error, %url, "forge request failed");
-        Error::Forge
-    })?;
+    let response = crate::telemetry::propagated(asking(client, &url))
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, %url, "forge request failed");
+            Error::Forge
+        })?;
 
     match response.status() {
         StatusCode::OK => Ok(Permission::Read),

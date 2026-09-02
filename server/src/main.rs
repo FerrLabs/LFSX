@@ -33,15 +33,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "lfsx listening"
     );
 
-    axum::serve(listener, lfsx_server::app(config))
+    let served = axum::serve(listener, lfsx_server::app(config))
         .with_graceful_shutdown(shutdown())
-        .await?;
+        .await;
 
     if let Some(provider) = telemetry
         && let Err(error) = provider.shutdown()
     {
         tracing::warn!(%error, "the last batch of spans may not have been exported");
     }
+
+    served?;
 
     Ok(())
 }
