@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.12.1] - 2026-09-02
+
+### Refactoring
+
+- refactor(server): rename the audit macro so it stops shadowing the audit endpoint (#300)
+
 ## [1.12.0] - 2026-09-02
 
 ### Features
