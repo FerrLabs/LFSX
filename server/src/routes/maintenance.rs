@@ -1,7 +1,9 @@
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::{Extension, Json};
 
-use crate::auth::Permission;
+use crate::audit::audit;
+use crate::auth::{Actor, Permission};
 use crate::error::Error;
 use crate::model::{CompressRequest, DedupeRequest, RetainRequest};
 use crate::namespace::Namespace;
@@ -21,18 +23,31 @@ pub(super) async fn retain(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    headers: HeaderMap,
     Json(request): Json<RetainRequest>,
 ) -> Result<Json<SweepReport>, Error> {
     permission.require_write()?;
     if !request.dry_run {
         permission.require_admin()?;
     }
+    let actor = attributed(&state, &headers, request.dry_run).await?;
 
     let retained = request.oids.into_iter().collect();
     let report = state
         .store
         .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
         .await?;
+
+    if let Some(Actor(actor)) = actor {
+        audit!(
+            actor,
+            namespace = %ns,
+            swept = report.swept,
+            bytes = report.bytes,
+            within_grace = report.within_grace,
+            "a retain sweep unlinked what the keep list did not name"
+        );
+    }
 
     Ok(Json(report))
 }
@@ -43,11 +58,25 @@ pub(super) async fn dedupe(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    headers: HeaderMap,
     Json(request): Json<DedupeRequest>,
 ) -> Result<Json<DedupeReport>, Error> {
     permission.require_admin()?;
+    let actor = attributed(&state, &headers, request.dry_run).await?;
 
     let report = state.store.dedupe(&ns, request.dry_run).await?;
+
+    if let Some(Actor(actor)) = actor {
+        audit!(
+            actor,
+            namespace = %ns,
+            adopted = report.adopted,
+            linked = report.linked,
+            reclaimed = report.reclaimed,
+            refused = report.refused,
+            "a repository's objects were folded into the shared store"
+        );
+    }
 
     Ok(Json(report))
 }
@@ -56,13 +85,41 @@ pub(super) async fn compress(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    headers: HeaderMap,
     Json(request): Json<CompressRequest>,
 ) -> Result<Json<CompressReport>, Error> {
     permission.require_admin()?;
+    let actor = attributed(&state, &headers, request.dry_run).await?;
 
     let report = state.store.compress(&ns, request.dry_run).await?;
 
+    if let Some(Actor(actor)) = actor {
+        audit!(
+            actor,
+            namespace = %ns,
+            compressed = report.compressed,
+            before = report.before,
+            after = report.after,
+            "a repository's stored objects were rewritten compressed"
+        );
+    }
+
     Ok(Json(report))
+}
+
+// Who a real run answers to. Resolved before the mutation, because a
+// privileged operation that cannot be attributed should not happen; a dry run
+// is a read and stays silent.
+async fn attributed(
+    state: &Shared,
+    headers: &HeaderMap,
+    dry_run: bool,
+) -> Result<Option<Actor>, Error> {
+    if dry_run {
+        return Ok(None);
+    }
+
+    Ok(Some(state.authorizer.actor(headers).await?))
 }
 
 // Reading every object back through the path a download takes is the only check

@@ -185,11 +185,12 @@ impl LockStore {
             };
         }
 
-        tracing::info!(
+        crate::audit::audit!(
+            actor = lock.owner.name,
+            namespace = %ns,
             path = lock.path,
             previous_owner = held.owner.name,
             untouched_for_seconds = age.as_secs(),
-            new_owner = lock.owner.name,
             "a lock nobody had touched was taken over"
         );
 

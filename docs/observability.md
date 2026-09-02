@@ -31,3 +31,28 @@ per request.
 
 `lfsx_downloaded_bytes_total` counts bytes as they are streamed, so a client that disconnects
 halfway is not recorded as a full download.
+
+## Audit trail
+
+Every privileged mutation lands on the `lfsx::audit` tracing target as one event naming who acted.
+The trail is a log stream, not a store: the server has no database on purpose, so durability
+belongs to wherever you ship logs. Route it on its own without turning anything else up:
+
+```bash
+RUST_LOG=lfsx::audit=info
+```
+
+What is on it, each with the actor (the forge login of the token that asked, or `anonymous` with
+auth disabled) and the namespace:
+
+| Event | Also carries |
+|---|---|
+| a retain sweep unlinked objects | `swept`, `bytes`, `within_grace` |
+| a repository was folded into the shared store (dedupe) | `adopted`, `linked`, `reclaimed`, `refused` |
+| stored objects were rewritten compressed | `compressed`, `before`, `after` |
+| a lock was force-opened over its owner | `path`, `owner` |
+| a stale lock was taken over | `path`, `previous_owner`, `untouched_for_seconds` |
+| a bucket upload was adopted (pre-signed verify) | `oid`, `bytes` |
+
+Dry runs are reads and stay off the trail. The actor is resolved before the mutation runs, so a
+privileged operation that cannot be attributed is refused rather than performed anonymously.
