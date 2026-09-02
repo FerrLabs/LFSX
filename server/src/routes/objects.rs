@@ -347,6 +347,7 @@ pub(super) async fn verify(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
+    headers: axum::http::HeaderMap,
     Json(id): Json<ObjectId>,
 ) -> Result<StatusCode, Error> {
     permission.require_write()?;
@@ -391,8 +392,19 @@ pub(super) async fn verify(
     // never crossed this server, which is why lfsx_uploaded_bytes does not move:
     // counting a figure nothing here measured would make that counter mean two
     // different things.
+    let crate::auth::Actor(actor) = state.authorizer.actor(&headers).await?;
     state.store.adopt(&ns, &oid, arrived).await?;
     state.metrics.object_size.observe(arrived as f64);
+
+    // The one moment bytes nobody streamed through this server become a
+    // repository's, which earns it a place on the trail beside the deletions.
+    crate::audit::audit!(
+        actor,
+        namespace = %ns,
+        oid = %oid,
+        bytes = arrived,
+        "a bucket upload was adopted as this repository's"
+    );
 
     Ok(StatusCode::OK)
 }

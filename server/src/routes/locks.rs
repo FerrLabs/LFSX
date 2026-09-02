@@ -96,7 +96,8 @@ pub(super) async fn unlock(
         .ok_or(Error::LockNotFound)?;
     let Actor(caller) = state.authorizer.actor(&headers).await?;
 
-    if lock.owner.name != caller {
+    let forced = lock.owner.name != caller;
+    if forced {
         if !request.force {
             return Err(Error::Forbidden);
         }
@@ -104,6 +105,16 @@ pub(super) async fn unlock(
     }
 
     state.locks.remove(&ns, &id).await?;
+
+    if forced {
+        crate::audit::audit!(
+            actor = caller,
+            namespace = %ns,
+            path = lock.path,
+            owner = lock.owner.name,
+            "a lock was force-opened over its owner"
+        );
+    }
 
     Ok(Json(LockResponse { lock }))
 }

@@ -1,3 +1,4 @@
+pub(crate) mod audit;
 pub mod auth;
 pub mod config;
 pub mod dashboard;

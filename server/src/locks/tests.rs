@@ -420,3 +420,67 @@ async fn creating_a_lock_counts_the_others_and_reads_none_of_them() {
          guard is fetching every lock where a key listing would answer"
     );
 }
+
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
+    type Writer = Self;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
+}
+
+// The takeover is on the audit trail: routed by its own target so an operator
+// can ship it without turning everything up, and naming both owners, because
+// "who took marie's lock" is the question the trail exists to answer. Captured
+// under a fresh subscriber per attempt for the same global max-level reasons
+// as the refusal-wording test in auth::github.
+#[tokio::test]
+async fn a_takeover_lands_on_the_audit_trail_naming_both_owners() {
+    let mut logged = String::new();
+    for _ in 0..5 {
+        let captured = Captured::default();
+        {
+            let _guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_writer(captured.clone())
+                    .with_max_level(tracing::Level::INFO)
+                    .with_ansi(false)
+                    .finish(),
+            );
+
+            let root = tempfile::tempdir().unwrap();
+            let locks = LockStore::local(root.path()).with_max_age(Some(WEEK));
+            let ns = namespace();
+            abandoned(&locks, &ns, "Arena.unity", "marie", 3 * WEEK).await;
+            locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+        }
+
+        logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+        if !logged.is_empty() {
+            break;
+        }
+    }
+
+    assert!(
+        logged.contains("lfsx::audit"),
+        "the takeover has to be routable on its own target: {logged}"
+    );
+    assert!(
+        logged.contains(r#"actor="jane""#) && logged.contains(r#"previous_owner="marie""#),
+        "the trail answers who took the lock and from whom: {logged}"
+    );
+}
