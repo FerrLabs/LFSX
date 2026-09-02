@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.14.1] - 2026-09-02
+
+### Bug Fixes
+
+- fix(server): single-space the half-configured App panic message (#305)
+
 ## [1.14.0] - 2026-09-02
 
 ### Features
