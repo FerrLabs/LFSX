@@ -325,7 +325,8 @@ fn github_app(provider: Provider) -> Option<GithubApp> {
             })
         }
         _ => panic!(
-            "LFSX_GITHUB_APP_ID and LFSX_GITHUB_APP_KEY_FILE come together: one without the              other is half an identity, and guessing which half was meant is worse than stopping"
+            "LFSX_GITHUB_APP_ID and LFSX_GITHUB_APP_KEY_FILE come together: one without the \
+             other is half an identity, and guessing which half was meant is worse than stopping"
         ),
     }
 }
