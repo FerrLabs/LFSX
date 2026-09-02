@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.11.0] - 2026-09-02
+
+### Features
+
+- feat(chart): configure Gitea and Forgejo auth (#289)
+
 ## [1.10.0] - 2026-09-01
 
 ### Features
