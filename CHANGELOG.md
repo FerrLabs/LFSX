@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.14.0] - 2026-09-02
+
+### Features
+
+- feat(server): lend the anonymous GitHub lookup the server's own App identity (#303)
+
 ## [1.13.1] - 2026-09-02
 
 ### Bug Fixes

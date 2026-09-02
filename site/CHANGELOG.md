@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.9] - 2026-09-02
+
+### Features
+
+- feat(server): lend the anonymous GitHub lookup the server's own App identity (#303)
+
 ## [2026.9.8] - 2026-09-02
 
 ### Features
