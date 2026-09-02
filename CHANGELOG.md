@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.13.1] - 2026-09-02
+
+### Bug Fixes
+
+- fix(server): propagate trace context on the anonymous GitHub lookup and flush spans on a serve error (#302)
+
 ## [1.13.0] - 2026-09-02
 
 ### Features
