@@ -12,7 +12,7 @@ WARNING: auth.mode is "disabled". Every request is accepted, whoever it comes fr
 Only run this on a network you trust.
 {{ else }}
 Clients authenticate with the token they would use to clone over HTTPS. Push rights on
-{{ .Values.auth.githubApiUrl }} grant upload, pull rights grant download.
+{{ include "lfsx.forgeApiUrl" . }} grant upload, pull rights grant download.
 {{ end }}
 {{- if .Values.ingress.enabled }}
 {{- if not (eq .Values.ingress.className "nginx") }}

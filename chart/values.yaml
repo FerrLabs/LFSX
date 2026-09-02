@@ -33,6 +33,9 @@ auth:
   anonymousRead: false
   githubApiUrl: https://api.github.com
   gitlabApiUrl: https://gitlab.com/api/v4
+  # No default on purpose: Gitea and Forgejo have no canonical host, every
+  # instance is self-hosted. Point it at your API root, https://git.example.com/api/v1.
+  giteaApiUrl: ""
   cacheTtl: 60
   rejectionTtl: 10
 

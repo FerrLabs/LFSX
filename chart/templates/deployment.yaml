@@ -86,6 +86,9 @@ spec:
             {{- if eq .Values.auth.mode "gitlab" }}
             - name: LFSX_GITLAB_API_URL
               value: {{ .Values.auth.gitlabApiUrl | quote }}
+            {{- else if eq .Values.auth.mode "gitea" }}
+            - name: LFSX_GITEA_API_URL
+              value: {{ .Values.auth.giteaApiUrl | quote }}
             {{- else }}
             - name: LFSX_GITHUB_API_URL
               value: {{ .Values.auth.githubApiUrl | quote }}
