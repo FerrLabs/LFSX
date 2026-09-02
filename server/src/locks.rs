@@ -185,7 +185,7 @@ impl LockStore {
             };
         }
 
-        crate::audit::audit!(
+        crate::audit::audit_log!(
             actor = lock.owner.name,
             namespace = %ns,
             path = lock.path,

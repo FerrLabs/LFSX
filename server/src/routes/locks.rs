@@ -107,7 +107,7 @@ pub(super) async fn unlock(
     state.locks.remove(&ns, &id).await?;
 
     if forced {
-        crate::audit::audit!(
+        crate::audit::audit_log!(
             actor = caller,
             namespace = %ns,
             path = lock.path,
