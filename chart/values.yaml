@@ -39,6 +39,13 @@ auth:
   # No default on purpose: Gitea and Forgejo have no canonical host, every
   # instance is self-hosted. Point it at your API root, https://git.example.com/api/v1.
   giteaApiUrl: ""
+  # A GitHub App identity for the server's own anonymous lookups: the App id,
+  # and a Secret holding the App's RSA private key. The chart never takes the
+  # key itself, same reason as the encryption key.
+  githubApp:
+    appId: ""
+    existingSecret: ""
+    key: private-key.pem
   cacheTtl: 60
   rejectionTtl: 10
 

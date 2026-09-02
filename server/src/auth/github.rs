@@ -1,6 +1,8 @@
 use axum::http::StatusCode;
 use serde::Deserialize;
 
+pub mod app;
+
 use super::Permission;
 use crate::error::Error;
 use crate::namespace::Namespace;
@@ -23,6 +25,11 @@ struct Permissions {
 #[derive(Deserialize)]
 struct User {
     login: String,
+}
+
+#[derive(Deserialize)]
+struct Visibility {
+    private: bool,
 }
 
 pub async fn permission(
@@ -83,14 +90,31 @@ pub async fn permission(
 // A private repository is a 401 rather than a 403, deliberately. A 403 tells
 // git-lfs the answer will not change, so it stops asking the credential helper and
 // an authenticated user can never get in.
+//
+// With an App configured, the same question is asked as the App instead, which
+// spends the installation's quota rather than the 60-an-hour unauthenticated
+// one. That changes what a 200 means: an installation token is admitted to
+// private repositories the App is installed on, so the visibility field is the
+// answer there, where bare status was the answer before.
 pub async fn public(
     client: &reqwest::Client,
     api_url: &str,
+    app: Option<&app::App>,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
     let url = format!("{api_url}/repos/{ns}");
 
-    let response = crate::telemetry::propagated(asking(client, &url))
+    let grant = match app {
+        Some(app) => app.token(client, api_url, ns).await?,
+        None => None,
+    };
+    let identified = grant.is_some();
+    let asked = match grant {
+        Some(token) => asking(client, &url).bearer_auth(token),
+        None => asking(client, &url),
+    };
+
+    let response = crate::telemetry::propagated(asked)
         .send()
         .await
         .map_err(|error| {
@@ -99,6 +123,20 @@ pub async fn public(
         })?;
 
     match response.status() {
+        // As the App, arriving is not enough: an installation token is let
+        // into every private repository the App covers, so only the repository
+        // saying it is public grants the anonymous caller anything.
+        StatusCode::OK if identified => {
+            let visible: Visibility = response.json().await.map_err(|error| {
+                tracing::warn!(%error, %url, "forge response could not be parsed");
+                Error::Forge
+            })?;
+            if visible.private {
+                tracing::info!(%url, "the repository is private, so anonymous read stays refused");
+                return Err(Error::Unauthenticated);
+            }
+            Ok(Permission::Read)
+        }
         StatusCode::OK => Ok(Permission::Read),
         // Split apart because they mean different things to whoever is reading
         // the log. A 404 is the ordinary answer for a repository the forge will

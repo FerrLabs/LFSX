@@ -130,6 +130,12 @@ spec:
             - name: LFSX_ENCRYPTION_KEY_FILE
               value: /etc/lfsx/keys/{{ .Values.encryption.key }}
             {{- end }}
+            {{- if .Values.auth.githubApp.appId }}
+            - name: LFSX_GITHUB_APP_ID
+              value: {{ .Values.auth.githubApp.appId | quote }}
+            - name: LFSX_GITHUB_APP_KEY_FILE
+              value: /etc/lfsx/github-app/{{ .Values.auth.githubApp.key }}
+            {{- end }}
             - name: RUST_LOG
               value: {{ .Values.config.logLevel | quote }}
           ports:
@@ -156,6 +162,11 @@ spec:
               mountPath: /etc/lfsx/keys
               readOnly: true
             {{- end }}
+            {{- if .Values.auth.githubApp.appId }}
+            - name: github-app-key
+              mountPath: /etc/lfsx/github-app
+              readOnly: true
+            {{- end }}
       volumes:
         - name: objects
           {{- if .Values.persistence.enabled }}
@@ -171,6 +182,12 @@ spec:
             # 0440, not 0400. A projected secret is owned by root, and fsGroup
             # gives the group to 65532, the user this runs as. Owner-only read
             # looks tighter and leaves the server unable to open its own key.
+            defaultMode: 0440
+        {{- end }}
+        {{- if .Values.auth.githubApp.appId }}
+        - name: github-app-key
+          secret:
+            secretName: {{ .Values.auth.githubApp.existingSecret }}
             defaultMode: 0440
         {{- end }}
       {{- with .Values.nodeSelector }}

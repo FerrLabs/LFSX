@@ -37,6 +37,7 @@ blake3.workspace = true
 getrandom.workspace = true
 rusty-s3.workspace = true
 thiserror.workspace = true
+jsonwebtoken.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-opentelemetry.workspace = true
@@ -47,3 +48,5 @@ opentelemetry-otlp.workspace = true
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 tempfile = "3"
+rsa = "0.9"
+rand = "0.8"

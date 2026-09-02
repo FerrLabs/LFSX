@@ -93,6 +93,11 @@ pub enum Auth {
     Forge {
         provider: Provider,
         api_url: String,
+        // A GitHub App identity for the server's own calls, so the anonymous
+        // lookup spends the App installation's quota instead of the 60-an-hour
+        // unauthenticated one. A file path for the key, never the key itself,
+        // same discipline as the encryption key.
+        github_app: Option<GithubApp>,
         cache_ttl: Duration,
         rejection_ttl: Duration,
         // Lookups a minute this server will spend on the forge, counted only
@@ -104,6 +109,12 @@ pub enum Auth {
         anonymous_read: bool,
     },
     Disabled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GithubApp {
+    pub app_id: String,
+    pub key_file: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -282,8 +293,40 @@ impl Auth {
             cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
             rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
             lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
+            github_app: github_app(provider),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
         }
+    }
+}
+
+// Both variables or neither. One without the other is a configuration that
+// says two things at once, and an operator who set up an App meant to have its
+// quota, so the mistake is refused at boot instead of quietly ignored.
+fn github_app(provider: Provider) -> Option<GithubApp> {
+    let id = std::env::var("LFSX_GITHUB_APP_ID")
+        .ok()
+        .filter(|id| !id.is_empty());
+    let key_file = std::env::var("LFSX_GITHUB_APP_KEY_FILE")
+        .ok()
+        .filter(|path| !path.is_empty());
+
+    match (id, key_file) {
+        (None, None) => None,
+        (Some(app_id), Some(key_file)) => {
+            if provider != Provider::Github {
+                tracing::warn!(
+                    "LFSX_GITHUB_APP_ID is set but LFSX_AUTH is not github, so it does nothing"
+                );
+                return None;
+            }
+            Some(GithubApp {
+                app_id,
+                key_file: PathBuf::from(key_file),
+            })
+        }
+        _ => panic!(
+            "LFSX_GITHUB_APP_ID and LFSX_GITHUB_APP_KEY_FILE come together: one without the              other is half an identity, and guessing which half was meant is worse than stopping"
+        ),
     }
 }
 

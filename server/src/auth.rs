@@ -59,6 +59,7 @@ pub enum Authorizer {
         // two hundred objects under one token costs one.
         budget: Budget,
         anonymous_read: bool,
+        app: Option<Box<github::app::App>>,
     },
     Disabled,
 }
@@ -76,6 +77,7 @@ impl Authorizer {
                 rejection_ttl,
                 lookup_budget,
                 anonymous_read,
+                github_app,
             } => Self::Forge {
                 provider: *provider,
                 client: reqwest::Client::builder()
@@ -88,6 +90,12 @@ impl Authorizer {
                 identities: IdentityCache::new(*cache_ttl),
                 budget: Budget::new(*lookup_budget),
                 anonymous_read: *anonymous_read,
+                app: github_app.as_ref().map(|configured| {
+                    Box::new(github::app::App::load(
+                        &configured.app_id,
+                        &configured.key_file,
+                    ))
+                }),
             },
         }
     }
@@ -101,6 +109,7 @@ impl Authorizer {
             cache,
             budget,
             anonymous_read,
+            app,
             ..
         } = self
         else {
@@ -123,7 +132,7 @@ impl Authorizer {
             budget.afford()?;
 
             let outcome = match provider {
-                Provider::Github => github::public(client, api_url, ns).await,
+                Provider::Github => github::public(client, api_url, app.as_deref(), ns).await,
                 Provider::Gitlab => gitlab::public(client, api_url, ns).await,
                 Provider::Gitea => gitea::public(client, api_url, ns).await,
             };

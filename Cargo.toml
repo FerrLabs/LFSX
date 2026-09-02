@@ -35,6 +35,10 @@ blake3 = "1"
 getrandom = "0.4"
 rusty-s3 = "0.10"
 thiserror = "2"
+# rust_crypto rather than the aws-lc default for the same reason rustls pins
+# ring: the release cross-compiles musl and aarch64 targets where aws-lc wants
+# a C toolchain at build time.
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto", "use_pem"] }
 tracing = "0.1"
 tracing-opentelemetry = "0.33"
 opentelemetry = "0.32"

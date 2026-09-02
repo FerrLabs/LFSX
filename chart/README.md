@@ -66,6 +66,9 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |
 | `auth.giteaApiUrl` | `""` | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1`; required with `auth.mode: gitea`, there is no default host to fall back to |
+| `auth.githubApp.appId` | `""` | GitHub App id lending the server its own quota for anonymous lookups; empty keeps today's unauthenticated ask |
+| `auth.githubApp.existingSecret` | `""` | Secret holding the App's RSA private key; required with an `appId`, the chart never takes the key as a value |
+| `auth.githubApp.key` | `private-key.pem` | key of the PEM inside that Secret |
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
