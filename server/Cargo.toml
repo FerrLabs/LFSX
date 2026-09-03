@@ -50,4 +50,4 @@ opentelemetry-otlp.workspace = true
 tower = { version = "0.5", features = ["util"] }
 tempfile = "3"
 rsa = "0.9"
-rand = "0.8"
+rand = "0.10"
