@@ -1,8 +1,12 @@
 <div align="center">
 
+<img src=".github/logo.svg" width="96" alt="" />
+
 # LFSX
 
-**A fast, lightweight, secure Git LFS server.**
+**Your assets. Your disk.**
+
+A fast, lightweight, secure Git LFS server.
 
 [![CI](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml)
 [![Coverage](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=coverage&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
@@ -11,6 +15,8 @@
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/lfsx)](https://artifacthub.io/packages/search?repo=lfsx)
 [![Socket Badge](https://badge.socket.dev/cargo/package/lfsx/latest)](https://socket.dev/cargo/package/lfsx)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/FerrLabs/LFSX/badge)](https://scorecard.dev/viewer/?uri=github.com/FerrLabs/LFSX)
+
+[Quick start](#quick-start) | [Documentation](https://lfsx.dev) | [Helm chart](chart/) | [Releases](https://github.com/FerrLabs/LFSX/releases)
 
 </div>
 
