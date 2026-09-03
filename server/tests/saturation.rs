@@ -20,7 +20,7 @@ fn app(root: &tempfile::TempDir, cap: usize) -> Router {
         max_concurrent_transfers: cap,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Disabled,
     })

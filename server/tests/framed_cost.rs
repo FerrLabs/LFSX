@@ -32,7 +32,7 @@ fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Ro
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: Storage::Bucket {
             endpoint: endpoint.to_owned(),
             bucket: "lfsx-test".into(),

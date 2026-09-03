@@ -28,6 +28,13 @@ pub struct Keyring {
 }
 
 impl Keyring {
+    pub fn from_source(source: &crate::config::KeySource) -> Result<Self, Error> {
+        match source {
+            crate::config::KeySource::File(path) => Self::load(path),
+            crate::config::KeySource::Command(hook) => Self::exec(hook),
+        }
+    }
+
     pub fn load(path: &std::path::Path) -> Result<Self, Error> {
         let contents = std::fs::read_to_string(path).map_err(|error| {
             Error::Storage(std::io::Error::other(format!(
@@ -37,6 +44,30 @@ impl Keyring {
         })?;
 
         Self::parse(&contents)
+    }
+
+    // The hook runs through the platform shell, because "the command a KMS
+    // documents" always carries arguments, and its stdout is read exactly like
+    // the key file: hex keys one per line, first line writes. The keys never
+    // rest on disk, the audit trail is the source's own, and rotation stays
+    // "the source returns a new first line". A failure is spelled out with the
+    // command's stderr, because the operator debugging this sees nothing else.
+    fn exec(hook: &str) -> Result<Self, Error> {
+        let output = shell(hook).output().map_err(|error| {
+            Error::Storage(std::io::Error::other(format!(
+                "the encryption key command could not be run: {error}"
+            )))
+        })?;
+
+        if !output.status.success() {
+            return Err(Error::Storage(std::io::Error::other(format!(
+                "the encryption key command failed ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ))));
+        }
+
+        Self::parse(&String::from_utf8_lossy(&output.stdout))
     }
 
     pub(super) fn parse(contents: &str) -> Result<Self, Error> {
@@ -191,3 +222,17 @@ fn associated(frame: u32, last: bool, oid: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(unix)]
+fn shell(hook: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("sh");
+    command.arg("-c").arg(hook);
+    command
+}
+
+#[cfg(windows)]
+fn shell(hook: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("cmd");
+    command.arg("/C").arg(hook);
+    command
+}

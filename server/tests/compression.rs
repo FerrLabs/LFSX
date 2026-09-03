@@ -11,7 +11,7 @@ use tower::ServiceExt;
 fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
     lfsx_server::app(Config {
         compression: Some(3),
-        encryption_key_file: None,
+        encryption_key: None,
         ..common::config(root, api_url)
     })
 }

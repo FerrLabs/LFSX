@@ -226,10 +226,10 @@ fn backends(config: &Config) -> (Store, LockStore) {
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written
     // in the meantime are the ones the operator believed were covered.
-    let keys = config.encryption_key_file.as_deref().map(|path| {
+    let keys = config.encryption_key.as_ref().map(|source| {
         std::sync::Arc::new(
-            crate::storage::crypt::Keyring::load(path)
-                .expect("the encryption key file is not usable"),
+            crate::storage::crypt::Keyring::from_source(source)
+                .expect("the encryption key source is not usable"),
         )
     });
 
@@ -263,7 +263,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
             );
 
             if *presign {
-                if config.encryption_key_file.is_some() || config.compression.is_some() {
+                if config.encryption_key.is_some() || config.compression.is_some() {
                     tracing::warn!(
                         "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep \
              streaming through this server: what sits in the bucket is a frame under \
@@ -277,7 +277,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
                     );
                 }
 
-                if config.encryption_key_file.is_some() {
+                if config.encryption_key.is_some() {
                     tracing::warn!(
                         "LFSX_ENCRYPTION_KEY_FILE is set, so uploads keep coming through this \
              server rather than going straight to the bucket: an object a client \

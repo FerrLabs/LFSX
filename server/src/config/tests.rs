@@ -118,7 +118,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: Storage::Local,
         auth: Auth::Disabled,
     }
@@ -194,10 +194,30 @@ fn a_configured_public_url_wins() {
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: Storage::Local,
         auth: Auth::Disabled,
     };
 
     assert_eq!(config.base_url(&headers), "https://lfs.example.com");
+}
+
+#[test]
+fn an_encryption_key_comes_from_one_source() {
+    assert_eq!(encryption_key(None, None), None);
+    assert_eq!(encryption_key(Some(""), Some("")), None);
+    assert_eq!(
+        encryption_key(Some("/etc/lfsx/keys/key"), None),
+        Some(KeySource::File("/etc/lfsx/keys/key".into()))
+    );
+    assert_eq!(
+        encryption_key(None, Some("vault kv get -field=key lfsx")),
+        Some(KeySource::Command("vault kv get -field=key lfsx".into()))
+    );
+}
+
+#[test]
+#[should_panic(expected = "both set")]
+fn two_key_sources_refuse_to_start() {
+    encryption_key(Some("/etc/keys"), Some("vault kv get"));
 }

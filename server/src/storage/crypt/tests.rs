@@ -170,3 +170,45 @@ fn the_same_key_listed_twice_is_a_typo_and_is_said_so() {
         "{outcome:?}"
     );
 }
+
+// The command source is the same contract as the file, stdout instead of a
+// mounted path: hex keys one per line. `echo` is the one hook every platform
+// this builds on can run.
+#[test]
+fn a_key_command_feeds_the_keyring_from_its_stdout() {
+    let source = crate::config::KeySource::Command(format!("echo {}", "ab".repeat(32)));
+
+    let keys = Keyring::from_source(&source).expect("a well-formed key on stdout loads");
+
+    let same_from_a_file = Keyring::parse(&"ab".repeat(32)).unwrap();
+    assert_eq!(
+        keys.writing().id(),
+        same_from_a_file.writing().id(),
+        "stdout and a file carrying the same bytes are the same keyring"
+    );
+}
+
+// The operator debugging a dead boot sees nothing but this error, so the
+// command's own stderr and status have to be in it.
+#[test]
+fn a_failing_key_command_says_so_with_its_status() {
+    let source = crate::config::KeySource::Command("exit 3".to_owned());
+
+    let message = match Keyring::from_source(&source) {
+        Err(error) => error.to_string(),
+        Ok(_) => panic!("a failing hook cannot yield keys"),
+    };
+    assert!(
+        message.contains("encryption key command failed"),
+        "the failure has to name the command as the culprit: {message}"
+    );
+}
+
+// Garbage on stdout is the same refusal as garbage in the file: better no
+// server than a server that half-understood its keys.
+#[test]
+fn a_key_command_printing_garbage_is_refused() {
+    let source = crate::config::KeySource::Command("echo not-a-key".to_owned());
+
+    assert!(Keyring::from_source(&source).is_err());
+}
