@@ -40,6 +40,7 @@ thiserror.workspace = true
 jsonwebtoken.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+clap.workspace = true
 tracing-opentelemetry.workspace = true
 opentelemetry.workspace = true
 opentelemetry_sdk.workspace = true

@@ -1,8 +1,24 @@
+use clap::Parser;
 use lfsx_server::config::Config;
 use tokio::net::TcpListener;
 
+// No arguments on purpose: everything is configured through the environment.
+// The parser still earns its place, because a daemon that ignores `--version`
+// starts serving when somebody only asked what is installed, and a packaging
+// smoke test (`versionCheckHook` and its Debian, Homebrew and Arch cousins)
+// has nothing to call. Stray arguments are refused for the same reason.
+#[derive(Parser)]
+#[command(
+    name = "lfsx-server",
+    version,
+    about = "A fast, lightweight, secure Git LFS server",
+    after_help = "Configuration is environment variables only; see https://lfsx.dev/docs/configuration"
+)]
+struct Cli {}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Cli::parse();
     let telemetry = lfsx_server::telemetry::init();
 
     let mut config = Config::from_env();
