@@ -279,7 +279,7 @@ fn backends(config: &Config) -> (Store, LockStore) {
 
                 if config.encryption_key.is_some() {
                     tracing::warn!(
-                        "LFSX_ENCRYPTION_KEY_FILE is set, so uploads keep coming through this \
+                        "an encryption key is configured, so uploads keep coming through this \
              server rather than going straight to the bucket: an object a client \
              writes itself would arrive unencrypted"
                     );

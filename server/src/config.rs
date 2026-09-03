@@ -130,7 +130,8 @@ fn encryption_key(file: Option<&str>, command: Option<&str>) -> Option<KeySource
         (Some(path), None) => Some(KeySource::File(PathBuf::from(path))),
         (None, Some(hook)) => Some(KeySource::Command(hook.to_owned())),
         (Some(_), Some(_)) => panic!(
-            "LFSX_ENCRYPTION_KEY_FILE and LFSX_ENCRYPTION_KEY_COMMAND are both set: they are two              answers to where the keys live, and picking one for you is how the wrong keys get used"
+            "LFSX_ENCRYPTION_KEY_FILE and LFSX_ENCRYPTION_KEY_COMMAND are both set: they are two \
+             answers to where the keys live, and picking one for you is how the wrong keys get used"
         ),
     }
 }
