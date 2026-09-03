@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.15.1] - 2026-09-03
+
+### Bug Fixes
+
+- fix(server): tidy two encryption messages and scope the rand_core hold to crates (#319)
+
 ## [1.15.0] - 2026-09-03
 
 ### Features
