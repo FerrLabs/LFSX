@@ -315,8 +315,8 @@ impl Framed {
         let mut stored = Vec::with_capacity(frames as usize);
         let mut at = header;
         offsets.push(at);
-        for length in lengths.chunks_exact(4) {
-            let entry = u32::from_le_bytes(length.try_into().expect("four bytes"));
+        for length in lengths.as_chunks::<4>().0 {
+            let entry = u32::from_le_bytes(*length);
             at += (entry & !STORED) as u64;
             stored.push(entry & STORED != 0);
             offsets.push(at);
