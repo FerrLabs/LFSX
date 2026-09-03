@@ -69,13 +69,17 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.githubApp.appId` | `""` | GitHub App id lending the server its own quota for anonymous lookups; empty keeps today's unauthenticated ask |
 | `auth.githubApp.existingSecret` | `""` | Secret holding the App's RSA private key; required with an `appId`, the chart never takes the key as a value |
 | `auth.githubApp.key` | `private-key.pem` | key of the PEM inside that Secret |
+| `auth.anonymousRead` | `false` | resolve credential-less requests against the forge, so public repositories clone anonymously |
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
+| `locks.maxAge` | `""` | seconds a lock may go untouched before anyone can take it over; empty means never |
 | `limits.maxObjectSize` | `""` | bytes a single object may reach; empty means no ceiling |
 | `limits.repoQuota` | `""` | bytes a single repository may hold; empty means no budget |
 | `limits.maxConcurrentTransfers` | `""` | uploads and downloads served at once; empty keeps the server default of 128, `0` removes the cap |
 | `compression` | `""` | `zstd` (or `zstd:1`…`zstd:19`) to store objects compressed; empty stores them as they arrive |
+| `encryption.existingSecret` | `""` | Secret holding the hex key file for encryption at rest; the chart never takes the key as a value |
+| `encryption.key` | `key` | key of the file inside that Secret |
 | `persistence.enabled` | `true` | `false` uses an `emptyDir`, which loses every object on restart |
 | `persistence.existingClaim` | `""` | bring your own PVC |
 | `persistence.storageClass` | `""` | cluster default when empty |
