@@ -123,7 +123,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: lfsx_server::config::Storage::Local,
         auth: forge_auth(api_url, Duration::from_secs(60), Duration::from_secs(10)),
     }

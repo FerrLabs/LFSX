@@ -79,3 +79,29 @@ mean re-encrypting the store. Each object records which key it was written under
 key rather than by a number, so an id can never come to name a different key than the one it was
 written with. A key that is deleted while objects still reference it makes those objects unreadable,
 and the server says so by name instead of reporting corruption.
+
+## Keys from a command instead of a file
+
+For the operator whose keys must live in a KMS as a matter of policy, hex in a mounted file is a
+compliance finding regardless of the mount's permissions. `LFSX_ENCRYPTION_KEY_COMMAND` runs a
+command at boot, through the platform shell, and reads its stdout exactly like the key file: hex
+keys one per line, first line writes.
+
+```bash
+LFSX_ENCRYPTION_KEY_COMMAND="vault kv get -field=keys secret/lfsx"
+```
+
+The command is the one interface every KMS, Vault, SOPS and password manager already speaks, so
+the server stays ignorant of vendors. The keys never rest on disk, the access shows up in the
+source's own audit trail, and rotation stays what it was: the source returns a new first line.
+Everything else is unchanged, including the failure posture: a hook that exits non-zero, prints
+garbage, or lists the same key twice is a server that refuses to start, with the command's own
+stderr in the error.
+
+It is one source or the other. Setting both variables refuses to start, because they are two
+answers to where the keys live.
+
+One boundary worth knowing: the published container image is distroless and carries no shell, so
+the command source is for bare-metal and VM deployments, or an image you extend yourself. On
+Kubernetes, the Secret mount the chart wires is the right tool, and what the hook would call is
+usually reachable as a CSI driver or an init container instead.

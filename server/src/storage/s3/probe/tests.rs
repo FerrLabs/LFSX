@@ -67,7 +67,7 @@ fn presigning(endpoint: &str) -> crate::config::Config {
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: crate::config::Storage::Bucket {
             endpoint: endpoint.to_owned(),
             bucket: "assets".into(),

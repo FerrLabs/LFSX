@@ -30,6 +30,7 @@ All configuration is by environment variable.
 | `LFSX_S3_PRESIGN` | `false` | `true` to hand transfers to the bucket instead of streaming them through the server, ignored for downloads when compression or encryption is configured, and ignored entirely if the bucket does not prove it verifies upload checksums |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
+| `LFSX_ENCRYPTION_KEY_COMMAND` | unset | command whose stdout is read exactly like the key file, for keys that must never rest on disk; mutually exclusive with the file, setting both refuses to start |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |
 | `LFSX_OTLP_ENDPOINT` | unset | HTTP traces URL of an OTLP collector (`http://collector:4318/v1/traces`); unset means the tracing layer is not even installed |
 

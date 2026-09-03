@@ -14,7 +14,7 @@ fn keyed(root: &tempfile::TempDir, api_url: &str, compression: Option<i32>) -> R
 
     lfsx_server::app(Config {
         compression,
-        encryption_key_file: Some(key),
+        encryption_key: Some(lfsx_server::config::KeySource::File(key)),
         ..common::config(root, api_url)
     })
 }
@@ -98,6 +98,43 @@ async fn an_object_pushed_to_a_keyed_server_is_not_on_the_disk_in_the_clear() {
         payload.len().to_string(),
         "the client is promised the plaintext length, not the file's — answering with the \
          ciphertext length breaks every download at the last byte"
+    );
+}
+
+// The command source is the file source with stdout instead of a mount, so a
+// server keyed by a hook has to serve exactly what a server keyed by a file
+// does: encrypted at rest, plaintext on the way out.
+#[tokio::test]
+async fn a_server_keyed_by_a_command_round_trips_and_stores_nothing_in_the_clear() {
+    let (api_url, _forge) = forge().await;
+    let root = tempfile::tempdir().unwrap();
+    let payload = mesh(1024 * 1024);
+    let oid = hex::encode(Sha256::digest(&payload));
+
+    let keyed = || {
+        lfsx_server::app(Config {
+            encryption_key: Some(lfsx_server::config::KeySource::Command(format!(
+                "echo {}",
+                hex::encode([7u8; 32])
+            ))),
+            ..common::config(&root, &api_url)
+        })
+    };
+
+    assert_eq!(push(keyed(), &payload).await, StatusCode::OK);
+
+    let on_disk = stored(&root, &oid);
+    assert!(
+        !on_disk.windows(64).any(|window| window == &payload[..64]),
+        "keys from a hook must protect the disk exactly as keys from a file do"
+    );
+
+    let (status, body, _) = download(keyed(), &oid, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        hex::encode(Sha256::digest(&body)),
+        oid,
+        "and a fresh keyring from the same hook must read what the first one wrote"
     );
 }
 
@@ -214,7 +251,7 @@ async fn objects_written_before_the_key_existed_still_read_after_it() {
     let oid = hex::encode(Sha256::digest(&payload));
 
     let plain = lfsx_server::app(Config {
-        encryption_key_file: None,
+        encryption_key: None,
         ..common::config(&root, &api_url)
     });
     assert_eq!(push(plain, &payload).await, StatusCode::OK);
@@ -237,7 +274,7 @@ async fn an_encrypted_object_is_refused_by_a_server_without_the_key() {
     push(keyed(&root, &api_url, None), &payload).await;
 
     let keyless = lfsx_server::app(Config {
-        encryption_key_file: None,
+        encryption_key: None,
         ..common::config(&root, &api_url)
     });
     let (status, body, _) = download(keyless, &oid, None).await;

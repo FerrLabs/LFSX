@@ -114,10 +114,10 @@ fn bucket_config(
     compression: Option<i32>,
     encrypted: bool,
 ) -> Config {
-    let encryption_key_file = encrypted.then(|| {
+    let encryption_key = encrypted.then(|| {
         let key = root.path().join("key");
         std::fs::write(&key, hex::encode([9u8; 32])).unwrap();
-        key
+        lfsx_server::config::KeySource::File(key)
     });
 
     Config {
@@ -132,7 +132,7 @@ fn bucket_config(
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression,
-        encryption_key_file,
+        encryption_key,
         storage: Storage::Bucket {
             endpoint: bucket.endpoint.clone(),
             bucket: bucket.bucket.clone(),

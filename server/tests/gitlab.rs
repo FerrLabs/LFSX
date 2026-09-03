@@ -82,7 +82,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
         max_concurrent_transfers: 128,
         repo_quota: None,
         compression: None,
-        encryption_key_file: None,
+        encryption_key: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Forge {
             provider: Provider::Gitlab,

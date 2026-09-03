@@ -27,10 +27,12 @@ pub struct Config {
     pub max_concurrent_transfers: usize,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
-    // A path rather than the key itself: a key in the environment is in the pod
-    // spec, in `docker inspect`, and in every log that dumps the environment. A
-    // file comes from a Kubernetes Secret mount or FerrVault without any of that.
-    pub encryption_key_file: Option<PathBuf>,
+    // Never the key itself: a key in the environment is in the pod spec, in
+    // `docker inspect`, and in every log that dumps the environment. A file
+    // comes from a Kubernetes Secret mount without any of that, and a command
+    // is the one interface every KMS, Vault and SOPS already speaks, for the
+    // operator whose keys must never rest on disk at all.
+    pub encryption_key: Option<KeySource>,
     pub storage: Storage,
     pub auth: Auth,
 }
@@ -109,6 +111,28 @@ pub enum Auth {
         anonymous_read: bool,
     },
     Disabled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeySource {
+    File(PathBuf),
+    Command(String),
+}
+
+// One source or none. Both is a configuration that says two things, and which
+// of them the operator trusts with the store is not a guess this server makes.
+fn encryption_key(file: Option<&str>, command: Option<&str>) -> Option<KeySource> {
+    let file = file.filter(|path| !path.is_empty());
+    let command = command.filter(|hook| !hook.is_empty());
+
+    match (file, command) {
+        (None, None) => None,
+        (Some(path), None) => Some(KeySource::File(PathBuf::from(path))),
+        (None, Some(hook)) => Some(KeySource::Command(hook.to_owned())),
+        (Some(_), Some(_)) => panic!(
+            "LFSX_ENCRYPTION_KEY_FILE and LFSX_ENCRYPTION_KEY_COMMAND are both set: they are two              answers to where the keys live, and picking one for you is how the wrong keys get used"
+        ),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,10 +221,10 @@ impl Config {
             ),
             repo_quota: bytes("LFSX_REPO_QUOTA"),
             compression: compression(),
-            encryption_key_file: std::env::var("LFSX_ENCRYPTION_KEY_FILE")
-                .ok()
-                .filter(|path| !path.is_empty())
-                .map(PathBuf::from),
+            encryption_key: encryption_key(
+                std::env::var("LFSX_ENCRYPTION_KEY_FILE").ok().as_deref(),
+                std::env::var("LFSX_ENCRYPTION_KEY_COMMAND").ok().as_deref(),
+            ),
             storage: Storage::from_env(),
             auth: Auth::from_env(),
         }
