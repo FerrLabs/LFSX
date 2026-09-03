@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.15.0] - 2026-09-03
+
+### Features
+
+- feat(server): source encryption keys from a command as well as a file (#312)
+
 ## [1.14.2] - 2026-09-03
 
 ### Bug Fixes

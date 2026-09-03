@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.10] - 2026-09-03
+
+### Features
+
+- feat(server): source encryption keys from a command as well as a file (#312)
+
 ## [2026.9.9] - 2026-09-02
 
 ### Features
