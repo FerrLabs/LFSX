@@ -161,6 +161,12 @@ Full documentation lives at **[lfsx.dev](https://lfsx.dev)**. The same pages are
 | [Performance](docs/performance.md) | Measured, not asserted |
 | [Inspecting a repository](docs/inspecting.md), [Releases](docs/releases.md) | |
 
+## Contributing
+
+Bug reports and patches are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) says what a change has to
+carry and what happens to it after that; [`SECURITY.md`](SECURITY.md) covers anything with a
+security consequence, which goes through a private advisory rather than an issue.
+
 ## Development
 
 ```bash
