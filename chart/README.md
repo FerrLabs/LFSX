@@ -59,7 +59,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 |---|---|---|
 | `image.repository` | `ghcr.io/ferrlabs/lfsx` | image to pull |
 | `image.tag` | chart `appVersion` | override to pin a different build |
-| `storage.s3.presign` | `false` | hand transfers to the bucket instead of streaming them through the server; the bytes stop passing here, so the counters, the ranges and the transfer cap stop applying to them. `compression` keeps downloads on the server and `encryption.existingSecret` keeps both directions on it, because a client handed the key would get a frame rather than the object it hashed for |
+| `storage.s3.presign` | `false` | hand transfers to the bucket instead of streaming them through the server; the bytes stop passing here, so the counters, the ranges and the transfer cap stop applying to them. `compression` keeps downloads on the server, because a signed URL hands over a frame rather than the object the client hashed for; `encryption.existingSecret` keeps both directions on it, because a client writing straight to the bucket would leave plaintext there |
 | `storage.s3.region` | `us-east-1` | signing region; MinIO and Garage accept the default, AWS wants the bucket one |
 | `storage.s3.pathStyle` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |

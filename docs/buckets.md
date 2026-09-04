@@ -59,8 +59,9 @@ A codec quietly takes it back, and that is worth knowing before you measure. Wit
 handed a signed URL would hash what it received and reject the object: downloads keep streaming
 through this server. With an encryption key configured, uploads keep coming through too, since a
 client writing straight to the bucket would leave plaintext where the operator believed there was
-none. The server says both at boot, and `LFSX_S3_PRESIGN=true` beside either is not an error, just
-a setting with nothing left to do.
+none. The server says both at boot. With encryption there is nothing left for `LFSX_S3_PRESIGN`
+to do; with compression alone it still redirects uploads, and an object a client writes straight
+to the bucket is stored uncompressed.
 
 Uploads go the same way, and the two things that made that unsafe are both closed rather than
 accepted:
