@@ -10,7 +10,7 @@ the storage path.
 | Upload, 1 GiB single object | 150 MiB/s | 150 to 273 |
 | Download, 1 GiB single object | 194 MiB/s | 131 to 194 |
 | 1000 objects of 64 KiB, sequential | 7.5 ms per object | 1.3 to 16 ms |
-| Resident memory, idle → peak | 6 MiB → 7 MiB | never more than +1 MiB |
+| Resident memory, idle → peak | 7 MiB → 7 MiB | never more than +1 MiB |
 
 The middle column is one run, the most recent on the host build, not a median or an average of the
 four. The right column is the range across all of them, both builds.
@@ -43,8 +43,8 @@ on a disk shared with whatever else the machine is doing.
 The image ships a musl binary rather than the glibc one this table was first measured with. Both
 were run side by side for four samples and neither is consistently ahead: musl was slower on one
 upload and faster on the next, faster on one download and slower on the other, and the spread within
-each build was larger than the gap between them. If musl's allocator costs anything at these sizes, it is smaller than what
-these runners can resolve.
+each build was larger than the gap between them. If musl's allocator costs anything at these
+sizes, it is smaller than what these runners can resolve.
 
 No comparison against another implementation yet. Doing it honestly means driving both servers with
 the same client rather than curl, since their object endpoints differ, and that harness does not
