@@ -27,7 +27,7 @@ Open an issue before a large change. Not as a formality: this server refuses fea
 and it is better to hear that a direction is out of scope before writing it than after. Small fixes
 can go straight to a pull request.
 
-Every pull request references an issue, and the branch is named for what it does
+A pull request for anything larger references its issue, and the branch is named for what it does
 (`feat/bucket-cache`, `fix/lock-takeover`).
 
 ## What a change has to carry
@@ -63,28 +63,30 @@ Nothing merges without a green CI and a review.
 
 ## Building it
 
-```bash
-cargo test                              # unit and integration tests
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-bash ci/e2e.sh                          # push and clone through a real git-lfs client
-```
+[`docs/development.md`](docs/development.md) has the commands, what each suite actually exercises,
+and how to run the coverage report and the fuzz targets.
 
-The integration tests mount the router on a temporary directory and drive it through
-`tower::ServiceExt::oneshot`, so they exercise real routing, real streaming and the real filesystem
-without binding a port. The end-to-end script starts the binary against a stub forge and uses the
-actual client, on an isolated `GIT_CONFIG_GLOBAL` so it cannot touch your own git configuration.
-
-To run the bucket suite locally, point it at any S3-compatible store:
+The one thing that page does not cover is the bucket suite, which needs an S3-compatible store to
+point at:
 
 ```bash
-docker run -d -p 9000:9000 -e MINIO_ROOT_USER=lfsxkey -e MINIO_ROOT_PASSWORD=lfsxsecret \
+docker run -d --name minio -p 9000:9000 \
+  -e MINIO_ROOT_USER=lfsxkey -e MINIO_ROOT_PASSWORD=lfsxsecret \
   quay.io/minio/minio server /data
+
+# once http://127.0.0.1:9000/minio/health/live answers
+docker exec minio mc alias set local http://127.0.0.1:9000 lfsxkey lfsxsecret
+docker exec minio mc mb --ignore-existing local/lfsx-test
+
 LFSX_TEST_S3_ENDPOINT=http://127.0.0.1:9000 cargo test --test bucket
 ```
 
-Without that variable those tests skip rather than fail, so a plain `cargo test` stays useful on a
-laptop with nothing installed.
+The bucket has to exist before the suite runs: nothing in the server creates one, and
+`an_instance_that_cannot_reach_its_bucket_is_not_ready` depends on a missing bucket staying missing.
+The name comes from `LFSX_TEST_S3_BUCKET`, which defaults to `lfsx-test`.
+
+Without `LFSX_TEST_S3_ENDPOINT` those tests skip rather than fail, so a plain `cargo test` stays
+useful on a laptop with nothing installed.
 
 ## Licence
 
