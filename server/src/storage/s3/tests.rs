@@ -98,56 +98,17 @@ async fn stub(
                                     .await
                                     .unwrap_or_default();
 
-                                // A conforming store refuses a body that does not
-                                // match the checksum the URL was signed for, and the
-                                // whole pre-signed upload path rests on it, so the
-                                // stub does it too rather than accepting everything
-                                // and letting the tests pass for the wrong reason.
-                                if enforces_checksums && !matches(&headers, &bytes) {
-                                    return (
-                                        StatusCode::BAD_REQUEST,
-                                        "XAmzContentChecksumMismatch",
-                                    )
-                                        .into_response();
-                                }
-
-                                // `If-None-Match: *` is the whole of lock uniqueness
-                                // against a bucket: the store is the only thing that
-                                // can say which of two callers arrived second. A
-                                // store without it answers success twice, which is
-                                // what `enforces_conditions` stands in for.
-                                if enforces_conditions
-                                    && headers.contains_key("if-none-match")
-                                    && objects.lock().unwrap().contains_key(&key)
-                                {
-                                    return StatusCode::PRECONDITION_FAILED.into_response();
-                                }
-
-                                objects.lock().unwrap().insert(key, bytes.to_vec());
-                                StatusCode::OK.into_response()
-                            }
-                            axum::http::Method::HEAD => match objects.lock().unwrap().get(&key) {
-                                Some(object) => (
-                                    StatusCode::OK,
-                                    [(header::CONTENT_LENGTH, object.len().to_string())],
+                                put(
+                                    &objects,
+                                    key,
+                                    &bytes,
+                                    &headers,
+                                    enforces_checksums,
+                                    enforces_conditions,
                                 )
-                                    .into_response(),
-                                None => StatusCode::NOT_FOUND.into_response(),
-                            },
-                            // S3 answers 204 whether or not the key was there, and
-                            // the store depends on that: it settles whether a delete
-                            // removed anything with a HEAD beforehand rather than
-                            // reading the status.
-                            axum::http::Method::DELETE => {
-                                objects.lock().unwrap().remove(&key);
-
-                                // Once, on the first delete of the run.
-                                if let Some(key) = arriving.lock().unwrap().take() {
-                                    objects.lock().unwrap().insert(key, Vec::new());
-                                }
-
-                                StatusCode::NO_CONTENT.into_response()
                             }
+                            axum::http::Method::HEAD => head(&objects, &key),
+                            axum::http::Method::DELETE => delete(&objects, &key, &arriving),
                             _ => {
                                 counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 get(&objects, &key, &headers)
@@ -164,6 +125,66 @@ async fn stub(
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     (format!("http://{address}"), objects, key_reads)
+}
+
+// The write, and the two refusals a conforming store owes a caller. Each arm is
+// its own function because the router closure is a dispatch: the rules read as
+// rules there, rather than as another level of nesting inside a handler.
+fn put(
+    objects: &Objects,
+    key: String,
+    bytes: &[u8],
+    headers: &HeaderMap,
+    enforces_checksums: bool,
+    enforces_conditions: bool,
+) -> Response {
+    // A conforming store refuses a body that does not match the checksum the URL
+    // was signed for, and the whole pre-signed upload path rests on it, so the
+    // stub does it too rather than accepting everything and letting the tests
+    // pass for the wrong reason.
+    if enforces_checksums && !matches(headers, bytes) {
+        return (StatusCode::BAD_REQUEST, "XAmzContentChecksumMismatch").into_response();
+    }
+
+    // `If-None-Match: *` is the whole of lock uniqueness against a bucket: the
+    // store is the only thing that can say which of two callers arrived second.
+    // A store without it answers success twice, which is what
+    // `enforces_conditions` stands in for.
+    if enforces_conditions
+        && headers.contains_key("if-none-match")
+        && objects.lock().unwrap().contains_key(&key)
+    {
+        return StatusCode::PRECONDITION_FAILED.into_response();
+    }
+
+    objects.lock().unwrap().insert(key, bytes.to_vec());
+
+    StatusCode::OK.into_response()
+}
+
+fn head(objects: &Objects, key: &str) -> Response {
+    match objects.lock().unwrap().get(key) {
+        Some(object) => (
+            StatusCode::OK,
+            [(header::CONTENT_LENGTH, object.len().to_string())],
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+// S3 answers 204 whether or not the key was there, and the store depends on
+// that: it settles whether a delete removed anything with a HEAD beforehand
+// rather than reading the status.
+fn delete(objects: &Objects, key: &str, arriving: &Mutex<Option<String>>) -> Response {
+    objects.lock().unwrap().remove(key);
+
+    // Once, on the first delete of the run.
+    if let Some(key) = arriving.lock().unwrap().take() {
+        objects.lock().unwrap().insert(key, Vec::new());
+    }
+
+    StatusCode::NO_CONTENT.into_response()
 }
 
 // A request with no checksum header is nothing to disagree with. One that has it
