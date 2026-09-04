@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.13] - 2026-09-04
+
+### Bug Fixes
+
+- perf(image): link against musl and land on the static base (#329)
+
 ## [2026.9.11] - 2026-09-04
 
 ### Features
