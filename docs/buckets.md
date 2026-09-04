@@ -54,6 +54,14 @@ pre-signed URL and the bytes never cross this server, which is what you want whe
 closer to the clients than the server is, or when the server's egress is the thing you are paying
 for.
 
+A codec quietly takes it back, and that is worth knowing before you measure. With
+`LFSX_COMPRESSION` set, what sits in the bucket is a frame under the plaintext digest, so a client
+handed a signed URL would hash what it received and reject the object: downloads keep streaming
+through this server. With an encryption key configured, uploads keep coming through too, since a
+client writing straight to the bucket would leave plaintext where the operator believed there was
+none. The server says both at boot, and `LFSX_S3_PRESIGN=true` beside either is not an error, just
+a setting with nothing left to do.
+
 Uploads go the same way, and the two things that made that unsafe are both closed rather than
 accepted:
 
