@@ -10,9 +10,11 @@ on:
         type: boolean
         default: false
 
+# Read at the top, write only on the job that tags and publishes. A workflow
+# with one job today can grow a second, and the second should not inherit the
+# right to move tags because the first needed it.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -20,6 +22,9 @@ concurrency:
 
 jobs:
   release:
+    permissions:
+      contents: write
+      id-token: write
     uses: FerrLabs/.github/.github/workflows/reusable-ferrflow-release.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
     with:
       dry-run: ${{ inputs.dry_run || false }}

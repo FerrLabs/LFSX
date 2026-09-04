@@ -11,10 +11,13 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   scan:
     name: Secrets + CVE
+    # The SARIF upload is the only thing here that writes anything.
+    permissions:
+      contents: read
+      security-events: write
     uses: FerrLabs/.github/.github/workflows/reusable-security-scan.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
     secrets: inherit

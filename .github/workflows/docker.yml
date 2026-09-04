@@ -23,16 +23,16 @@ on:
         options: [server, site]
         default: server
 
+# Read at the top. Pushing, signing and reporting are the business of the three
+# jobs that do them, and the two jobs that only build a pull request need none
+# of it.
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
-  security-events: write
 
 jobs:
   meta:
     name: Resolve build parameters
+    permissions: {}
     # The server releases as `v0.40.0` and the site as `site@2026.8.18`, so the
     # tag says which image to build. Matching only `v` meant a site release built
     # nothing at all, and a server release rebuilt the site under the server's
@@ -77,6 +77,12 @@ jobs:
 
   build:
     name: Build & Push LFSX
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'server'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
@@ -110,6 +116,12 @@ jobs:
   # arm64 build would double the time for nobody.
   site:
     name: Build & Push Site
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'site'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
@@ -138,6 +150,8 @@ jobs:
 
   verify:
     name: Build without publishing
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
     with:
@@ -154,6 +168,8 @@ jobs:
 
   verify-site:
     name: Build the site without publishing
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
     with:
