@@ -50,6 +50,10 @@ RUN set -eux; \
 ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
 ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
 
+# bash for the build step, because `ulimit -n` is a shell extension rather than
+# POSIX and the default `sh` is where hadolint rightly objects to it.
+SHELL ["/bin/bash", "-c"]
+
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
