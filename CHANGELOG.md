@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.5] - 2026-09-04
+
+### Refactoring
+
+- refactor(tests): split the S3 stub router into one function per method (#334)
+
 ## [1.16.4] - 2026-09-04
 
 ### Bug Fixes
