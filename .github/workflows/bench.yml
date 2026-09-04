@@ -6,6 +6,10 @@ on:
       - 'bench/**'
       - 'server/src/storage/**'
       - '.github/workflows/bench.yml'
+      # The image decides which build an operator actually runs, so a change to
+      # it has to bring its own numbers.
+      - 'Dockerfile'
+      - 'Cargo.toml'
   workflow_dispatch:
 
 permissions:
@@ -13,8 +17,19 @@ permissions:
 
 jobs:
   throughput:
-    name: Throughput
+    # Both builds, because the image ships musl and musl allocates differently
+    # under threads. Reading one number and shipping the other is how a
+    # regression gets published as a measurement.
+    name: Throughput (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: host
+            target: ''
+          - name: musl
+            target: x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -27,13 +42,20 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-bench-
+          key: ${{ runner.os }}-cargo-bench-${{ matrix.name }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-bench-${{ matrix.name }}-
+
+      # ring and zstd are C, so a musl build needs a musl C compiler. cc-rs
+      # picks up musl-gcc on its own once it is on the path.
+      - name: Install the musl toolchain
+        if: matrix.target != ''
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
 
       - name: Measure
         env:
           LARGE_MIB: '1024'
           SMALL_COUNT: '1000'
+          TARGET: ${{ matrix.target }}
         run: |
           set -o pipefail
           bash bench/throughput.sh | tee "$GITHUB_STEP_SUMMARY"
