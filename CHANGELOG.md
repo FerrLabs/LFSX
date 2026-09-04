@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.3] - 2026-09-04
+
+### Bug Fixes
+
+- fix(image): raise the descriptor limit zig needs to link (#331)
+
 ## [1.16.2] - 2026-09-04
 
 ### Bug Fixes
