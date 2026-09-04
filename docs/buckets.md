@@ -220,3 +220,37 @@ cost. An already-compressed one saves nothing and still pays them, about 30% mor
 bucket here is on localhost, so those round trips are close to free in a way they will not be across
 a WAN: on a remote bucket, expect two extra latencies per download before the first byte. If your
 store is mostly PNG and MP3, leave compression off and the objects stay raw.
+
+## A local copy of what the bucket serves
+
+A bucket decouples capacity from one machine, and charges a round trip for every download to do
+it. A CI fleet pulling the same asset pack all day pays that egress on bytes that have not
+changed. Point `LFSX_S3_CACHE_DIR` at a directory, give it a ceiling, and the second reader gets
+the object from local disk:
+
+```bash
+LFSX_S3_CACHE_DIR=/var/lib/lfsx/cache
+LFSX_S3_CACHE_MAX_BYTES=53687091200
+```
+
+Both together or neither: a directory with no ceiling would fill the same volume the server
+stages uploads on, which is a worse outage than the round trips it was meant to save, so it is
+refused with a warning rather than guessed at. Size the ceiling against the working set, the
+objects actually pulled in a day, not against the store: a cache holding everything is a second
+copy of the bucket, and that is what the bucket was for.
+
+What is cached is the stored form, byte for byte what the bucket holds, so compression and
+encryption are unaffected and a cache directory is no more sensitive than the bucket it mirrors.
+Filling happens behind the request: a cold download is served from the bucket at the speed it
+always was, and the copy lands afterwards, so nobody waits for it. Two clients racing for the
+same cold object produce one fetch.
+
+Entries carry a digest beside them, and one that fails it is discarded rather than served, so a
+truncated or rotted file costs a bucket read and not a corrupt download. Eviction drops the least
+recently used first, which is why an asset pack pulled every day outlives one fetched once.
+
+`lfsx_cache_hits_total`, `lfsx_cache_misses_total` and `lfsx_cache_bytes` say whether it is
+earning its disk. Two things worth knowing: the cache is per replica, like the staging directory,
+so two pods warm independently and the ceiling is per pod. And it does nothing under
+`LFSX_S3_PRESIGN=true`, where the client fetches from the bucket directly and the server never
+sees the bytes: the server says so at boot rather than leaving you to wonder.

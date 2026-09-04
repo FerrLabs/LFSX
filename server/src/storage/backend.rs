@@ -29,7 +29,38 @@ enum Backend {
     Bucket {
         bucket: Box<S3Store>,
         staging: LocalStore,
+        cache: Option<std::sync::Arc<super::cache::Cache>>,
     },
+}
+
+// One fetch, off the request path, and only from whoever claimed the object:
+// eight parallel transfers of the same cold pack must not become eight copies
+// of the same download. A failure here is a cache that stays cold, which is
+// what it already was, so it is logged at debug and forgotten.
+fn fill_behind(cache: std::sync::Arc<super::cache::Cache>, bucket: S3Store, oid: Oid, size: u64) {
+    if !cache.claim(&oid) {
+        return;
+    }
+
+    tokio::spawn(async move {
+        let filled = async {
+            use futures_util::StreamExt;
+
+            let chunks = bucket
+                .read(&oid, 0, size)
+                .await?
+                .map(|chunk| chunk.map_err(|error| Error::Storage(std::io::Error::other(error))));
+
+            cache.fill(&oid, chunks).await
+        }
+        .await;
+
+        if let Err(error) = filled {
+            tracing::debug!(%error, %oid, "an object could not be copied into the cache");
+        }
+
+        cache.release(&oid);
+    });
 }
 
 impl Store {
@@ -46,7 +77,25 @@ impl Store {
         Self::over(Backend::Bucket {
             bucket: Box::new(bucket),
             staging,
+            cache: None,
         })
+    }
+
+    pub fn with_cache(mut self, disk: Option<super::cache::Cache>) -> Self {
+        if let (Backend::Bucket { cache, .. }, Some(disk)) = (&mut self.backend, disk) {
+            *cache = Some(std::sync::Arc::new(disk));
+        }
+
+        self
+    }
+
+    pub async fn cache_stats(&self) -> Option<super::cache::Stats> {
+        match &self.backend {
+            Backend::Bucket {
+                cache: Some(cache), ..
+            } => Some(cache.stats().await),
+            _ => None,
+        }
     }
 
     fn over(backend: Backend) -> Self {
@@ -201,7 +250,11 @@ impl Store {
     pub async fn open(&self, ns: &Namespace, oid: &Oid) -> Result<Object, Error> {
         match &self.backend {
             Backend::Local(store) => store.open(ns, oid).await,
-            Backend::Bucket { bucket, staging } => {
+            Backend::Bucket {
+                bucket,
+                staging,
+                cache,
+            } => {
                 // The marker is the proof of possession and is checked before
                 // anything is read, exactly as a local open checks the link.
                 if !bucket.exists(ns, oid).await {
@@ -209,10 +262,31 @@ impl Store {
                 }
 
                 let size = bucket.size_of(oid).await?;
-                let reader = super::codec::Reader::Bucket {
-                    bucket: (**bucket).clone(),
-                    oid: oid.to_owned(),
+
+                // A cached object is read the way the volume backend reads one,
+                // because it is the same bytes in the same form. What is not
+                // cached is served from the bucket as before and filled in
+                // behind the request, so a cold client waits for the bucket and
+                // not for the copy.
+                let cached = match cache {
+                    Some(cache) => cache.open(oid).await,
+                    None => None,
                 };
+
+                let reader = match cached {
+                    Some(file) => super::codec::Reader::File(file),
+                    None => {
+                        if let Some(cache) = cache {
+                            fill_behind(cache.clone(), (**bucket).clone(), oid.to_owned(), size);
+                        }
+
+                        super::codec::Reader::Bucket {
+                            bucket: (**bucket).clone(),
+                            oid: oid.to_owned(),
+                        }
+                    }
+                };
+                let from_cache = matches!(reader, super::codec::Reader::File(_));
 
                 match super::codec::Framed::open(
                     reader,
@@ -225,6 +299,17 @@ impl Store {
                     Some(framed) => Ok(Object::Framed(framed)),
                     // Not one of ours: the object is the bytes, and streaming
                     // them straight through costs no extra round trip.
+                    // A raw object that is cached is a plain local file, so
+                    // it streams like one. `Framed::open` consumed the handle
+                    // deciding it was not framed, hence the reopen.
+                    None if from_cache => match cache.as_ref().unwrap().reopen(oid).await {
+                        Some(file) => Ok(Object::Raw { file, size }),
+                        None => Ok(Object::Remote {
+                            bucket: (**bucket).clone(),
+                            oid: oid.to_owned(),
+                            size,
+                        }),
+                    },
                     None => Ok(Object::Remote {
                         bucket: (**bucket).clone(),
                         oid: oid.to_owned(),
@@ -250,7 +335,9 @@ impl Store {
     {
         let written = match &self.backend {
             Backend::Local(store) => store.write(ns, oid, expected_size, budget, chunks).await?,
-            Backend::Bucket { bucket, staging } => {
+            Backend::Bucket {
+                bucket, staging, ..
+            } => {
                 // Asked of the bucket, because the staging store answers about a
                 // local layout a bucket deployment never fills in: it would call
                 // every upload fresh, and re-pushing an object the repository

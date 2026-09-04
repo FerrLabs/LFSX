@@ -76,6 +76,7 @@ fn presigning(endpoint: &str) -> crate::config::Config {
             secret_key: "secret".into(),
             path_style: true,
             presign: true,
+            cache: None,
             locking: true,
         },
         auth: crate::config::Auth::Disabled,

@@ -62,6 +62,8 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
 | `config.logLevel` | `info` | `RUST_LOG` filter |
 | `config.otlpEndpoint` | `""` | HTTP traces URL of an OTLP collector; empty keeps traces off |
+| `storage.s3.cacheDir` | `""` | directory holding a local copy of what the bucket serves; empty means every download is a bucket round trip |
+| `storage.s3.cacheMaxBytes` | `""` | bytes that cache may hold; required with a `cacheDir`, which is refused without it |
 | `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |

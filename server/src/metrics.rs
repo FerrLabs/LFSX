@@ -24,6 +24,9 @@ pub struct Metrics {
     pub store_bytes: IntGauge,
     pub store_scans: IntGauge,
     pub transfers_in_flight: IntGauge,
+    pub cache_hits: IntCounter,
+    pub cache_misses: IntCounter,
+    pub cache_bytes: IntGauge,
 }
 
 const SIZE_BUCKETS: &[f64] = &[
@@ -111,6 +114,27 @@ impl Metrics {
                     "lfsx_transfers_in_flight",
                     "Uploads and downloads holding a transfer slot right now"
                 ),
+                registry
+            )
+            .expect("metric"),
+            cache_hits: register_int_counter_with_registry!(
+                opts!(
+                    "lfsx_cache_hits_total",
+                    "Downloads served from the local copy instead of the bucket"
+                ),
+                registry
+            )
+            .expect("metric"),
+            cache_misses: register_int_counter_with_registry!(
+                opts!(
+                    "lfsx_cache_misses_total",
+                    "Downloads the local cache could not answer"
+                ),
+                registry
+            )
+            .expect("metric"),
+            cache_bytes: register_int_gauge_with_registry!(
+                opts!("lfsx_cache_bytes", "Bytes the local cache is holding"),
                 registry
             )
             .expect("metric"),

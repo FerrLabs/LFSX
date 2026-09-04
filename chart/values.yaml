@@ -8,6 +8,11 @@ storage:
     region: us-east-1
     pathStyle: true
     presign: false
+    # A local copy of what the bucket serves, so a second reader does not pay
+    # the round trip again. Both together or neither: a cache with no ceiling
+    # fills the volume this server also stages uploads on.
+    cacheDir: ""
+    cacheMaxBytes: ""
     existingSecret: ""
     accessKeyKey: accessKey
     secretKeyKey: secretKey
