@@ -12,7 +12,11 @@ fn cache(root: &tempfile::TempDir, ceiling: u64) -> Cache {
 async fn fill(cache: &Cache, oid: &Oid, bytes: &[u8]) {
     let chunk = axum::body::Bytes::copy_from_slice(bytes);
     cache
-        .fill(oid, futures_util::stream::once(async { Ok(chunk) }))
+        .fill(
+            oid,
+            bytes.len() as u64,
+            futures_util::stream::once(async { Ok(chunk) }),
+        )
         .await
         .expect("the object is cached");
 }
@@ -47,7 +51,7 @@ async fn an_object_that_was_never_cached_is_a_miss() {
     let cache = cache(&root, 1 << 20);
 
     assert!(cache.open(&oid(2)).await.is_none());
-    assert_eq!(cache.stats().await.misses, 1);
+    assert_eq!(cache.stats().misses, 1);
 }
 
 // The one failure a cache must not turn into a corrupt download. Nothing here
@@ -117,7 +121,7 @@ async fn the_ceiling_evicts_what_was_used_longest_ago() {
         cache.open(&oid(6)).await.is_none(),
         "and the one nobody has touched since it arrived is the one to drop"
     );
-    assert!(cache.stats().await.bytes <= 200);
+    assert!(cache.stats().bytes <= 200);
 }
 
 // Two clients racing for the same cold object must produce one fetch, not two.
@@ -137,4 +141,37 @@ async fn only_one_caller_fills_an_object() {
         cache.claim(&oid(8)),
         "and once it is done the object can be filled again"
     );
+}
+
+// An object nothing could keep must not be fetched at all: filling it would
+// evict every other entry and then itself, and the next download would do it
+// again.
+#[tokio::test]
+async fn an_object_larger_than_the_ceiling_is_not_worth_caching() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = cache(&root, 100);
+
+    assert!(cache.fits(100));
+    assert!(!cache.fits(101));
+}
+
+// A body that stops early without an error would otherwise be cached as a whole
+// object whose digest matches its own truncation.
+#[tokio::test]
+async fn a_short_body_is_refused_rather_than_cached() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = cache(&root, 1 << 20);
+    let chunk = axum::body::Bytes::from_static(b"only half of it");
+
+    let filled = cache
+        .fill(
+            &oid(9),
+            1024,
+            futures_util::stream::once(async { Ok(chunk) }),
+        )
+        .await;
+
+    assert!(filled.is_err());
+    assert!(cache.open(&oid(9)).await.is_none());
+    assert_eq!(cache.stats().bytes, 0);
 }

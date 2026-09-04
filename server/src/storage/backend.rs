@@ -38,7 +38,10 @@ enum Backend {
 // of the same download. A failure here is a cache that stays cold, which is
 // what it already was, so it is logged at debug and forgotten.
 fn fill_behind(cache: std::sync::Arc<super::cache::Cache>, bucket: S3Store, oid: Oid, size: u64) {
-    if !cache.claim(&oid) {
+    // An object that cannot fit is never fetched: filling it would evict the
+    // whole cache and then itself, leaving nothing behind and doing it again on
+    // the next download.
+    if !cache.fits(size) || !cache.claim(&oid) {
         return;
     }
 
@@ -51,7 +54,7 @@ fn fill_behind(cache: std::sync::Arc<super::cache::Cache>, bucket: S3Store, oid:
                 .await?
                 .map(|chunk| chunk.map_err(|error| Error::Storage(std::io::Error::other(error))));
 
-            cache.fill(&oid, chunks).await
+            cache.fill(&oid, size, chunks).await
         }
         .await;
 
@@ -89,11 +92,11 @@ impl Store {
         self
     }
 
-    pub async fn cache_stats(&self) -> Option<super::cache::Stats> {
+    pub fn cache_stats(&self) -> Option<super::cache::Stats> {
         match &self.backend {
             Backend::Bucket {
                 cache: Some(cache), ..
-            } => Some(cache.stats().await),
+            } => Some(cache.stats()),
             _ => None,
         }
     }

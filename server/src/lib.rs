@@ -308,7 +308,8 @@ fn backends(config: &Config) -> (Store, LockStore) {
 
             if disk.is_some() && *presign {
                 tracing::warn!(
-                    "LFSX_S3_CACHE_DIR is set with LFSX_S3_PRESIGN=true, so downloads go straight              to the bucket and the cache never sees them: the two settings pull in              opposite directions"
+                    "LFSX_S3_CACHE_DIR is set with LFSX_S3_PRESIGN=true, so downloads go straight to the \
+             bucket and the cache never sees them: the two settings pull in opposite directions"
                 );
             }
 

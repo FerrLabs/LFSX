@@ -140,7 +140,8 @@ fn disk_cache(dir: Option<&str>, max_bytes: Option<&str>) -> Option<DiskCache> {
         .filter(|ceiling| *ceiling > 0)
     else {
         tracing::warn!(
-            "LFSX_S3_CACHE_DIR is set without a usable LFSX_S3_CACHE_MAX_BYTES, so nothing is              cached: a cache with no ceiling would fill the volume this server stages uploads on"
+            "LFSX_S3_CACHE_DIR is set without a usable LFSX_S3_CACHE_MAX_BYTES, so nothing is \
+             cached: a cache with no ceiling would fill the volume this server stages uploads on"
         );
         return None;
     };

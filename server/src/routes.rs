@@ -75,7 +75,7 @@ async fn scrape(State(state): State<Shared>) -> Response {
     // The cache counts its own hits, so the scrape carries the difference
     // rather than the total: both sides are monotonic, which makes the delta the
     // right thing to add to a counter.
-    if let Some(cache) = state.store.cache_stats().await {
+    if let Some(cache) = state.store.cache_stats() {
         let metrics = &state.metrics;
         metrics
             .cache_hits

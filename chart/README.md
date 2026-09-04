@@ -97,6 +97,11 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `serviceAccount.create` | `true` | token automount is off either way |
 | `podAnnotations` | Prometheus scrape hints | set to `{}` if your cluster discovers targets some other way |
 
+Quote the numeric values (`cacheMaxBytes`, `maxObjectSize`, `repoQuota`, `maxConcurrentTransfers`,
+`locks.maxAge`) when they are large. Helm reads an unquoted number in a values file as a float, so
+`53687091200` reaches the container as `5.36870912e+10`, which the server cannot parse and treats
+as unset. `--set` on the command line and a quoted `"53687091200"` both arrive intact.
+
 ## Storage
 
 The claim holds every object, so size it for the repositories you expect and grow it there. LFSX
