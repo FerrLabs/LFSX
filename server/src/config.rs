@@ -56,6 +56,10 @@ pub enum Storage {
         // that counts bytes, serves ranges and holds the ceiling, and an
         // operator should choose to give those up rather than discover it.
         presign: bool,
+        // A local copy of what the bucket holds, so a second reader does not
+        // pay the round trip again. None is no cache at all, which is what a
+        // deployment that never set it keeps getting.
+        cache: Option<DiskCache>,
         // Whether locks can be taken here. Not read from the environment: it
         // starts true and the startup probes turn it off, the same way they turn
         // `presign` off, when the store will not prove it can arbitrate between
@@ -85,6 +89,10 @@ impl Storage {
             secret_key: required("LFSX_S3_SECRET_KEY"),
             path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
             presign: std::env::var("LFSX_S3_PRESIGN").as_deref() == Ok("true"),
+            cache: disk_cache(
+                std::env::var("LFSX_S3_CACHE_DIR").ok().as_deref(),
+                std::env::var("LFSX_S3_CACHE_MAX_BYTES").ok().as_deref(),
+            ),
             locking: true,
         }
     }
@@ -111,6 +119,37 @@ pub enum Auth {
         anonymous_read: bool,
     },
     Disabled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskCache {
+    pub dir: PathBuf,
+    pub max_bytes: u64,
+}
+
+// A directory and a ceiling, together or not at all. A cache with nowhere to
+// live is nothing, and one with no ceiling fills the disk the server also
+// stages uploads on, which is a worse outage than the bucket round trips it
+// was meant to save.
+fn disk_cache(dir: Option<&str>, max_bytes: Option<&str>) -> Option<DiskCache> {
+    let dir = dir.filter(|dir| !dir.is_empty())?;
+
+    let Some(max_bytes) = max_bytes
+        .map(str::trim)
+        .and_then(|raw| raw.parse::<u64>().ok())
+        .filter(|ceiling| *ceiling > 0)
+    else {
+        tracing::warn!(
+            "LFSX_S3_CACHE_DIR is set without a usable LFSX_S3_CACHE_MAX_BYTES, so nothing is \
+             cached: a cache with no ceiling would fill the volume this server stages uploads on"
+        );
+        return None;
+    };
+
+    Some(DiskCache {
+        dir: PathBuf::from(dir),
+        max_bytes,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

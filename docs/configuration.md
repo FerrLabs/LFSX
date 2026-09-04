@@ -28,6 +28,8 @@ All configuration is by environment variable.
 | `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | unset | credentials for it, required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `LFSX_S3_PRESIGN` | `false` | `true` to hand transfers to the bucket instead of streaming them through the server, ignored for downloads when compression or encryption is configured, and ignored entirely if the bucket does not prove it verifies upload checksums |
+| `LFSX_S3_CACHE_DIR` | unset | directory holding a local copy of what the bucket serves, so a second reader does not pay the round trip again |
+| `LFSX_S3_CACHE_MAX_BYTES` | unset | bytes the cache may hold before the least recently used entries are dropped; required with the directory, which does nothing without it |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `LFSX_ENCRYPTION_KEY_COMMAND` | unset | command whose stdout is read exactly like the key file, for keys that must never rest on disk; mutually exclusive with the file, setting both refuses to start |

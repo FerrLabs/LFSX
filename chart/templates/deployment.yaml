@@ -65,6 +65,12 @@ spec:
               value: {{ .Values.storage.s3.pathStyle | quote }}
             - name: LFSX_S3_PRESIGN
               value: {{ .Values.storage.s3.presign | quote }}
+            {{- if .Values.storage.s3.cacheDir }}
+            - name: LFSX_S3_CACHE_DIR
+              value: {{ .Values.storage.s3.cacheDir | quote }}
+            - name: LFSX_S3_CACHE_MAX_BYTES
+              value: {{ .Values.storage.s3.cacheMaxBytes | quote }}
+            {{- end }}
             - name: LFSX_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

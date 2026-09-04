@@ -47,6 +47,20 @@
             },
             "secretKeyKey": {
               "type": "string"
+            },
+            "cacheDir": {
+              "type": "string"
+            },
+            "cacheMaxBytes": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "string"
+                }
+              ]
             }
           },
           "additionalProperties": false

@@ -141,6 +141,7 @@ fn bucket_config(
             secret_key: bucket.secret_key.clone(),
             path_style: true,
             presign,
+            cache: None,
             locking: true,
         },
         auth: Auth::Disabled,
@@ -257,6 +258,85 @@ async fn batch(app: Router, repo: &str, oid: &str, size: usize) -> serde_json::V
         .unwrap();
 
     serde_json::from_slice(&bytes).unwrap()
+}
+
+// The cache is a copy of the bucket, so the only thing that matters is that a
+// download served from it is the same download. The second read here is the one
+// the cache answers, and the object it returns has to hash to what was pushed.
+//
+// Filling happens behind the request, so the first download returns before the
+// copy exists: the wait is for that, not for the transfer.
+#[tokio::test]
+async fn a_cached_download_is_the_same_download() {
+    let bucket = bucket_or_skip!();
+    let root = tempfile::tempdir().unwrap();
+    let payload = payload("the cached path");
+    let oid = oid_of(&payload);
+    let cache = root.path().join("cache");
+
+    let cached = || {
+        lfsx_server::app(Config {
+            storage: match bucket_config(&root, &bucket, false, None, None, false).storage {
+                Storage::Bucket {
+                    endpoint,
+                    bucket,
+                    region,
+                    access_key,
+                    secret_key,
+                    path_style,
+                    presign,
+                    locking,
+                    ..
+                } => Storage::Bucket {
+                    endpoint,
+                    bucket,
+                    region,
+                    access_key,
+                    secret_key,
+                    path_style,
+                    presign,
+                    cache: Some(lfsx_server::config::DiskCache {
+                        dir: cache.clone(),
+                        max_bytes: 64 * 1024 * 1024,
+                    }),
+                    locking,
+                },
+                Storage::Local => unreachable!("this file only builds bucket configs"),
+            },
+            ..bucket_config(&root, &bucket, false, None, None, false)
+        })
+    };
+
+    assert_eq!(
+        push(cached(), "Cached", &oid, &payload).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        download(cached(), "Cached", &oid).await.status(),
+        StatusCode::OK
+    );
+
+    for _ in 0..40 {
+        if cache.join(&oid).exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        cache.join(&oid).exists(),
+        "a download the bucket answered has to leave a copy behind, or nothing is cached"
+    );
+
+    let response = download(cached(), "Cached", &oid).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(
+        oid_of(&body),
+        oid,
+        "the copy has to be the object, not something that merely has its name"
+    );
 }
 
 #[tokio::test]

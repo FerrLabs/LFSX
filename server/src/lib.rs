@@ -248,7 +248,10 @@ fn backends(config: &Config) -> (Store, LockStore) {
             LockStore::local(config.storage_root.clone()),
         ),
         crate::config::Storage::Bucket {
-            presign, locking, ..
+            presign,
+            locking,
+            cache,
+            ..
         } => {
             // Built once and shared: the objects and the locks are two ways of
             // using the same bucket, not two buckets. Signing, the connection
@@ -295,8 +298,23 @@ fn backends(config: &Config) -> (Store, LockStore) {
             // The locks go with the objects. Left on the volume they would make
             // the bucket a half measure: capacity would be shared and the one
             // piece of state a second replica must agree on would not be.
+            // A cache the server cannot create is a misconfiguration worth
+            // stopping for: the alternative is a deployment that silently keeps
+            // paying the round trips the operator thought they had bought out of.
+            let disk = cache.as_ref().map(|disk| {
+                crate::storage::cache::Cache::new(disk.dir.clone(), disk.max_bytes)
+                    .expect("the cache directory is not usable")
+            });
+
+            if disk.is_some() && *presign {
+                tracing::warn!(
+                    "LFSX_S3_CACHE_DIR is set with LFSX_S3_PRESIGN=true, so downloads go straight to the \
+             bucket and the cache never sees them: the two settings pull in opposite directions"
+                );
+            }
+
             (
-                Store::bucket(S3Store::new(keys.clone(), *presign), local),
+                Store::bucket(S3Store::new(keys.clone(), *presign), local).with_cache(disk),
                 LockStore::bucket(keys).with_conditional_writes(*locking),
             )
         }

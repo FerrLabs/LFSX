@@ -67,6 +67,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "lfsx.validate" -}}
 {{- if eq .Values.storage.type "s3" -}}
+  {{- if and .Values.storage.s3.cacheDir (not .Values.storage.s3.cacheMaxBytes) -}}
+    {{- fail "storage.s3.cacheDir needs storage.s3.cacheMaxBytes: a cache with no ceiling fills the volume this server also stages uploads on" -}}
+  {{- end -}}
   {{- if not .Values.storage.s3.endpoint -}}
     {{- fail "storage.type=s3 needs storage.s3.endpoint" -}}
   {{- end -}}

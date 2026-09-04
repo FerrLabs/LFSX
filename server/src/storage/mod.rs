@@ -1,4 +1,5 @@
 mod backend;
+pub(crate) mod cache;
 pub(crate) mod codec;
 pub mod crypt;
 mod dedupe;
