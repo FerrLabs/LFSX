@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [edited]
 
+# Nothing here reads or writes the repository: the reusable workflow asks the
+# Renovate App for a rebase and needs nothing from this token. Declared anyway,
+# because an undeclared block inherits whatever the repository default is.
+permissions: {}
+
 jobs:
   dispatch:
     uses: FerrLabs/.github/.github/workflows/reusable-renovate-dispatch.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main

@@ -11,15 +11,17 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  # For the keyless chart signature: the OIDC token is the identity cosign
-  # binds into the certificate, which is what lets anyone verify the chart
-  # was pushed by this workflow rather than by someone with a stolen PAT.
-  id-token: write
 
 jobs:
   publish:
     name: Package & Push
+    permissions:
+      contents: read
+      packages: write
+      # For the keyless chart signature: the OIDC token is the identity cosign
+      # binds into the certificate, which is what lets anyone verify the chart
+      # was pushed by this workflow rather than by someone with a stolen PAT.
+      id-token: write
     if: startsWith(github.event.release.tag_name, 'v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
