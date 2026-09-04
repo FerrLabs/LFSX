@@ -42,12 +42,22 @@ RUN set -eux; \
 # zig keeps a compilation cache and will not work without a writable one. Under
 # the rootless builder CI uses, the default under $HOME was not writable, and
 # the link died on "sub-compilation of libunwind failed: CacheCheckFailed".
+#
+# It also opens the whole cache at once while linking, which is why the build
+# below raises the descriptor limit: the same link failed with
+# "ProcessFdQuotaExceeded" against the 1024 that builder starts with. Docker
+# Desktop hands out a million, so this only ever appeared in CI.
 ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
 ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
+
+# bash for the build step, because `ulimit -n` is a shell extension rather than
+# POSIX and the default `sh` is where hadolint rightly objects to it.
+SHELL ["/bin/bash", "-c"]
 
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
+    ulimit -n "$(ulimit -Hn)" || true ;     echo "descriptors: $(ulimit -n) soft, $(ulimit -Hn) hard" ; \
     case "${TARGETARCH}" in \
         amd64) target=x86_64-unknown-linux-musl ;; \
         arm64) target=aarch64-unknown-linux-musl ;; \
