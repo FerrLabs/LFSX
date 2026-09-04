@@ -47,3 +47,18 @@ opentelemetry-otlp = { version = "0.32", default-features = false, features = ["
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
+
+# Never set until now, so every release binary was built with Cargo defaults.
+# LTO across crate boundaries and one codegen unit trade release build time,
+# which nothing waits on, for a smaller and slightly faster binary.
+#
+# Symbols stay. Stripping them takes another chunk off, and takes the function
+# names out of every backtrace with it, which is the one thing worth having on
+# the day a server panics in production.
+#
+# Not `panic = "abort"`: today a panic takes down the task and the server keeps
+# serving. Abort would take down the process for a few hundred kilobytes.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"
