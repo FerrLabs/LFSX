@@ -145,7 +145,10 @@ jobs:
       tag: pr-${{ github.event.pull_request.number }}
       context: .
       dockerfile: Dockerfile
-      platforms: linux/amd64
+      # Both, because the arm64 cross-compile is the half a laptop cannot try
+      # and the half that has broken before. It is a cross build rather than an
+      # emulated one, so the second platform costs a compile and not an hour.
+      platforms: linux/amd64,linux/arm64
       sccache-gha: true
       push: false
 

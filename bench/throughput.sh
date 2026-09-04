@@ -9,6 +9,10 @@ SMALL_COUNT=${SMALL_COUNT:-500}
 SMALL_KIB=${SMALL_KIB:-64}
 PORT=${PORT:-8091}
 NAMESPACE=Bench/Throughput
+# Which build to measure. Empty is the host toolchain, which is what a developer
+# runs. The image ships a musl binary, and musl allocates differently enough
+# under threads that the difference has to be measured rather than assumed.
+TARGET=${TARGET:-}
 
 
 work=$(mktemp -d)
@@ -38,12 +42,23 @@ rate_mib() {
 	awk -v mib="$1" -v secs="$2" 'BEGIN { printf("%.0f", secs > 0 ? mib / secs : 0) }'
 }
 
-cargo build --release --bin lfsx-server >/dev/null 2>&1
+if [ -n "$TARGET" ]; then
+	rustup target add "$TARGET" >/dev/null 2>&1 || true
+	cargo build --release --target "$TARGET" --bin lfsx-server >/dev/null 2>&1
+	server="target/${TARGET}/release/lfsx-server"
+else
+	cargo build --release --bin lfsx-server >/dev/null 2>&1
+	server="target/release/lfsx-server"
+fi
 
+# The binary directly, not `cargo run`. Cargo spawns the server as a child and
+# stays alive as the parent, so `$!` was cargo's pid and every memory figure
+# below was cargo's resident size: flat whatever the server did, which is what
+# made "memory stays flat" look proven when nothing had measured it.
 LFSX_BIND="127.0.0.1:${PORT}" \
 	LFSX_STORAGE_ROOT="${work}/objects" \
 	LFSX_AUTH=disabled \
-	cargo run --quiet --release --bin lfsx-server >/dev/null 2>&1 &
+	"$server" >/dev/null 2>&1 &
 server_pid=$!
 
 for _ in $(seq 50); do
