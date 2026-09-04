@@ -59,6 +59,9 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 |---|---|---|
 | `image.repository` | `ghcr.io/ferrlabs/lfsx` | image to pull |
 | `image.tag` | chart `appVersion` | override to pin a different build |
+| `storage.s3.presign` | `false` | hand transfers to the bucket instead of streaming them through the server; the bytes stop passing here, so the counters, the ranges and the transfer cap stop applying to them |
+| `storage.s3.region` | `us-east-1` | signing region; MinIO and Garage accept the default, AWS wants the bucket one |
+| `storage.s3.pathStyle` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
 | `config.logLevel` | `info` | `RUST_LOG` filter |
 | `config.otlpEndpoint` | `""` | HTTP traces URL of an OTLP collector; empty keeps traces off |
