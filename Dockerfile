@@ -39,8 +39,15 @@ RUN set -eux; \
     rm /tmp/zig.tar.xz; \
     cargo install cargo-zigbuild --version "${ZIGBUILD_VERSION}" --locked
 
+# zig keeps a compilation cache and will not work without a writable one. Under
+# the rootless builder CI uses, the default under $HOME was not writable, and
+# the link died on "sub-compilation of libunwind failed: CacheCheckFailed".
+ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
+ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
+
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
+    set -eu ; \
     case "${TARGETARCH}" in \
         amd64) target=x86_64-unknown-linux-musl ;; \
         arm64) target=aarch64-unknown-linux-musl ;; \

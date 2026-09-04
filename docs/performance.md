@@ -10,13 +10,20 @@ the storage path.
 | Upload, 1 GiB single object | 117 MiB/s |
 | Download, 1 GiB single object | 141 MiB/s |
 | 1000 objects of 64 KiB, sequential | 1.4 ms per object, 45 MiB/s |
-| Resident memory, idle → peak | 5 MiB → 6 MiB |
 
-The memory row is the one worth looking at. A gigabyte moves through the process and its resident
-set grows by one megabyte, which is what "nothing is buffered" means in practice rather than as a
-claim. Upload is the slower direction because every byte is hashed and the object is flushed to
-disk before it is acknowledged, that cost buys the guarantee that an accepted object is on disk
-and matches its digest.
+There was a memory row here, and it was measuring the wrong process. The harness launched the
+server with `cargo run` and then read the resident size of that pid, which is cargo: cargo stays
+alive as the parent and hands the work to a child. So the figure was the wrapper, flat whatever
+the server did, and it was quoted as proof that nothing is buffered. The harness now runs the
+binary directly, and the row comes back when a run has produced it.
+
+The claim itself is not in doubt, the evidence was: uploads and downloads are streamed in frames,
+and the code path holds four megabytes at a time whatever the object size. It just has to be
+measured before it is published again.
+
+Upload is the slower direction because every byte is hashed and the object is flushed to disk
+before it is acknowledged, that cost buys the guarantee that an accepted object is on disk and
+matches its digest.
 
 The small-object row is per-request overhead rather than bandwidth: at 64 KiB the transfer itself
 is a fraction of a millisecond, so 1.4 ms is essentially what it costs to accept, verify, fsync and
