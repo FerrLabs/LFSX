@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.11] - 2026-09-04
+
+### Features
+
+- feat(server): keep a local copy of what the bucket serves (#324)
+
 ## [2026.9.10] - 2026-09-03
 
 ### Features

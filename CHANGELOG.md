@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.0] - 2026-09-04
+
+### Features
+
+- feat(server): keep a local copy of what the bucket serves (#324)
+
 ## [1.15.1] - 2026-09-03
 
 ### Bug Fixes
