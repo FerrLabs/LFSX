@@ -57,7 +57,7 @@ SHELL ["/bin/bash", "-c"]
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
-    ulimit -n 65536 2>/dev/null || true ; \
+    ulimit -n "$(ulimit -Hn)" || true ;     echo "descriptors: $(ulimit -n) soft, $(ulimit -Hn) hard" ; \
     case "${TARGETARCH}" in \
         amd64) target=x86_64-unknown-linux-musl ;; \
         arm64) target=aarch64-unknown-linux-musl ;; \
