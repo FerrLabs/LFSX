@@ -20,9 +20,9 @@ and shipped with a CycloneDX SBOM.
 
 ## Verifying what you downloaded
 
-Every release ships three kinds of proof: a `.sha256` beside each archive, a build provenance
-attestation on each archive, and a CycloneDX SBOM per crate (`lfsx-server.cdx.json`,
-`lfsx.cdx.json`). They answer different questions.
+Every release ships four kinds of proof: a `.sha256` beside each archive, a build provenance
+attestation on each archive, a `.sigstore` signature bundle beside each archive, and a CycloneDX
+SBOM per crate (`lfsx-server.cdx.json`, `lfsx.cdx.json`). They answer different questions.
 
 The checksum proves the download survived the wire:
 
@@ -36,6 +36,20 @@ commit, which is the claim a checksum next to the artifact it checks cannot make
 ```bash
 gh attestation verify lfsx-server-x86_64-unknown-linux-musl.tar.gz --repo FerrLabs/LFSX
 ```
+
+The signature bundle says the same thing without asking GitHub. `gh attestation verify` reads
+GitHub's attestation store, so it needs GitHub to answer; the bundle beside the archive is checked
+against the public transparency log by cosign alone:
+
+```bash
+cosign verify-blob lfsx-server-x86_64-unknown-linux-musl.tar.gz \
+  --bundle lfsx-server-x86_64-unknown-linux-musl.tar.gz.sigstore \
+  --certificate-identity-regexp '^https://github.com/FerrLabs/LFSX/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The two identity flags are the point of the check: without them cosign confirms that somebody
+signed the bytes, not that this repository's workflow did.
 
 The SBOM lists every crate in the build for scanners and licence tooling, and is attested the same
 way. The container image is verified separately: it is signed with cosign at push and its

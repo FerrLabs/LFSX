@@ -81,6 +81,35 @@ jobs:
             lfsx-${{ matrix.target }}.tar.gz
             lfsx-${{ matrix.target }}.zip
 
+      # The attestation above proves the same thing and proves it better, but it
+      # lives in GitHub's attestation store rather than beside the download, so
+      # nothing outside GitHub can see it and neither can a scanner reading the
+      # release. A signature bundle next to each archive is the portable form:
+      # verifiable with cosign alone, against this repository and this workflow.
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the archives
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          target='${{ matrix.target }}'
+
+          # tar.gz on every platform but Windows, which gets the zip, so the
+          # pair this runner did not produce is skipped rather than guessed at.
+          for bin in lfsx-server lfsx ; do
+            for ext in tar.gz zip ; do
+              archive="${bin}-${target}.${ext}"
+              [ -f "$archive" ] || continue
+
+              cosign sign-blob --yes "$archive" --bundle "${archive}.sigstore"
+              gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${archive}.sigstore"
+            done
+          done
+
   sbom:
     name: SBOM
     needs: build
