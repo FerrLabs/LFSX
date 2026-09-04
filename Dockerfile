@@ -23,44 +23,19 @@ RUN set -eux; \
     chmod +x /usr/local/bin/sccache; \
     rm -rf /tmp/sccache*
 
-# The binary is linked against musl so the runtime image can be the static one,
-# which is the difference between ten megabytes of glibc and none. ring and
-# zstd are C, so cross-compiling needs a C compiler for the target, and Debian
-# packages no aarch64 musl toolchain: `zig cc` is one download that targets
-# both architectures, where apt would only solve the amd64 half.
-ARG ZIG_VERSION=0.14.1
-ARG ZIGBUILD_VERSION=0.23.4
-RUN set -eux; \
-    url="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"; \
-    curl -fsSL "$url" -o /tmp/zig.tar.xz; \
-    mkdir -p /opt/zig; \
-    tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1; \
-    ln -s /opt/zig/zig /usr/local/bin/zig; \
-    rm /tmp/zig.tar.xz; \
-    cargo install cargo-zigbuild --version "${ZIGBUILD_VERSION}" --locked
-
-# zig keeps a compilation cache and will not work without a writable one. Under
-# the rootless builder CI uses, the default under $HOME was not writable, and
-# the link died on "sub-compilation of libunwind failed: CacheCheckFailed".
-#
-# It also opens the whole cache at once while linking, which is why the build
-# below raises the descriptor limit: the same link failed with
-# "ProcessFdQuotaExceeded" against the 1024 that builder starts with. Docker
-# Desktop hands out a million, so this only ever appeared in CI.
-ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
-ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
-
-# bash for the build step, because `ulimit -n` is a shell extension rather than
-# POSIX and the default `sh` is where hadolint rightly objects to it.
-SHELL ["/bin/bash", "-c"]
-
+# `set -eu` because this chain runs on `;`: without it a failed build exported a
+# layer with no binary in it, and the error surfaced three steps later as a
+# `COPY --from=builder ... not found` that named neither the cause nor the step.
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
-    ulimit -n "$(ulimit -Hn)" || true ;     echo "descriptors: $(ulimit -n) soft, $(ulimit -Hn) hard" ; \
     case "${TARGETARCH}" in \
-        amd64) target=x86_64-unknown-linux-musl ;; \
-        arm64) target=aarch64-unknown-linux-musl ;; \
+        amd64) target=x86_64-unknown-linux-gnu ;; \
+        arm64) target=aarch64-unknown-linux-gnu ; \
+               apt-get update ; \
+               apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross ; \
+               rm -rf /var/lib/apt/lists/* ; \
+               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc ;; \
         *) echo "unsupported architecture: ${TARGETARCH}" >&2 ; exit 1 ;; \
     esac ; \
     ACTIONS_CACHE_URL="$(cat /run/secrets/gha-cache-url 2>/dev/null || true)" ; \
@@ -72,15 +47,12 @@ RUN --mount=type=secret,id=gha-cache-url \
     fi ; \
     echo "sccache: ${RUSTC_WRAPPER:-not in use}" ; \
     rustup target add "${target}" ; \
-    cargo zigbuild --release --locked --bin lfsx-server --target "${target}" ; \
+    cargo build --release --locked --bin lfsx-server --target "${target}" ; \
     sccache --show-stats 2>/dev/null || true ; \
     install -D "target/${target}/release/lfsx-server" /out/lfsx-server ; \
     mkdir -p /out/storage
 
-# Static rather than cc, which exists to carry glibc and libgcc for a binary
-# that no longer needs either. The trust roots are compiled in through
-# webpki-roots, so nothing here reads a system store.
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 COPY --from=builder /out/lfsx-server /usr/local/bin/lfsx-server
 COPY --from=builder --chown=65532:65532 /out/storage /var/lib/lfsx
