@@ -19,7 +19,10 @@
       "matchPackageNames": [
         "typescript"
       ],
-      "allowedVersions": "<7"
+      "allowedVersions": "<7",
+      "matchDatasources": [
+        "npm"
+      ]
     }
   ]
 }
