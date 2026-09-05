@@ -7,3 +7,4 @@ site/src/content/
 packaging/nix/build/
 packaging/nix/result
 packaging/nix/package.nix
+/result

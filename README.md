@@ -81,6 +81,12 @@ From crates.io, if you already have a Rust toolchain and would rather compile:
 cargo install lfsx-server
 ```
 
+On NixOS, or anywhere with Nix installed, the repository is a flake:
+
+```bash
+nix run github:FerrLabs/LFSX
+```
+
 Or from source, without the permission check, for a local trusted network:
 
 ```bash
