@@ -196,8 +196,14 @@ jobs:
   # the smoke test and documents that as single-platform. That is why this is a
   # third job rather than a `smoke-test-cmd` on `verify`: the arm64 cross-compile
   # check is the half a laptop cannot do, and #331 is what happens without it.
+  # `needs: verify` is not a data dependency, it is the only way these two can
+  # coexist. reusable-docker-build groups its runs on the image name, and both
+  # jobs build the same one, so run in parallel the second claims the group and
+  # cancels the first. Serialising costs wall clock on a Dockerfile pull request
+  # and nothing else.
   run-it:
     name: Run the image it built
+    needs: verify
     permissions:
       contents: read
       packages: write

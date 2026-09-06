@@ -36,7 +36,9 @@ ARG ZIGBUILD_VERSION=0.23.4
 RUN set -eux; \
     url="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"; \
     curl -fsSL "$url" -o /tmp/zig.tar.xz; \
-    echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum -c -; \
+    printf '%s  /tmp/zig.tar.xz\n' "${ZIG_SHA256}" > /tmp/zig.sha256; \
+    sha256sum -c /tmp/zig.sha256; \
+    rm /tmp/zig.sha256; \
     mkdir -p /opt/zig; \
     tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1; \
     ln -s /opt/zig/zig /usr/local/bin/zig; \
