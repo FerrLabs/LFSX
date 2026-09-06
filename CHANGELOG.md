@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.8] - 2026-09-06
+
+### Bug Fixes
+
+- perf(ci): stop building amd64 twice and redownloading the toolchain (#353)
+
 ## [1.16.7] - 2026-09-06
 
 ### Bug Fixes
