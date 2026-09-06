@@ -85,7 +85,7 @@ jobs:
       security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'server'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@15286b37e14c898251a98ea18d21b69ab0bf777f # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
@@ -94,6 +94,10 @@ jobs:
       dockerfile: Dockerfile
       platforms: linux/amd64,linux/arm64
       sccache-gha: true
+      # zig holds a descriptor open per source it compiles for compiler_rt and
+      # libunwind, and buildah's default is 1024 hard, which the aarch64 musl
+      # link exhausted. It cannot be raised from inside the RUN, only here.
+      build-ulimits: nofile=65536:65536
       extra-tags: ghcr.io/ferrlabs/lfsx:${{ needs.meta.outputs.major_minor }}
       smoke-test-cmd: |
         podman run -d --name lfsx-smoke -p 18080:8080 "$SMOKE_IMAGE"
@@ -124,7 +128,7 @@ jobs:
       security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'site'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@15286b37e14c898251a98ea18d21b69ab0bf777f # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: ${{ needs.meta.outputs.version }}
@@ -165,7 +169,7 @@ jobs:
       attestations: write
       security-events: write
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@15286b37e14c898251a98ea18d21b69ab0bf777f # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: pr-${{ github.event.pull_request.number }}
@@ -176,6 +180,7 @@ jobs:
       # emulated one, so the second platform costs a compile and not an hour.
       platforms: linux/amd64,linux/arm64
       sccache-gha: true
+      build-ulimits: nofile=65536:65536
       push: false
 
   verify-site:
@@ -187,7 +192,7 @@ jobs:
       attestations: write
       security-events: write
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@15286b37e14c898251a98ea18d21b69ab0bf777f # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: pr-${{ github.event.pull_request.number }}
