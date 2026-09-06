@@ -4,11 +4,18 @@ ARG TARGETARCH
 
 WORKDIR /src
 
-# Both toolchains install above the COPY lines because neither reads a source
-# file, and a layer below them is invalidated by every edit. A release bumps
-# the version line in server/Cargo.toml, so leaving them underneath meant every
-# release re-downloaded 47 MB of zig and recompiled cargo-zigbuild from source,
-# once per platform, before compiling anything of ours.
+# rust-toolchain.toml comes first and alone: rustup reads it from the working
+# directory, so the `cargo install` below is what pulls the pinned 1.98 channel,
+# into a layer that only changes when the pin does. Copied with the sources
+# instead, the whole toolchain downloaded inside the compile layer on every
+# build.
+COPY rust-toolchain.toml ./
+
+# Both toolchains install above the source COPY lines because neither reads a
+# source file, and a layer below them is invalidated by every edit. A release
+# bumps the version line in server/Cargo.toml, so leaving them underneath meant
+# every release re-downloaded 47 MB of zig and recompiled cargo-zigbuild from
+# source, once per platform, before compiling anything of ours.
 ARG SCCACHE_VERSION=v0.16.0
 ENV CARGO_INCREMENTAL=0
 RUN set -eux; \
@@ -51,7 +58,7 @@ RUN set -eux; \
 ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
 ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
 
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY server ./server
 COPY cli ./cli
 
