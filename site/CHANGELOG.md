@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.16] - 2026-09-06
+
+### Bug Fixes
+
+- fix(image): checksum the zig tarball and cache the toolchain layers (#350)
+
 ## [2026.9.13] - 2026-09-04
 
 ### Bug Fixes

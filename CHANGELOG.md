@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.7] - 2026-09-06
+
+### Bug Fixes
+
+- fix(image): checksum the zig tarball and cache the toolchain layers (#350)
+
 ## [1.16.6] - 2026-09-06
 
 ### Bug Fixes
