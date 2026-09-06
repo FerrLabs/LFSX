@@ -59,7 +59,7 @@ ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
-    echo "descriptors: $(ulimit -Sn) soft, $(ulimit -Hn) hard" ; \
+    grep "Max open files" /proc/self/limits ; \
     case "${TARGETARCH}" in \
         amd64) target=x86_64-unknown-linux-musl ;; \
         arm64) target=aarch64-unknown-linux-musl ;; \
