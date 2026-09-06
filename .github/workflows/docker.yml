@@ -150,8 +150,20 @@ jobs:
 
   verify:
     name: Build without publishing
+    # The same set as the jobs that publish, even though this one builds with
+    # `push: false` and needs none of it. A job that calls a reusable workflow
+    # has to grant everything that workflow declares at its top level, and
+    # reusable-docker-build declares all five because it also signs and
+    # attests. Granting less is not a narrower token, it is a workflow that
+    # never starts: startup_failure, no jobs, no annotation on the run, and a
+    # release that quietly publishes no image. That is what #335 did here, and
+    # what site@2026.9.15 shipped without.
     permissions:
       contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
     if: github.event_name == 'pull_request'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
     with:
@@ -170,6 +182,10 @@ jobs:
     name: Build the site without publishing
     permissions:
       contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
     if: github.event_name == 'pull_request'
     uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@2ea766256b2f8a92114638a0eb8f54967e9bca25 # main
     with:
