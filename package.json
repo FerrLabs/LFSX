@@ -7,7 +7,7 @@
     "build": "pnpm --filter @lfsx/site build",
     "typecheck": "pnpm -r typecheck"
   },
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=11.8.0"
