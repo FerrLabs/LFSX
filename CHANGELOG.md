@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.6] - 2026-09-06
+
+### Bug Fixes
+
+- perf(image): link against musl and land on the static base (#347)
+
 ## [1.16.5] - 2026-09-04
 
 ### Refactoring
