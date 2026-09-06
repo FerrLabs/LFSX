@@ -23,9 +23,10 @@ on:
         options: [server, site]
         default: server
 
-# Read at the top. Pushing, signing and reporting are the business of the three
-# jobs that do them, and the two jobs that only build a pull request need none
-# of it.
+# Read at the top, so a job that needs nothing more inherits nothing more.
+# Every job that calls the reusable build is the exception and grants the full
+# set, `push: false` included: a caller has to declare everything the called
+# workflow declares or the run never starts. #348 is what that looks like.
 permissions:
   contents: read
 
@@ -182,6 +183,56 @@ jobs:
       sccache-gha: true
       build-ulimits: nofile=65536:65536
       push: false
+
+  # `verify` above proves the musl link succeeds on both architectures and says
+  # nothing about whether the result starts, which is the failure this pair of
+  # changes invites: a binary that links cleanly against a different libc and
+  # then dies on first execution for a missing loader path or an empty
+  # /etc/passwd. The release `build` job would catch it, but only by failing a
+  # release, and this repository has published two versions with no image that
+  # way already.
+  #
+  # amd64 alone because the reusable workflow builds into the local store to run
+  # the smoke test and documents that as single-platform. That is why this is a
+  # third job rather than a `smoke-test-cmd` on `verify`: the arm64 cross-compile
+  # check is the half a laptop cannot do, and #331 is what happens without it.
+  # `needs: verify` is not a data dependency, it is the only way these two can
+  # coexist. reusable-docker-build groups its runs on the image name, and both
+  # jobs build the same one, so run in parallel the second claims the group and
+  # cancels the first. Serialising costs wall clock on a Dockerfile pull request
+  # and nothing else.
+  run-it:
+    name: Run the image it built
+    needs: verify
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+    if: github.event_name == 'pull_request'
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@15286b37e14c898251a98ea18d21b69ab0bf777f # main
+    with:
+      image-name: ghcr.io/ferrlabs/lfsx
+      tag: pr-${{ github.event.pull_request.number }}-smoke
+      context: .
+      dockerfile: Dockerfile
+      platforms: linux/amd64
+      sccache-gha: true
+      build-ulimits: nofile=65536:65536
+      push: false
+      smoke-test-cmd: |
+        podman run -d --name lfsx-smoke -p 18080:8080 "$SMOKE_IMAGE"
+        trap 'podman logs lfsx-smoke; podman rm -f lfsx-smoke >/dev/null' EXIT
+        for _ in $(seq 30); do
+          if curl -fsS http://127.0.0.1:18080/health | grep -qx ok; then
+            echo "health ok"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::the image never answered /health"
+        exit 1
 
   verify-site:
     name: Build the site without publishing
