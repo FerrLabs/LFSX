@@ -176,26 +176,25 @@ jobs:
       tag: pr-${{ github.event.pull_request.number }}
       context: .
       dockerfile: Dockerfile
-      # Both, because the arm64 cross-compile is the half a laptop cannot try
-      # and the half that has broken before. It is a cross build rather than an
-      # emulated one, so the second platform costs a compile and not an hour.
-      platforms: linux/amd64,linux/arm64
+      # arm64 only. It is the half a laptop cannot try and the half that has
+      # broken before, and `run-it` below builds amd64 anyway and then runs it,
+      # so building both here compiled amd64 twice for one result.
+      platforms: linux/arm64
       sccache-gha: true
       build-ulimits: nofile=65536:65536
       push: false
 
-  # `verify` above proves the musl link succeeds on both architectures and says
-  # nothing about whether the result starts, which is the failure this pair of
-  # changes invites: a binary that links cleanly against a different libc and
-  # then dies on first execution for a missing loader path or an empty
-  # /etc/passwd. The release `build` job would catch it, but only by failing a
-  # release, and this repository has published two versions with no image that
-  # way already.
+  # The amd64 half, and the only job that runs what it builds. A link that
+  # succeeds says nothing about whether the result starts, which is the failure a
+  # libc or base-image change invites: a binary that links cleanly and then dies
+  # on first execution for a missing loader path or an empty /etc/passwd. The
+  # release `build` job would catch it, but only by failing a release, and this
+  # repository has published two versions with no image that way already.
   #
-  # amd64 alone because the reusable workflow builds into the local store to run
-  # the smoke test and documents that as single-platform. That is why this is a
-  # third job rather than a `smoke-test-cmd` on `verify`: the arm64 cross-compile
-  # check is the half a laptop cannot do, and #331 is what happens without it.
+  # It is a separate job because the reusable workflow builds into the local
+  # store to run a smoke test and documents that as single-platform, so the two
+  # architectures cannot share one call.
+  #
   # `needs: verify` is not a data dependency, it is the only way these two can
   # coexist. reusable-docker-build groups its runs on the image name, and both
   # jobs build the same one, so run in parallel the second claims the group and
