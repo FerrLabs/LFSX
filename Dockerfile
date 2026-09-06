@@ -4,15 +4,11 @@ ARG TARGETARCH
 
 WORKDIR /src
 
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY server ./server
-COPY cli ./cli
-
-# A release bumps the version line in server/Cargo.toml, which is an input of
-# this layer, so the registry layer cache is invalidated on exactly the builds
-# that matter and every dependency recompiles. sccache keys on the compiler
-# invocation instead and survives that. The backend is the Actions cache of the
-# run, since the garage one the self-hosted pool uses does not resolve here.
+# Both toolchains install above the COPY lines because neither reads a source
+# file, and a layer below them is invalidated by every edit. A release bumps
+# the version line in server/Cargo.toml, so leaving them underneath meant every
+# release re-downloaded 47 MB of zig and recompiled cargo-zigbuild from source,
+# once per platform, before compiling anything of ours.
 ARG SCCACHE_VERSION=v0.16.0
 ENV CARGO_INCREMENTAL=0
 RUN set -eux; \
@@ -28,11 +24,19 @@ RUN set -eux; \
 # zstd are C, so cross-compiling needs a C compiler for the target, and Debian
 # packages no aarch64 musl toolchain: `zig cc` is one download that targets
 # both architectures, where apt would only solve the amd64 half.
+#
+# The sum is checked because this tarball becomes the C toolchain that links
+# the published binary: a truncated or substituted download would otherwise be
+# linked in and the build would still pass. It is the one
+# https://ziglang.org/download/index.json publishes for this version, and it
+# sits next to ZIG_VERSION so the two are updated together.
 ARG ZIG_VERSION=0.14.1
+ARG ZIG_SHA256=24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
 ARG ZIGBUILD_VERSION=0.23.4
 RUN set -eux; \
     url="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"; \
     curl -fsSL "$url" -o /tmp/zig.tar.xz; \
+    echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum -c -; \
     mkdir -p /opt/zig; \
     tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1; \
     ln -s /opt/zig/zig /usr/local/bin/zig; \
@@ -45,17 +49,28 @@ RUN set -eux; \
 ENV ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
 ENV ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
 
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY server ./server
+COPY cli ./cli
+
+# A release bumps the version line in server/Cargo.toml, which is an input of
+# the COPY above, so the registry layer cache is invalidated on exactly the
+# builds that matter and every dependency recompiles. sccache keys on the
+# compiler invocation instead and survives that. The backend is the Actions
+# cache of the run, since the garage one the self-hosted pool uses does not
+# resolve here.
+#
 # `set -eu` because this chain runs on `;`: without it a failed build exported a
 # layer with no binary in it, and the error surfaced three steps later as a
 # `COPY --from=builder ... not found` naming neither the cause nor the step.
 #
-# The descriptor limit is printed rather than raised: zig holds one open per
-# source it compiles for compiler_rt and libunwind, and buildah's default of
-# 1024 hard is below that. A hard limit cannot be lifted from inside the
-# process it constrains, so the raise happens where the build container is
-# created, through `build-ulimits` in the reusable workflow. The first attempt
-# at this image died here on ProcessFdQuotaExceeded with no number in the log
-# to explain why the same file built on a laptop.
+# The descriptor limit is read rather than raised: zig holds one open per source
+# it compiles for compiler_rt and libunwind, and buildah's default of 1024 hard
+# is below that. A hard limit cannot be lifted from inside the process it
+# constrains, so the raise happens where the build container is created,
+# through `build-ulimits` in the reusable workflow. The first attempt at this
+# image died here on ProcessFdQuotaExceeded with no number in the log to
+# explain why the same file built on a laptop.
 RUN --mount=type=secret,id=gha-cache-url \
     --mount=type=secret,id=gha-runtime-token \
     set -eu ; \
