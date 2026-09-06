@@ -41,8 +41,9 @@ LFSX is built around three properties:
 multi-gigabyte asset costs the same resident memory as a one-kilobyte icon. The SHA-256 is computed
 on the bytes as they pass, not in a second read of the file. [Measured](docs/performance.md), not asserted.
 
-**Lightweight.** One statically linked binary, a distroless image, no database. Objects live on
-the filesystem addressed by digest, or in an S3-compatible bucket.
+**Lightweight.** One statically linked binary on a distroless base, no database. The published
+image is 4.5 MB compressed. Objects live on the filesystem addressed by digest, or in an
+S3-compatible bucket.
 
 **Secure.** Access mirrors the permissions of the upstream Git repository, so revoking someone
 there revokes them here. Every uploaded object is verified against its declared digest before being
