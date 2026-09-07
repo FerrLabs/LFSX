@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.9] - 2026-09-07
+
+### Bug Fixes
+
+- fix(storage): refuse a frame that decodes shorter than its header claims (#362)
+
 ## [1.16.8] - 2026-09-06
 
 ### Bug Fixes
