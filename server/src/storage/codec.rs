@@ -367,6 +367,14 @@ impl Framed {
 
                 let from = (at % framed.frame) as usize;
                 let take = wanted.min(plain.len().saturating_sub(from) as u64) as usize;
+                if take == 0 {
+                    return Err(Error::Storage(std::io::Error::other(format!(
+                        "frame {index} of {} decoded to {} bytes, short of offset {from} the header implies; \
+                         yielding nothing here would advance neither position nor remainder",
+                        framed.oid.as_str(),
+                        plain.len(),
+                    ))));
+                }
                 let bytes = Bytes::copy_from_slice(&plain[from..from + take]);
 
                 Ok(Some((
