@@ -20,6 +20,14 @@ jobs:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # libFuzzer needs the -Z flags only nightly accepts, and installing a
+      # nightly toolchain is not enough to get one: rustup resolves
+      # rust-toolchain.toml over whatever the action installed, so every run of
+      # this job since it was written died on `the option Z is only accepted on
+      # the nightly compiler` before fuzzing a byte. RUSTUP_TOOLCHAIN outranks
+      # the file and is inherited by the cargo that cargo-fuzz spawns.
+      RUSTUP_TOOLCHAIN: nightly
     strategy:
       fail-fast: false
       matrix:
