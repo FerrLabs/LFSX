@@ -110,6 +110,17 @@ jobs:
       # smells say nothing about the server: the end-to-end script is a script,
       # and the stub forge exists to be a crude stand-in.
       #
+      # site/src is in the list because naming sources at all is what would
+      # otherwise drop it. It was never actually analysed either way, both the
+      # old and the new run report `1 language detected`, but leaving it out of
+      # an explicit list turns an accident into a decision.
+      #
+      # It is excluded from coverage rather than from analysis: cargo llvm-cov
+      # reports on server and cli only, so an Angular app carried into the
+      # coverage number arrives as several hundred lines nothing claims to
+      # cover, and the figure stops meaning what it says the day someone gates
+      # on it.
+      #
       # sonar.sources is named rather than left to its default. Pointing
       # sonar.tests at the whole tree without it produced a project with no
       # lines of code at all: 44 files indexed against 83, every one of the 53
@@ -124,7 +135,8 @@ jobs:
       args: >-
         -Dsonar.projectVersion=${{ needs.version.outputs.version }}
         -Dsonar.rust.lcov.reportPaths=.sonarcov/lcov.info
-        -Dsonar.sources=server/src,cli/src
+        -Dsonar.sources=server/src,cli/src,site/src
+        -Dsonar.coverage.exclusions=site/**
         -Dsonar.tests=.
         -Dsonar.test.inclusions=**/tests.rs,**/tests/**
     secrets: inherit
