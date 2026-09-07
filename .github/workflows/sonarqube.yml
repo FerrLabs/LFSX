@@ -127,5 +127,4 @@ jobs:
         -Dsonar.sources=server/src,cli/src
         -Dsonar.tests=.
         -Dsonar.test.inclusions=**/tests.rs,**/tests/**
-        -Dsonar.verbose=true
     secrets: inherit
