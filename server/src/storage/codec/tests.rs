@@ -402,3 +402,23 @@ async fn a_frame_moved_within_the_file_is_refused() {
          decrypt into the wrong part of the object: {outcome:?}"
     );
 }
+
+#[tokio::test]
+async fn a_header_claiming_more_plaintext_than_its_frames_hold_is_an_error() {
+    let payload = compressible(4096);
+    let (_root, path) = framed(&payload).await;
+
+    let mut raw = std::fs::read(&path).unwrap();
+    let inflated = (payload.len() as u64 + 8192).to_le_bytes();
+    raw[8..16].copy_from_slice(&inflated);
+    std::fs::write(&path, &raw).unwrap();
+
+    let error = read_with(&path, 0, payload.len() as u64 + 8192, None)
+        .await
+        .expect_err("a frame shorter than the header claims cannot be served");
+
+    assert!(
+        matches!(error, Error::Storage(_)),
+        "expected a storage error, got {error:?}"
+    );
+}
