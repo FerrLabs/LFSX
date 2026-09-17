@@ -28,6 +28,11 @@ def entries(changelog, version):
             continue
         if line.startswith("### "):
             section = line[4:].strip()
+            if section not in KINDS:
+                print(
+                    f"unmapped changelog heading {section!r}, its entries fall back to changed",
+                    file=sys.stderr,
+                )
             continue
         if line.startswith("- ") and section != "pending":
             found.append((KINDS.get(section, "changed"), PREFIX.sub("", line[2:].strip())))
@@ -49,18 +54,18 @@ def main():
 
     with open(chart_path, encoding="utf-8") as handle:
         chart = handle.read()
-    if "annotations:" not in chart:
+    if "\nannotations:\n" not in chart:
         print("Chart.yaml has no annotations block", file=sys.stderr)
         return 1
     if "artifacthub.io/changes:" in chart:
-        print("Chart.yaml already carries artifacthub.io/changes", file=sys.stderr)
-        return 1
+        print("Chart.yaml already carries artifacthub.io/changes, leaving it alone", file=sys.stderr)
+        return 0
 
     block = "\n".join(
         f"    - kind: {kind}\n      description: {quoted(text)}" for kind, text in found
     )
     chart = chart.replace(
-        "annotations:\n", f"annotations:\n  artifacthub.io/changes: |\n{block}\n", 1
+        "\nannotations:\n", f"\nannotations:\n  artifacthub.io/changes: |\n{block}\n", 1
     )
 
     with open(chart_path, "w", encoding="utf-8") as handle:
