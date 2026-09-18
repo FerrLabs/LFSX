@@ -46,6 +46,19 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      # Artifact Hub reads this annotation to fill the Changelog tab, and
+      # FerrFlow cannot write it: it bumps version strings by regex and has
+      # no notion of changelog entries. Written here from the changelog
+      # FerrFlow did generate, so it describes the version being packaged
+      # instead of whichever one someone last edited it by hand for.
+      - name: Fill the changelog annotation
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/artifacthub-changes.py \
+            chart/Chart.yaml CHANGELOG.md "$VERSION"
+
       - name: Package and push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
