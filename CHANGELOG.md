@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.10] - 2026-09-18
+
+### Bug Fixes
+
+- fix(chart): give Artifact Hub the maintainer, the changelog and the kubeVersion (#383)
+
 ## [1.16.9] - 2026-09-07
 
 ### Bug Fixes
