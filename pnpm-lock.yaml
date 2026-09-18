@@ -208,7 +208,7 @@ importers:
         version: 5.4.0(tailwindcss@4.3.3)
       '@ferrlabs/ui-ng':
         specifier: ^1.23.0
-        version: 1.32.0(28568e1b352d028c5996a48f30114d51)
+        version: 1.33.0(28568e1b352d028c5996a48f30114d51)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -766,8 +766,8 @@ packages:
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@ferrlabs/ui-ng@1.32.0':
-    resolution: {integrity: sha512-kjx24QDkO1ZsmbfaPQolHW7A+pZLNptObv6KvgvteCXhLhOlPZemN3MayOhC01PyiZtFj+pKsFnhrt0bQIkOAw==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-ng/1.32.0/b74ba7b691e5d2b8e0bb65f4ca52d3c4bcd4da9a}
+  '@ferrlabs/ui-ng@1.33.0':
+    resolution: {integrity: sha512-vzP7oEa84CKyq9eiD4agpLDD6coNIKhjziM/pzHAzoAZcVPbxZh9mOKzpBvAMS2LHXDnCdD968GwdRiRe3bnFQ==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-ng/1.33.0/a15e139de10374f88c249dbd3c311e54b9d53eb7}
     peerDependencies:
       '@angular/cdk': ^22.0.0
       '@angular/common': ^22.0.0
@@ -4502,7 +4502,7 @@ snapshots:
       '@fontsource/fraunces': 5.3.0
       tailwindcss: 4.3.3
 
-  '@ferrlabs/ui-ng@1.32.0(28568e1b352d028c5996a48f30114d51)':
+  '@ferrlabs/ui-ng@1.33.0(28568e1b352d028c5996a48f30114d51)':
     dependencies:
       '@angular/cdk': 22.1.7(@angular/common@22.1.6(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(@angular/forms@22.1.6(@angular/common@22.1.6(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(@angular/platform-browser@22.1.6(@angular/common@22.1.6(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.1.6(@angular/common@22.1.6(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.1.6(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2)
