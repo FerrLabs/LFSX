@@ -86,7 +86,7 @@ jobs:
       security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'server'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@c3212b1ccc78233fd9fec4f87128906c82c79995 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: ${{ needs.meta.outputs.version }}
@@ -129,7 +129,7 @@ jobs:
       security-events: write
     needs: meta
     if: needs.meta.outputs.kind == 'site'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@c3212b1ccc78233fd9fec4f87128906c82c79995 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: ${{ needs.meta.outputs.version }}
@@ -170,7 +170,7 @@ jobs:
       attestations: write
       security-events: write
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@c3212b1ccc78233fd9fec4f87128906c82c79995 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: pr-${{ github.event.pull_request.number }}
@@ -210,7 +210,7 @@ jobs:
       attestations: write
       security-events: write
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@c3212b1ccc78233fd9fec4f87128906c82c79995 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx
       tag: pr-${{ github.event.pull_request.number }}-smoke
@@ -242,7 +242,7 @@ jobs:
       attestations: write
       security-events: write
     if: github.event_name == 'pull_request'
-    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-docker-build.yml@c3212b1ccc78233fd9fec4f87128906c82c79995 # main
     with:
       image-name: ghcr.io/ferrlabs/lfsx/site
       tag: pr-${{ github.event.pull_request.number }}
