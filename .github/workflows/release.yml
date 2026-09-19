@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    uses: FerrLabs/.github/.github/workflows/reusable-ferrflow-release.yml@c4121e79b9e15551efce374b7e9f4990667b9a36 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-ferrflow-release.yml@f9fac3f7da330dd0136172ac5435f3cfccb809a7 # main
     with:
       dry-run: ${{ inputs.dry_run || false }}
     secrets: inherit
