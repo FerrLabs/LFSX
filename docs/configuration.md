@@ -12,6 +12,7 @@ All configuration is by environment variable.
 | `LFSX_GITLAB_API_URL` | `https://gitlab.com/api/v4` | API root, point it at your self-managed GitLab |
 | `LFSX_GITEA_API_URL` | none, required | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1` |
 | `LFSX_ANONYMOUS_READ` | `false` | `true` to let a request with no credentials read a repository the forge serves publicly |
+| `LFSX_RESTRICTED` | none | repositories whose objects take write access to read, comma-separated, `org/repo` or `org/prefix-*` or `org/*` |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
 | `LFSX_AUTH_LOOKUP_BUDGET` | `600` | forge lookups a minute this server will spend, counting only what the caches could not answer; `0` removes the ceiling |

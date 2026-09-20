@@ -154,6 +154,7 @@ Full documentation lives at **[lfsx.dev](https://lfsx.dev)**. The same pages are
 | [Configuration](docs/configuration.md) | Every environment variable, with defaults |
 | [Authentication](docs/authentication.md) | How access mirrors the upstream repository |
 | [Anonymous read](docs/anonymous-read.md) | Public repositories, and turning it off |
+| [Restricted namespaces](docs/restricted-namespaces.md) | Public code, assets kept to whoever can push |
 | [Storage layout](docs/storage-layout.md) | Where the bytes live, and why once |
 | [Objects in a bucket](docs/buckets.md) | S3-compatible storage |
 | [Compression](docs/compression.md), [Encryption at rest](docs/encryption.md) | What they cost and what they protect |

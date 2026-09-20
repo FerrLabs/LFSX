@@ -91,6 +91,7 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
             rejection_ttl: Duration::from_secs(60),
             lookup_budget: None,
             anonymous_read: false,
+            restricted: lfsx_server::auth::Restricted::parse(None),
             github_app: None,
         },
     })

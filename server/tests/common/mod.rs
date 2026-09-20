@@ -13,6 +13,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use lfsx_server::auth::Restricted;
 use lfsx_server::config::{Auth, Config, Provider};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -149,8 +150,25 @@ pub fn anonymous_forge_auth(
         rejection_ttl,
         lookup_budget: None,
         anonymous_read,
+        restricted: Restricted::parse(None),
         github_app: None,
     }
+}
+
+pub fn app_restricted(root: &tempfile::TempDir, api_url: &str, entries: &str) -> Router {
+    lfsx_server::app(Config {
+        auth: Auth::Forge {
+            provider: Provider::Github,
+            api_url: api_url.to_owned(),
+            cache_ttl: Duration::ZERO,
+            rejection_ttl: Duration::ZERO,
+            lookup_budget: None,
+            anonymous_read: true,
+            restricted: Restricted::parse(Some(entries)),
+            github_app: None,
+        },
+        ..config(root, api_url)
+    })
 }
 
 pub fn app_reading_anonymously(root: &tempfile::TempDir, api_url: &str) -> Router {
@@ -194,6 +212,7 @@ pub fn app_with_lookup_budget(
             rejection_ttl: Duration::from_secs(10),
             lookup_budget: Some(lookup_budget),
             anonymous_read: false,
+            restricted: Restricted::parse(None),
             github_app: None,
         },
         ..config(root, api_url)
