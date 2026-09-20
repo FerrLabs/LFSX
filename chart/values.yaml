@@ -39,6 +39,10 @@ auth:
   # serves publicly can be cloned without a token. Off by default: it costs you
   # the bandwidth of anyone who finds the endpoint. Set true to open it.
   anonymousRead: false
+  # Repositories whose objects take write access to read, so a public repository
+  # can keep its assets to whoever could push them. Entries are org/repo,
+  # org/prefix-* or org/*. Empty serves every repository what the forge grants.
+  restricted: []
   githubApiUrl: https://api.github.com
   gitlabApiUrl: https://gitlab.com/api/v4
   # No default on purpose: Gitea and Forgejo have no canonical host, every

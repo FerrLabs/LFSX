@@ -6,7 +6,10 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use common::{app, app_with_lookup_budget, app_with_rejection_ttl, batch, credentials, forge, put};
+use common::{
+    app, app_restricted, app_with_lookup_budget, app_with_rejection_ttl, batch, credentials, forge,
+    put,
+};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
@@ -587,4 +590,101 @@ async fn one_token_pushing_repeatedly_spends_one_lookup() {
     }
 
     assert_eq!(forge.calls.load(Ordering::SeqCst), 1);
+}
+
+async fn anonymous_batch(app: Router, repo: &str) -> axum::response::Response {
+    let body = json!({
+        "operation": "download",
+        "objects": [{ "oid": hex::encode(Sha256::digest(b"asset")), "size": 5 }],
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/FerrLabs/{repo}/objects/batch"))
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    app.oneshot(request).await.unwrap()
+}
+
+#[tokio::test]
+async fn a_restricted_namespace_refuses_a_reader_the_forge_admits() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let status = batch(
+        app_restricted(&root, &api_url, "FerrLabs/LFSX"),
+        "reader",
+        "download",
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "the forge grants this token pull, which is what a public repository grants a stranger"
+    );
+}
+
+#[tokio::test]
+async fn a_restricted_namespace_serves_whoever_could_push_to_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let app = app_restricted(&root, &api_url, "FerrLabs/LFSX");
+
+    assert_eq!(
+        batch(app.clone(), "writer", "download").await,
+        StatusCode::OK
+    );
+    assert_eq!(batch(app, "admin", "download").await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_namespace_outside_the_list_is_left_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let status = batch(
+        app_restricted(&root, &api_url, "acme/*,FerrLabs/other"),
+        "reader",
+        "download",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_restricted_namespace_challenges_an_anonymous_caller_rather_than_refusing_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+
+    let response =
+        anonymous_batch(app_restricted(&root, &api_url, "FerrLabs/Public"), "Public").await;
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "a 403 would tell git-lfs the answer is final and stop it asking the credential helper, \
+         so the person who does hold write access could never present it"
+    );
+    assert!(response.headers().contains_key("www-authenticate"));
+    assert_eq!(
+        forge.calls.load(Ordering::SeqCst),
+        0,
+        "the forge would have answered pull: true here, and nobody anonymous can hold the \
+         write access the namespace now wants"
+    );
+}
+
+#[tokio::test]
+async fn an_unrestricted_namespace_still_serves_an_anonymous_caller() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let response = anonymous_batch(app_restricted(&root, &api_url, "acme/*"), "Public").await;
+
+    assert_eq!(response.status(), StatusCode::OK);
 }

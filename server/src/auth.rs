@@ -5,6 +5,7 @@ mod credentials;
 mod gitea;
 mod github;
 mod gitlab;
+mod restricted;
 
 use std::collections::HashMap;
 
@@ -19,6 +20,7 @@ use crate::namespace::Namespace;
 use crate::state::Shared;
 use budget::Budget;
 use cache::{Cache, Caller, Decision, IdentityCache};
+pub use restricted::Restricted;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Permission {
@@ -59,6 +61,10 @@ pub enum Authorizer {
         // two hundred objects under one token costs one.
         budget: Budget,
         anonymous_read: bool,
+        // Namespaces whose objects take write access to read. The forge answer
+        // stays the ceiling, this is a floor underneath it that a public
+        // repository's `pull: true` cannot reach.
+        restricted: Restricted,
         app: Option<Box<github::app::App>>,
     },
     Disabled,
@@ -77,6 +83,7 @@ impl Authorizer {
                 rejection_ttl,
                 lookup_budget,
                 anonymous_read,
+                restricted,
                 github_app,
             } => Self::Forge {
                 provider: *provider,
@@ -90,6 +97,7 @@ impl Authorizer {
                 identities: IdentityCache::new(*cache_ttl),
                 budget: Budget::new(*lookup_budget),
                 anonymous_read: *anonymous_read,
+                restricted: restricted.clone(),
                 app: github_app.as_ref().map(|configured| {
                     Box::new(github::app::App::load(
                         &configured.app_id,
@@ -109,6 +117,7 @@ impl Authorizer {
             cache,
             budget,
             anonymous_read,
+            restricted,
             app,
             ..
         } = self
@@ -116,12 +125,28 @@ impl Authorizer {
             return Ok(Permission::Admin);
         };
 
+        let writers_only = restricted.covers(ns);
+        let decided = |outcome: Result<Permission, Error>| {
+            if writers_only {
+                let permission = outcome?;
+                permission.require_write()?;
+                return Ok(permission);
+            }
+            outcome
+        };
+
         // A request with no credentials is the one an anonymous `git clone` makes.
         // The forge already knows whether that should be allowed, so it is asked
         // rather than refused outright, and the answer is cached under its own
         // key so it can never be handed to somebody presenting a token.
         let Some(token) = credentials::token(headers) else {
-            if !*anonymous_read {
+            // A restricted namespace wants write access, which nobody anonymous
+            // has, so the forge is not asked. Unauthenticated rather than
+            // Forbidden for the reason github.rs records about private
+            // repositories: a 403 tells git-lfs the answer is final and it stops
+            // asking the credential helper, so the caller who does hold write
+            // access could never present it.
+            if !*anonymous_read || writers_only {
                 return Err(Error::Unauthenticated);
             }
 
@@ -144,7 +169,7 @@ impl Authorizer {
         };
 
         if let Some(decision) = cache.get(Caller::Token(&token), ns) {
-            return decision.into();
+            return decided(decision.into());
         }
 
         // Only here, past both caches. Everything above this line was answered
@@ -160,7 +185,7 @@ impl Authorizer {
             cache.insert(Caller::Token(&token), ns, decision);
         }
 
-        outcome
+        decided(outcome)
     }
 }
 

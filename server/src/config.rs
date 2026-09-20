@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::auth::Restricted;
 use crate::model::Action;
 use crate::namespace::Namespace;
 
@@ -114,9 +115,13 @@ pub enum Auth {
         // when neither cache could answer. None is no ceiling at all.
         lookup_budget: Option<u32>,
         // Whether a request with no credentials is resolved against the forge
-        // instead of refused. On by default, because that is what cloning a
-        // public repository does everywhere else.
+        // instead of refused. Off unless asked for, because a server that serves
+        // strangers should be a decision somebody made.
         anonymous_read: bool,
+        // Namespaces whose objects take write access to read, so a repository the
+        // forge serves publicly can still keep its assets to the people who could
+        // push them.
+        restricted: Restricted,
     },
     Disabled,
 }
@@ -359,6 +364,7 @@ impl Auth {
             lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
             github_app: github_app(provider),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
+            restricted: Restricted::parse(std::env::var("LFSX_RESTRICTED").ok().as_deref()),
         }
     }
 }

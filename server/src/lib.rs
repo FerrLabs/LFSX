@@ -222,6 +222,17 @@ fn backends(config: &Config) -> (Store, LockStore) {
         );
     }
 
+    // Same discipline: a list inherited from a chart is worth seeing at boot
+    // rather than discovering when somebody reports a repository they can clone
+    // and cannot pull.
+    if let crate::config::Auth::Forge { restricted, .. } = &config.auth
+        && !restricted.is_empty()
+    {
+        tracing::info!(
+            "restricted namespaces are configured: objects in a listed repository take write \n             access to read, so a caller the forge grants pull is refused. Unset LFSX_RESTRICTED \n             to serve every repository the permissions the forge gives it"
+        );
+    }
+
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written
