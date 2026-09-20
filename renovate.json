@@ -15,6 +15,21 @@
       ]
     },
     {
+      "description": "tracing-opentelemetry decides which opentelemetry this server can use: 0.33.0, the newest, requires opentelemetry ^0.32. Bumping the monorepo alone stops the crate compiling (SdkTracer no longer satisfies the Tracer bound the layer needs), so the cap goes with the bridge. Lift both together the day tracing-opentelemetry supports 0.33.",
+      "matchPackageNames": [
+        "opentelemetry",
+        "opentelemetry_sdk",
+        "opentelemetry-otlp",
+        "opentelemetry-semantic-conventions",
+        "opentelemetry-http",
+        "opentelemetry-proto"
+      ],
+      "allowedVersions": "<0.33",
+      "matchDatasources": [
+        "crate"
+      ]
+    },
+    {
       "description": "TypeScript 7 is outside Angular's supported range: @angular/compiler-cli 22 declares `typescript: >=6.0 <6.1`, and the compiler errors out rather than warns on an unsupported version. Hold at 6.x until Angular ships support, then drop this rule. See FerrLabs/.github#313.",
       "matchPackageNames": [
         "typescript"
