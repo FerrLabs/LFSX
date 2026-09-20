@@ -229,7 +229,9 @@ fn backends(config: &Config) -> (Store, LockStore) {
         && !restricted.is_empty()
     {
         tracing::info!(
-            "restricted namespaces are configured: objects in a listed repository take write \n             access to read, so a caller the forge grants pull is refused. Unset LFSX_RESTRICTED \n             to serve every repository the permissions the forge gives it"
+            "restricted namespaces are configured: objects in a listed repository take write \
+             access to read, so a caller the forge grants pull is refused. Unset LFSX_RESTRICTED \
+             to serve every repository the permissions the forge gives it"
         );
     }
 

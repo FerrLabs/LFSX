@@ -18,13 +18,30 @@ pub struct Restricted(Vec<Pattern>);
 
 impl Restricted {
     pub fn parse(value: Option<&str>) -> Self {
-        Self(
-            value
-                .unwrap_or_default()
-                .split(',')
-                .filter_map(Pattern::parse)
-                .collect(),
-        )
+        let mut patterns = Vec::new();
+
+        for entry in value.unwrap_or_default().split(',') {
+            let entry = entry.trim();
+            if entry.is_empty() {
+                continue;
+            }
+
+            match Pattern::parse(entry) {
+                Some(pattern) => patterns.push(pattern),
+                // Dropped rather than widened, because an entry nobody can read as
+                // org/repo must never become the whole organisation. Said out loud
+                // because the direction it fails in is open: a typo leaves the
+                // objects served to anyone the forge grants pull, and the boot line
+                // below stays quiet when nothing parsed at all.
+                None => tracing::warn!(
+                    entry,
+                    "LFSX_RESTRICTED entry is not org/repo and was ignored, so that \
+                     repository keeps the permissions the forge gives it"
+                ),
+            }
+        }
+
+        Self(patterns)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -38,7 +55,7 @@ impl Restricted {
 
 impl Pattern {
     fn parse(entry: &str) -> Option<Self> {
-        let (org, repo) = entry.trim().split_once('/')?;
+        let (org, repo) = entry.split_once('/')?;
         if org.is_empty() || repo.is_empty() {
             return None;
         }

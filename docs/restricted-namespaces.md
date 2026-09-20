@@ -41,6 +41,12 @@ server's.
 `git lfs pull` fails on the objects, and the working tree keeps the pointer files. That is the
 intended outcome rather than a half-broken one: the caller has the repository, not the assets.
 
+**The floor covers the namespace, not only its objects.** It is applied where permissions are
+resolved, which is one layer every route under `/{org}/{repo}` passes through, so a caller
+without write access is also refused `git lfs locks`, the object statistics and the
+repository's overview page. That is stricter than the feature strictly needs to be, and it is
+deliberate: one check in one place beats a list of per-route exceptions that drift apart.
+
 A caller with no credentials is answered `401` with the challenge even when
 [anonymous read](anonymous-read.md) is on, never `403`. The distinction is the same one that page
 makes: `403` tells git-lfs the answer will not change, so it stops asking the credential helper and
