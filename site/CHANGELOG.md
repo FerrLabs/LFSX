@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.17] - 2026-09-20
+
+### Features
+
+- feat(auth): keep a public repository's objects to whoever can push (#398)
+
 ## [2026.9.16] - 2026-09-06
 
 ### Bug Fixes

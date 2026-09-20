@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.0] - 2026-09-20
+
+### Features
+
+- feat(auth): keep a public repository's objects to whoever can push (#398)
+
 ## [1.16.10] - 2026-09-18
 
 ### Bug Fixes
