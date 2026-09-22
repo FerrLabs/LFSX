@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use super::*;
 use crate::storage::s3::tests::{
-    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace,
+    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace, unreachable_keyspace,
 };
 
 // The good case, and the one that makes the rest meaningful: a store that
@@ -45,13 +45,7 @@ async fn a_store_that_keeps_a_body_which_does_not_match_is_not_trusted() {
 async fn a_store_that_cannot_be_asked_is_not_trusted() {
     crate::tls::install_crypto_provider();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let closed = listener.local_addr().unwrap();
-    drop(listener);
-
-    let keys = keyspace(&format!("http://{closed}"));
-
-    assert_eq!(checksums(&keys).await, Checksums::Unknown);
+    assert_eq!(checksums(&unreachable_keyspace()).await, Checksums::Unknown);
 }
 
 fn presigning(endpoint: &str) -> crate::config::Config {
@@ -182,12 +176,8 @@ async fn a_store_that_writes_twice_cannot() {
 async fn a_store_that_cannot_be_asked_about_conditions_is_not_trusted_either() {
     crate::tls::install_crypto_provider();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let closed = listener.local_addr().unwrap();
-    drop(listener);
-
     assert_eq!(
-        conditional_writes(&keyspace(&format!("http://{closed}"))).await,
+        conditional_writes(&unreachable_keyspace()).await,
         Conditional::Unknown
     );
 }

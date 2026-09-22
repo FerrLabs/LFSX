@@ -273,6 +273,10 @@ pub(crate) fn keyspace(endpoint: &str) -> Keyspace {
     .unwrap()
 }
 
+pub(crate) fn unreachable_keyspace() -> Keyspace {
+    keyspace("http://127.0.0.1:1")
+}
+
 fn namespace(repo: &str) -> Namespace {
     Namespace::new("FerrLabs", repo).unwrap()
 }
@@ -647,11 +651,7 @@ async fn a_dry_run_leaves_the_bucket_exactly_as_it_found_it() {
 // nobody reads, a false no destroys one somebody does.
 #[tokio::test]
 async fn an_index_that_cannot_be_read_answers_that_somebody_still_holds_the_object() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let closed = listener.local_addr().unwrap();
-    drop(listener);
-
-    let keys = keyspace(&format!("http://{closed}"));
+    let keys = unreachable_keyspace();
 
     assert!(
         refs::claimed_by_another(&keys, &namespace("Blastlands"), &OID).await,
