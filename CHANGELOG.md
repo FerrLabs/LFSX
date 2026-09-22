@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.1] - 2026-09-22
+
+### Bug Fixes
+
+- fix(chart): stop Artifact Hub indexing the versions that never had an image (#410)
+
 ## [1.17.0] - 2026-09-20
 
 ### Features
