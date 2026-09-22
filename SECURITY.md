@@ -42,6 +42,38 @@ The server and the CLI in this repository, the published container image, and th
   [the documentation says outright](docs/reverse-proxy.md).
 - Reports produced by a scanner with no analysis of whether the finding is reachable here.
 
+## A reported advisory with no fix
+
+Dependency scanners report `RUSTSEC-2023-0071`, also filed as `CVE-2023-49092`, against `rsa 0.9.10`.
+It reaches this server through `jsonwebtoken` and nothing else. There is no version to move to:
+upstream records `patched = []` deliberately, and both the latest stable and the latest pre-release
+were still affected when the advisory was last revised.
+
+The advisory describes a timing sidechannel in RSA private-key operations, exploitable by an
+attacker who can observe the timing of many such operations over the network. Where that leaves
+this server:
+
+- **Nothing calls it unless you run a GitHub App.** The key is read only when `LFSX_GITHUB_APP_ID`
+  and `LFSX_GITHUB_APP_KEY_FILE` are both set. Any other deployment compiles the crate and never
+  performs a private-key operation with it.
+- **The operation is signing, not decryption.** What gets signed is a JWT this server builds from
+  the App id and a clock, so the input to the private key is not something a caller chooses, which
+  is what the attack needs.
+- **The timing sits behind a round trip to GitHub**, and the installation token it fetches is cached
+  per organisation, so a caller cannot force a signature per request either.
+- **The key is the App's.** Recovering it would reach that installation, not the objects this server
+  stores.
+
+The alternative was weighed rather than dismissed. `jsonwebtoken` offers an `aws_lc_rs` backend that
+drops `rsa` entirely. It is not taken yet because a release builds seven targets, `binaries.yml`
+runs only once a release is published, and a cross-compilation break on a target like
+`aarch64-unknown-linux-musl` would surface as a release missing its binaries rather than as a red
+pull request. This repository has shipped releases with missing artefacts twice for unrelated
+reasons, and that trade is not worth making for a path most deployments never execute.
+
+`osv-scanner.toml` records the finding with a review date rather than silencing it, so it returns
+for another look instead of disappearing.
+
 ## Supported versions
 
 The latest minor release. This project is young enough that backporting to an older line would

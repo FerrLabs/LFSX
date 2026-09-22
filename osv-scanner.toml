@@ -1,0 +1,9 @@
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+ignoreUntil = 2027-03-31
+reason = "rsa reaches us only through jsonwebtoken, and only when a GitHub App is configured. No patched release exists. Analysis in SECURITY.md."
+
+[[IgnoredVulns]]
+id = "CVE-2023-49092"
+ignoreUntil = 2027-03-31
+reason = "Alias of RUSTSEC-2023-0071, listed because the scanner reports this identifier as the primary one."
