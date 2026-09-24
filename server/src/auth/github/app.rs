@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 
@@ -18,6 +18,17 @@ pub struct App {
     id: String,
     key: jsonwebtoken::EncodingKey,
     grants: Mutex<HashMap<String, Grant>>,
+    signed: Mutex<Option<Signed>>,
+    uninstalled: Mutex<HashMap<String, Instant>>,
+    rejection_ttl: Duration,
+}
+
+const JWT_VALID_FOR: u64 = 540;
+const JWT_REUSED_FOR: Duration = Duration::from_secs(480);
+
+struct Signed {
+    jwt: String,
+    until: Instant,
 }
 
 #[derive(Clone)]
@@ -48,7 +59,7 @@ struct Claims {
 impl App {
     // At boot, and loudly: an operator who configured an App meant to have its
     // quota, so a key that does not load is a server that does not start.
-    pub fn load(app_id: &str, key_file: &Path) -> Self {
+    pub fn load(app_id: &str, key_file: &Path, rejection_ttl: Duration) -> Self {
         let pem = std::fs::read(key_file).unwrap_or_else(|error| {
             panic!("LFSX_GITHUB_APP_KEY_FILE could not be read from {key_file:?}: {error}")
         });
@@ -60,23 +71,37 @@ impl App {
             id: app_id.to_owned(),
             key,
             grants: Mutex::new(HashMap::new()),
+            signed: Mutex::new(None),
+            uninstalled: Mutex::new(HashMap::new()),
+            rejection_ttl,
         }
     }
 
     // Backdated a minute and expiring well under GitHub's ten-minute ceiling,
     // so clock drift on either side does not turn into a 401.
     fn jwt(&self) -> Result<String, Error> {
-        let now = SystemTime::now()
+        // One guard across the check and the sign: two callers arriving together
+        // on an empty or expired entry would otherwise both reach the key, which
+        // is what a burst measuring the signature would look like.
+        let mut cached = self.signed.lock().unwrap();
+
+        if let Some(signed) = cached.as_ref()
+            && Instant::now() < signed.until
+        {
+            return Ok(signed.jwt.clone());
+        }
+
+        let epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("the clock is past 1970")
             .as_secs();
         let claims = Claims {
             iss: self.id.clone(),
-            iat: now - 60,
-            exp: now + 540,
+            iat: epoch - 60,
+            exp: epoch + JWT_VALID_FOR,
         };
 
-        jsonwebtoken::encode(
+        let jwt = jsonwebtoken::encode(
             &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256),
             &claims,
             &self.key,
@@ -84,7 +109,14 @@ impl App {
         .map_err(|error| {
             tracing::warn!(%error, "the App JWT could not be signed");
             Error::Forge
-        })
+        })?;
+
+        *cached = Some(Signed {
+            jwt: jwt.clone(),
+            until: Instant::now() + JWT_REUSED_FOR,
+        });
+
+        Ok(jwt)
     }
 
     // An installation token that covers this repository, or None when the App
@@ -98,12 +130,19 @@ impl App {
         api_url: &str,
         ns: &Namespace,
     ) -> Result<Option<String>, Error> {
-        let org = ns.org().to_owned();
+        let org = ns.org().to_lowercase();
+        let namespace = ns.to_string().to_lowercase();
 
         if let Some(grant) = self.grants.lock().unwrap().get(&org)
             && SystemTime::now() < grant.until
         {
             return Ok(Some(grant.token.clone()));
+        }
+
+        if let Some(until) = self.uninstalled.lock().unwrap().get(&namespace)
+            && Instant::now() < *until
+        {
+            return Ok(None);
         }
 
         let jwt = self.jwt()?;
@@ -122,11 +161,21 @@ impl App {
         })?;
 
         if installed.status() == reqwest::StatusCode::NOT_FOUND {
+            let now = Instant::now();
+            let mut uninstalled = self.uninstalled.lock().unwrap();
+            uninstalled.retain(|_, until| now < *until);
+            uninstalled.insert(namespace, now + self.rejection_ttl);
             return Ok(None);
         }
         let installation: Installation = installed
             .error_for_status()
             .map_err(|error| {
+                // Only a 401 says the JWT is what was refused. A spent budget or a
+                // sick forge re-signs for nothing, and would let a caller driving
+                // either one buy a signature per request.
+                if error.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
+                    *self.signed.lock().unwrap() = None;
+                }
                 tracing::warn!(%error, "the forge refused the App's installation lookup");
                 Error::Forge
             })?

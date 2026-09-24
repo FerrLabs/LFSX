@@ -60,13 +60,10 @@ this server:
 - **The operation is signing, not decryption.** What gets signed is a JWT this server builds from
   the App id and a clock, so the input to the private key is not something a caller chooses, which
   is what the attack needs.
-- **The timing sits behind a round trip to GitHub.** Installation tokens are cached per
-  organisation, so traffic on a namespace the App covers signs once an hour rather than once a
-  request. A namespace the App is not installed on is the exception: that answer is not cached, so
-  a caller naming a fresh organisation on each request does get a signature each time. Reaching
-  that path without credentials also takes anonymous read being on, and what bounds the rate is
-  the lookup budget rather than the cache. What it yields is a timing measurement with a forge
-  round trip inside it. Closing that gap is tracked in #417.
+- **No caller can make it sign.** The JWT carries the App id and a clock, never a namespace, so
+  it is signed once and reused for eight minutes across every lookup it authenticates. Whatever
+  a caller does with namespaces, the private key runs at most once in that window, and what it
+  signs is still the same JWT nobody chose the contents of.
 - **The key is the App's.** Recovering it would reach that installation, not the objects this server
   stores.
 

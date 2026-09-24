@@ -102,6 +102,7 @@ impl Authorizer {
                     Box::new(github::app::App::load(
                         &configured.app_id,
                         &configured.key_file,
+                        *rejection_ttl,
                     ))
                 }),
             },

@@ -28,7 +28,7 @@ fn key_pem() -> &'static str {
 fn app_under_test(root: &tempfile::TempDir) -> App {
     let key_file = root.path().join("app.pem");
     std::fs::write(&key_file, key_pem()).unwrap();
-    App::load("41", &key_file)
+    App::load("41", &key_file, std::time::Duration::from_secs(10))
 }
 
 #[derive(Clone)]
@@ -37,27 +37,51 @@ struct Forge {
     private: bool,
     minted: Arc<AtomicUsize>,
     repo_auth: Arc<std::sync::Mutex<Vec<Option<String>>>>,
+    installation_auth: Arc<std::sync::Mutex<Vec<String>>>,
+    refuse_with: Option<axum::http::StatusCode>,
 }
 
 async fn forge(installed: bool, private: bool) -> (String, Forge) {
-    let state = Forge {
+    serve(state(installed, private, None)).await
+}
+
+async fn forge_refusing(status: axum::http::StatusCode) -> (String, Forge) {
+    serve(state(true, false, Some(status))).await
+}
+
+fn state(installed: bool, private: bool, refuse_with: Option<axum::http::StatusCode>) -> Forge {
+    Forge {
         installed,
         private,
         minted: Arc::new(AtomicUsize::new(0)),
         repo_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
-    };
+        installation_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
+        refuse_with,
+    }
+}
 
+async fn serve(state: Forge) -> (String, Forge) {
     let router = Router::new()
         .route(
             "/repos/{org}/{repo}/installation",
             get(
                 |State(forge): State<Forge>, headers: HeaderMap| async move {
+                    let auth = headers
+                        .get("authorization")
+                        .map(|auth| auth.to_str().unwrap().to_owned());
                     assert!(
-                        headers
-                            .get("authorization")
-                            .is_some_and(|auth| auth.to_str().unwrap().starts_with("Bearer ")),
+                        auth.as_deref()
+                            .is_some_and(|auth| auth.starts_with("Bearer ")),
                         "the installation lookup has to identify as the App"
                     );
+                    forge
+                        .installation_auth
+                        .lock()
+                        .unwrap()
+                        .push(auth.expect("asserted just above"));
+                    if let Some(status) = forge.refuse_with {
+                        return Err(status);
+                    }
                     if forge.installed {
                         Ok(axum::Json(serde_json::json!({ "id": 7 })))
                     } else {
@@ -173,5 +197,95 @@ async fn the_installation_token_is_minted_once_and_cached() {
         forge.minted.load(Ordering::SeqCst),
         1,
         "a busy server exchanges once until expiry, not once a request"
+    );
+}
+
+// RS256 over identical claims is deterministic, so two signatures taken inside
+// the same second are equal whether or not anything was cached. The gap is what
+// gives the test teeth: `iat` is whole seconds, so an uncached second call
+// would carry a later one and a different token.
+#[tokio::test]
+async fn the_app_jwt_is_signed_once_and_reused_across_namespaces() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge(false, false).await;
+    let app = app_under_test(&root);
+
+    let first = Namespace::new("FerrLabs", "Alpha").unwrap();
+    let second = Namespace::new("Acme", "Beta").unwrap();
+
+    assert!(app.token(&client(), &url, &first).await.unwrap().is_none());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &second).await.unwrap().is_none());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2, "each namespace is its own question");
+    assert_eq!(
+        seen[0], seen[1],
+        "a second signature a second later would carry a later iat"
+    );
+}
+
+#[tokio::test]
+async fn a_namespace_the_app_is_not_installed_on_is_not_asked_about_twice() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge(false, false).await;
+    let app = app_under_test(&root);
+
+    assert!(
+        app.token(&client(), &url, &namespace())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        app.token(&client(), &url, &namespace())
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    assert_eq!(
+        forge.installation_auth.lock().unwrap().len(),
+        1,
+        "the 404 is remembered, so the second request costs no forge call"
+    );
+}
+
+// A spent budget answers 403 to every lookup. Re-signing does not help, and
+// clearing the cache on it would hand a caller who exhausts the budget one
+// signature per request, which is the cadence this cache exists to deny.
+#[tokio::test]
+async fn a_refusal_that_is_not_about_the_jwt_keeps_the_signature() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge_refusing(axum::http::StatusCode::FORBIDDEN).await;
+    let app = app_under_test(&root);
+
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2);
+    assert_eq!(
+        seen[0], seen[1],
+        "a spent budget is not a reason to reach the private key again"
+    );
+}
+
+#[tokio::test]
+async fn a_jwt_the_forge_will_not_accept_is_signed_again() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge_refusing(axum::http::StatusCode::UNAUTHORIZED).await;
+    let app = app_under_test(&root);
+
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2);
+    assert_ne!(
+        seen[0], seen[1],
+        "a 401 is the one answer that means the JWT itself was refused"
     );
 }
