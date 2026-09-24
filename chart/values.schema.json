@@ -186,6 +186,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "lookupBudget": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "additionalProperties": false
@@ -194,6 +198,10 @@
       "type": "object",
       "properties": {
         "grace": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stagingMaxAge": {
           "type": "integer",
           "minimum": 0
         }

@@ -57,9 +57,15 @@ auth:
     key: private-key.pem
   cacheTtl: 60
   rejectionTtl: 10
+  # Forge lookups a minute the server will spend, counting only what the caches
+  # could not answer. 0 removes the ceiling.
+  lookupBudget: 600
 
 gc:
   grace: 1209600
+  # Seconds before an interrupted upload's leftovers are reclaimed, on the
+  # volume and in the bucket.
+  stagingMaxAge: 86400
 
 locks:
   # Seconds a lock may go untouched before anyone can take it. Empty means
@@ -77,6 +83,9 @@ encryption:
   # Name of an existing Secret holding the key file. The chart never takes the
   # key itself: a Helm value ends up in the release secret and in whatever CI
   # printed the command.
+  # There is no LFSX_ENCRYPTION_KEY_COMMAND here on purpose: it runs through a
+  # shell and the image carries none. Reach a KMS through a CSI driver or an
+  # init container that fills this Secret instead.
   existingSecret: ""
   key: key
 
