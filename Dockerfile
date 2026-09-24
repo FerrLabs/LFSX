@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.88-bookworm AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0 AS builder
 
 ARG TARGETARCH
 
@@ -106,7 +106,7 @@ RUN --mount=type=secret,id=gha-cache-url \
 # Static rather than cc, which exists to carry glibc and libgcc for a binary
 # that no longer needs either. The trust roots are compiled in through
 # webpki-roots, so nothing here reads a system store.
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
 COPY --from=builder /out/lfsx-server /usr/local/bin/lfsx-server
 COPY --from=builder --chown=65532:65532 /out/storage /var/lib/lfsx
