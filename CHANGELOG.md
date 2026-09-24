@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.2] - 2026-09-24
+
+### Bug Fixes
+
+- fix(auth): sign the App JWT once instead of once per lookup (#420)
+
 ## [1.17.1] - 2026-09-22
 
 ### Bug Fixes
