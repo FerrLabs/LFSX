@@ -107,9 +107,13 @@ spec:
               value: {{ .Values.auth.cacheTtl | quote }}
             - name: LFSX_AUTH_REJECTION_TTL
               value: {{ .Values.auth.rejectionTtl | quote }}
+            - name: LFSX_AUTH_LOOKUP_BUDGET
+              value: {{ .Values.auth.lookupBudget | quote }}
             {{- end }}
             - name: LFSX_GC_GRACE
               value: {{ .Values.gc.grace | quote }}
+            - name: LFSX_STAGING_MAX_AGE
+              value: {{ .Values.gc.stagingMaxAge | quote }}
             {{- with .Values.config.otlpEndpoint }}
             - name: LFSX_OTLP_ENDPOINT
               value: {{ . | quote }}
