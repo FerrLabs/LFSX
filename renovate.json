@@ -18,6 +18,17 @@
       "groupName": "Docker base image digests"
     },
     {
+      "description": "A FROM added later with a bare tag gets its digest pin from Renovate rather than from someone remembering to add one. The digest rule above only matches references that are already pinned. Scoped to the FROM dep types: without it the pin also lands on the `# syntax=` directive in site/Dockerfile, which is meant to float on docker/dockerfile:1.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchDepTypes": [
+        "stage",
+        "final"
+      ],
+      "pinDigests": true
+    },
+    {
       "description": "rand_core is a dev-dependency only because rsa 0.9 wants an rng from it, and rsa 0.9 is pinned to the rand_core 0.6 API: 0.9+ does not compile against it. Hold until rsa releases on the new rand_core, then drop this rule. See LFSX#307 and LFSX#317.",
       "matchPackageNames": [
         "rand_core"
