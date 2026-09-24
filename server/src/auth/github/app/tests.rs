@@ -38,17 +38,29 @@ struct Forge {
     minted: Arc<AtomicUsize>,
     repo_auth: Arc<std::sync::Mutex<Vec<Option<String>>>>,
     installation_auth: Arc<std::sync::Mutex<Vec<String>>>,
+    refuse_with: Option<axum::http::StatusCode>,
 }
 
 async fn forge(installed: bool, private: bool) -> (String, Forge) {
-    let state = Forge {
+    serve(state(installed, private, None)).await
+}
+
+async fn forge_refusing(status: axum::http::StatusCode) -> (String, Forge) {
+    serve(state(true, false, Some(status))).await
+}
+
+fn state(installed: bool, private: bool, refuse_with: Option<axum::http::StatusCode>) -> Forge {
+    Forge {
         installed,
         private,
         minted: Arc::new(AtomicUsize::new(0)),
         repo_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
         installation_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
-    };
+        refuse_with,
+    }
+}
 
+async fn serve(state: Forge) -> (String, Forge) {
     let router = Router::new()
         .route(
             "/repos/{org}/{repo}/installation",
@@ -67,6 +79,9 @@ async fn forge(installed: bool, private: bool) -> (String, Forge) {
                         .lock()
                         .unwrap()
                         .push(auth.expect("asserted just above"));
+                    if let Some(status) = forge.refuse_with {
+                        return Err(status);
+                    }
                     if forge.installed {
                         Ok(axum::Json(serde_json::json!({ "id": 7 })))
                     } else {
@@ -233,5 +248,44 @@ async fn a_namespace_the_app_is_not_installed_on_is_not_asked_about_twice() {
         forge.installation_auth.lock().unwrap().len(),
         1,
         "the 404 is remembered, so the second request costs no forge call"
+    );
+}
+
+// A spent budget answers 403 to every lookup. Re-signing does not help, and
+// clearing the cache on it would hand a caller who exhausts the budget one
+// signature per request, which is the cadence this cache exists to deny.
+#[tokio::test]
+async fn a_refusal_that_is_not_about_the_jwt_keeps_the_signature() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge_refusing(axum::http::StatusCode::FORBIDDEN).await;
+    let app = app_under_test(&root);
+
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2);
+    assert_eq!(
+        seen[0], seen[1],
+        "a spent budget is not a reason to reach the private key again"
+    );
+}
+
+#[tokio::test]
+async fn a_jwt_the_forge_will_not_accept_is_signed_again() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge_refusing(axum::http::StatusCode::UNAUTHORIZED).await;
+    let app = app_under_test(&root);
+
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &namespace()).await.is_err());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2);
+    assert_ne!(
+        seen[0], seen[1],
+        "a 401 is the one answer that means the JWT itself was refused"
     );
 }

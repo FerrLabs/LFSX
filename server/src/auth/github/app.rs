@@ -170,7 +170,12 @@ impl App {
         let installation: Installation = installed
             .error_for_status()
             .map_err(|error| {
-                *self.signed.lock().unwrap() = None;
+                // Only a 401 says the JWT is what was refused. A spent budget or a
+                // sick forge re-signs for nothing, and would let a caller driving
+                // either one buy a signature per request.
+                if error.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
+                    *self.signed.lock().unwrap() = None;
+                }
                 tracing::warn!(%error, "the forge refused the App's installation lookup");
                 Error::Forge
             })?
