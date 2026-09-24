@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 
@@ -19,7 +19,7 @@ pub struct App {
     key: jsonwebtoken::EncodingKey,
     grants: Mutex<HashMap<String, Grant>>,
     signed: Mutex<Option<Signed>>,
-    uninstalled: Mutex<HashMap<String, SystemTime>>,
+    uninstalled: Mutex<HashMap<String, Instant>>,
     rejection_ttl: Duration,
 }
 
@@ -28,7 +28,7 @@ const JWT_REUSED_FOR: Duration = Duration::from_secs(480);
 
 struct Signed {
     jwt: String,
-    until: SystemTime,
+    until: Instant,
 }
 
 #[derive(Clone)]
@@ -80,15 +80,18 @@ impl App {
     // Backdated a minute and expiring well under GitHub's ten-minute ceiling,
     // so clock drift on either side does not turn into a 401.
     fn jwt(&self) -> Result<String, Error> {
-        let now = SystemTime::now();
+        // One guard across the check and the sign: two callers arriving together
+        // on an empty or expired entry would otherwise both reach the key, which
+        // is what a burst measuring the signature would look like.
+        let mut cached = self.signed.lock().unwrap();
 
-        if let Some(signed) = self.signed.lock().unwrap().as_ref()
-            && now < signed.until
+        if let Some(signed) = cached.as_ref()
+            && Instant::now() < signed.until
         {
             return Ok(signed.jwt.clone());
         }
 
-        let epoch = now
+        let epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("the clock is past 1970")
             .as_secs();
@@ -108,9 +111,9 @@ impl App {
             Error::Forge
         })?;
 
-        *self.signed.lock().unwrap() = Some(Signed {
+        *cached = Some(Signed {
             jwt: jwt.clone(),
-            until: now + JWT_REUSED_FOR,
+            until: Instant::now() + JWT_REUSED_FOR,
         });
 
         Ok(jwt)
@@ -127,8 +130,8 @@ impl App {
         api_url: &str,
         ns: &Namespace,
     ) -> Result<Option<String>, Error> {
-        let org = ns.org().to_owned();
-        let namespace = ns.to_string();
+        let org = ns.org().to_lowercase();
+        let namespace = ns.to_string().to_lowercase();
 
         if let Some(grant) = self.grants.lock().unwrap().get(&org)
             && SystemTime::now() < grant.until
@@ -137,7 +140,7 @@ impl App {
         }
 
         if let Some(until) = self.uninstalled.lock().unwrap().get(&namespace)
-            && SystemTime::now() < *until
+            && Instant::now() < *until
         {
             return Ok(None);
         }
@@ -158,7 +161,7 @@ impl App {
         })?;
 
         if installed.status() == reqwest::StatusCode::NOT_FOUND {
-            let now = SystemTime::now();
+            let now = Instant::now();
             let mut uninstalled = self.uninstalled.lock().unwrap();
             uninstalled.retain(|_, until| now < *until);
             uninstalled.insert(namespace, now + self.rejection_ttl);
@@ -167,6 +170,7 @@ impl App {
         let installation: Installation = installed
             .error_for_status()
             .map_err(|error| {
+                *self.signed.lock().unwrap() = None;
                 tracing::warn!(%error, "the forge refused the App's installation lookup");
                 Error::Forge
             })?
