@@ -61,7 +61,7 @@ jobs:
           key: ${{ runner.os }}-cargo-cov-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-cov-
 
-      - uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2
+      - uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cargo-llvm-cov
 
@@ -139,4 +139,5 @@ jobs:
         -Dsonar.coverage.exclusions=site/**
         -Dsonar.tests=.
         -Dsonar.test.inclusions=**/tests.rs,**/tests/**
-    secrets: inherit
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
