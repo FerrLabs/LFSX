@@ -50,18 +50,23 @@ jobs:
       kind: ${{ steps.meta.outputs.kind }}
     steps:
       - id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET: ${{ inputs.target }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            KIND="${{ inputs.target }}"
-            VERSION="${{ inputs.version }}"
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            KIND="${TARGET}"
+            VERSION="${INPUT_VERSION}"
             if [ "${KIND}" = "site" ]; then
               REF="refs/tags/site@${VERSION}"
             else
               REF="refs/tags/v${VERSION}"
             fi
           else
-            TAG="${{ github.event.release.tag_name }}"
+            TAG="${RELEASE_TAG}"
             REF="refs/tags/${TAG}"
             case "${TAG}" in
               site@*) KIND=site;   VERSION="${TAG#site@}" ;;
