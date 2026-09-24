@@ -79,7 +79,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `auth.lookupBudget` | `600` | forge lookups a minute, counting only cache misses; `0` removes the ceiling |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
-| `gc.stagingMaxAge` | `86400` | seconds before an interrupted upload's leftovers are reclaimed; keep it above your longest transfer, `0` also removes uploads in flight |
+| `gc.stagingMaxAge` | `86400` | seconds before an interrupted upload's leftovers are reclaimed; keep it above your longest transfer, `0` sweeps every `.part` file at boot and hourly, uploads in flight included |
 | `locks.maxAge` | `""` | seconds a lock may go untouched before anyone can take it over; empty means never |
 | `limits.maxObjectSize` | `""` | bytes a single object may reach; empty means no ceiling |
 | `limits.repoQuota` | `""` | bytes a single repository may hold; empty means no budget |
