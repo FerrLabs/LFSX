@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.0] - 2026-09-24
+
+### Features
+
+- feat(chart): expose the lookup budget and the staging age (#426)
+
 ## [1.17.2] - 2026-09-24
 
 ### Bug Fixes
