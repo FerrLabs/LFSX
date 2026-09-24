@@ -5,6 +5,19 @@
   ],
   "packageRules": [
     {
+      "description": "Base images are pinned by digest, so a rebuilt tag reaches the image only through this update. The shared preset takes Dockerfile updates before 6am on Monday, and the Renovate cron does not reach every repository inside that window, so a digest could sit stale for weeks and hold back an OS fix the Trivy gate then trips on. Digests keep the three-day age and automerge, in their own group so a tag bump never shares their branch.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "schedule": [
+        "at any time"
+      ],
+      "groupName": "Docker base image digests"
+    },
+    {
       "description": "rand_core is a dev-dependency only because rsa 0.9 wants an rng from it, and rsa 0.9 is pinned to the rand_core 0.6 API: 0.9+ does not compile against it. Hold until rsa releases on the new rand_core, then drop this rule. See LFSX#307 and LFSX#317.",
       "matchPackageNames": [
         "rand_core"
