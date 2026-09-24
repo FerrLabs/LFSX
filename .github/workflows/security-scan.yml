@@ -20,4 +20,3 @@ jobs:
       contents: read
       security-events: write
     uses: FerrLabs/.github/.github/workflows/reusable-security-scan.yml@b6a08e6055076c18cfa7b8f80c9925275ed407fe # main
-    secrets: inherit

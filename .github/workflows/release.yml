@@ -28,4 +28,5 @@ jobs:
     uses: FerrLabs/.github/.github/workflows/reusable-ferrflow-release.yml@b6a08e6055076c18cfa7b8f80c9925275ed407fe # main
     with:
       dry-run: ${{ inputs.dry_run || false }}
-    secrets: inherit
+    secrets:
+      TAG_SIGNING_KEY: ${{ secrets.TAG_SIGNING_KEY }}
