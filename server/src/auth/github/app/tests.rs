@@ -28,7 +28,7 @@ fn key_pem() -> &'static str {
 fn app_under_test(root: &tempfile::TempDir) -> App {
     let key_file = root.path().join("app.pem");
     std::fs::write(&key_file, key_pem()).unwrap();
-    App::load("41", &key_file)
+    App::load("41", &key_file, std::time::Duration::from_secs(10))
 }
 
 #[derive(Clone)]
@@ -37,6 +37,7 @@ struct Forge {
     private: bool,
     minted: Arc<AtomicUsize>,
     repo_auth: Arc<std::sync::Mutex<Vec<Option<String>>>>,
+    installation_auth: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 async fn forge(installed: bool, private: bool) -> (String, Forge) {
@@ -45,6 +46,7 @@ async fn forge(installed: bool, private: bool) -> (String, Forge) {
         private,
         minted: Arc::new(AtomicUsize::new(0)),
         repo_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
+        installation_auth: Arc::new(std::sync::Mutex::new(Vec::new())),
     };
 
     let router = Router::new()
@@ -52,12 +54,19 @@ async fn forge(installed: bool, private: bool) -> (String, Forge) {
             "/repos/{org}/{repo}/installation",
             get(
                 |State(forge): State<Forge>, headers: HeaderMap| async move {
+                    let auth = headers
+                        .get("authorization")
+                        .map(|auth| auth.to_str().unwrap().to_owned());
                     assert!(
-                        headers
-                            .get("authorization")
-                            .is_some_and(|auth| auth.to_str().unwrap().starts_with("Bearer ")),
+                        auth.as_deref()
+                            .is_some_and(|auth| auth.starts_with("Bearer ")),
                         "the installation lookup has to identify as the App"
                     );
+                    forge
+                        .installation_auth
+                        .lock()
+                        .unwrap()
+                        .push(auth.expect("asserted just above"));
                     if forge.installed {
                         Ok(axum::Json(serde_json::json!({ "id": 7 })))
                     } else {
@@ -173,5 +182,56 @@ async fn the_installation_token_is_minted_once_and_cached() {
         forge.minted.load(Ordering::SeqCst),
         1,
         "a busy server exchanges once until expiry, not once a request"
+    );
+}
+
+// RS256 over identical claims is deterministic, so two signatures taken inside
+// the same second are equal whether or not anything was cached. The gap is what
+// gives the test teeth: `iat` is whole seconds, so an uncached second call
+// would carry a later one and a different token.
+#[tokio::test]
+async fn the_app_jwt_is_signed_once_and_reused_across_namespaces() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge(false, false).await;
+    let app = app_under_test(&root);
+
+    let first = Namespace::new("FerrLabs", "Alpha").unwrap();
+    let second = Namespace::new("Acme", "Beta").unwrap();
+
+    assert!(app.token(&client(), &url, &first).await.unwrap().is_none());
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(app.token(&client(), &url, &second).await.unwrap().is_none());
+
+    let seen = forge.installation_auth.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2, "each namespace is its own question");
+    assert_eq!(
+        seen[0], seen[1],
+        "a second signature a second later would carry a later iat"
+    );
+}
+
+#[tokio::test]
+async fn a_namespace_the_app_is_not_installed_on_is_not_asked_about_twice() {
+    let root = tempfile::tempdir().unwrap();
+    let (url, forge) = forge(false, false).await;
+    let app = app_under_test(&root);
+
+    assert!(
+        app.token(&client(), &url, &namespace())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        app.token(&client(), &url, &namespace())
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    assert_eq!(
+        forge.installation_auth.lock().unwrap().len(),
+        1,
+        "the 404 is remembered, so the second request costs no forge call"
     );
 }
