@@ -27,6 +27,11 @@ git lfs ls-files --all --long \
 `--all` walks every ref, so the set covers every commit still reachable, which is the point: run
 this from a full clone, not a shallow one, or you will retain a fraction of what you should.
 
+The list is read in one request of up to 64 MiB, about a million object ids. Past that the server
+answers `413` without reading it. Releases before the fix for
+[#451](https://github.com/FerrLabs/LFSX/issues/451) stopped at 2 MiB, about 31,000 ids, which a
+large repository passes long before it runs out of disk.
+
 It answers with what it would free, and frees nothing until you drop `dry_run`:
 
 ```json
