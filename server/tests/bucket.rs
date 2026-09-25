@@ -9,7 +9,8 @@
 // sets it. Locally:
 //
 //   docker run -d -p 9100:9000 -e MINIO_ROOT_USER=lfsxkey \
-//     -e MINIO_ROOT_PASSWORD=lfsxsecret quay.io/minio/minio server /data
+//     -e MINIO_ROOT_PASSWORD=lfsxsecret --tmpfs /data:uid=65532,gid=65532 \
+//     cgr.dev/chainguard/minio server /data
 //   LFSX_TEST_S3_ENDPOINT=http://127.0.0.1:9100 cargo test --test bucket
 
 use std::time::Duration;
