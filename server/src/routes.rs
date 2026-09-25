@@ -22,7 +22,9 @@ pub fn router(state: Shared) -> Router {
         .route("/{org}/{repo}/objects/verify", post(objects::verify))
         .route(
             "/{org}/{repo}/objects/retain",
-            post(maintenance::retain).layer(DefaultBodyLimit::max(maintenance::KEEP_LIST_LIMIT)),
+            post(maintenance::retain)
+                .layer(DefaultBodyLimit::max(maintenance::KEEP_LIST_LIMIT))
+                .layer(middleware::from_fn(maintenance::writers_only)),
         )
         .route("/{org}/{repo}/objects/dedupe", post(maintenance::dedupe))
         .route(

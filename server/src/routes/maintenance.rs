@@ -1,5 +1,7 @@
-use axum::extract::State;
+use axum::extract::{Request, State};
 use axum::http::HeaderMap;
+use axum::middleware::Next;
+use axum::response::Response;
 use axum::{Extension, Json};
 
 use crate::audit::audit_log;
@@ -16,6 +18,17 @@ use crate::storage::{CompressReport, DedupeReport, SweepReport, VerifyReport};
 
 pub(super) const KEEP_LIST_LIMIT: usize = 64 * 1024 * 1024;
 
+pub(super) async fn writers_only(request: Request, next: Next) -> Result<Response, Error> {
+    request
+        .extensions()
+        .get::<Permission>()
+        .copied()
+        .ok_or(Error::Forbidden)?
+        .require_write()?;
+
+    Ok(next.run(request).await)
+}
+
 // The one operation here that unlinks files, so the real run asks for the
 // rights of someone the forge treats as an administrator, same as force-opening
 // a lock. The dry run stays at push rights: it is a read of what collection
@@ -28,7 +41,6 @@ pub(super) async fn retain(
     headers: HeaderMap,
     Json(request): Json<RetainRequest>,
 ) -> Result<Json<SweepReport>, Error> {
-    permission.require_write()?;
     if !request.dry_run {
         permission.require_admin()?;
     }

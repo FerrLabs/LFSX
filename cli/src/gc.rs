@@ -31,7 +31,9 @@ pub fn run(server: &Server, repository: &str, dry_run: bool) -> Result<Value> {
     }
     if status.as_u16() == 413 {
         bail!(
-            "the server answered 413: the keep list names {} objects, more than it reads in one              request. Servers from before the fix for FerrLabs/LFSX#451 stop at 2 MiB, about              31,000 objects; current ones read up to 64 MiB, about a million",
+            "the server answered 413: the keep list names {} objects, more than it reads in one \
+             request. Servers from before the fix for FerrLabs/LFSX#451 stop at 2 MiB, about \
+             31,000 objects; current ones read up to 64 MiB, about a million",
             oids.len()
         );
     }
