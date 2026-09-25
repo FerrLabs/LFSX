@@ -14,6 +14,8 @@ use crate::storage::{CompressReport, DedupeReport, SweepReport, VerifyReport};
 // rewrite or measure what is already stored, and each one asks for rights a
 // pushing client is not assumed to have.
 
+pub(super) const KEEP_LIST_LIMIT: usize = 64 * 1024 * 1024;
+
 // The one operation here that unlinks files, so the real run asks for the
 // rights of someone the forge treats as an administrator, same as force-opening
 // a lock. The dry run stays at push rights: it is a read of what collection

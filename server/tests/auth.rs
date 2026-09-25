@@ -169,6 +169,27 @@ async fn a_read_only_token_cannot_collect_garbage() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
+#[tokio::test]
+async fn a_large_keep_list_from_nobody_is_turned_away_before_it_is_read() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/LFSX/objects/retain")
+        .header("content-type", "application/json")
+        .body(Body::from(vec![b' '; 8 * 1024 * 1024]))
+        .unwrap();
+
+    let response = app(&root, &api_url, Duration::from_secs(60))
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(forge.calls.load(Ordering::SeqCst), 0);
+}
+
 async fn collect(app: Router, token: &str, dry_run: bool) -> StatusCode {
     let request = Request::builder()
         .method("POST")

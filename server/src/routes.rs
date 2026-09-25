@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
@@ -20,7 +20,10 @@ pub fn router(state: Shared) -> Router {
     let objects = Router::new()
         .route("/{org}/{repo}/objects/batch", post(objects::batch))
         .route("/{org}/{repo}/objects/verify", post(objects::verify))
-        .route("/{org}/{repo}/objects/retain", post(maintenance::retain))
+        .route(
+            "/{org}/{repo}/objects/retain",
+            post(maintenance::retain).layer(DefaultBodyLimit::max(maintenance::KEEP_LIST_LIMIT)),
+        )
         .route("/{org}/{repo}/objects/dedupe", post(maintenance::dedupe))
         .route(
             "/{org}/{repo}/objects/compress",
