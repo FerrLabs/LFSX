@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.9.19] - 2026-09-25
+
+### Bug Fixes
+
+- fix(server): read retain keep lists up to 64 MiB (#452)
+
 ## [2026.9.17] - 2026-09-20
 
 ### Features
