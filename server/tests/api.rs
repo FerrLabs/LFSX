@@ -343,6 +343,36 @@ async fn an_object_uploaded_but_not_yet_referenced_survives() {
 }
 
 #[tokio::test]
+async fn a_keep_list_past_the_default_two_megabytes_is_read() {
+    let root = tempfile::tempdir().unwrap();
+    let oids: Vec<String> = (0..40_000u32).map(|n| format!("{n:064x}")).collect();
+    let oids: Vec<&str> = oids.iter().map(String::as_str).collect();
+
+    let (status, report) = retain(app(&root), &oids, true).await;
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a repository with 40,000 objects could not be collected at all: {report}"
+    );
+}
+
+#[tokio::test]
+async fn a_keep_list_over_the_ceiling_is_refused_unread() {
+    let root = tempfile::tempdir().unwrap();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/retain")
+        .header("content-type", "application/json")
+        .body(Body::from(vec![b' '; 64 * 1024 * 1024 + 1]))
+        .unwrap();
+
+    let response = app(&root).oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
 async fn a_referenced_object_is_kept_however_old_it_is() {
     let root = tempfile::tempdir().unwrap();
     let payload = b"still pointed at by a commit".to_vec();

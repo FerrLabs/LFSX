@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.1] - 2026-09-25
+
+### Bug Fixes
+
+- fix(server): read retain keep lists up to 64 MiB (#452)
+
 ## [1.18.0] - 2026-09-24
 
 ### Features
