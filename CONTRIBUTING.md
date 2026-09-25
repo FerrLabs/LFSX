@@ -72,7 +72,7 @@ point at:
 ```bash
 docker run -d --name minio -p 9000:9000 \
   -e MINIO_ROOT_USER=lfsxkey -e MINIO_ROOT_PASSWORD=lfsxsecret \
-  quay.io/minio/minio server /data
+  --tmpfs /data:uid=65532,gid=65532 cgr.dev/chainguard/minio server /data
 
 # once http://127.0.0.1:9000/minio/health/live answers
 docker exec minio mc alias set local http://127.0.0.1:9000 lfsxkey lfsxsecret
