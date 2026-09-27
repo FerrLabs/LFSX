@@ -9,15 +9,7 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY site/package.json ./site/
 
-# NODE_AUTH_TOKEN authenticates pnpm against GitHub Packages for the private
-# @ferrlabs/* packages. Mounted as a BuildKit secret, never a build-arg, so it
-# never lands in an image layer or the build log. pnpm will not expand it from
-# the committed .npmrc, so it is written to a trusted config for the install and
-# removed in the same layer.
-RUN --mount=type=secret,id=packages-read \
-    pnpm config set "//npm.pkg.github.com/:_authToken" "$(cat /run/secrets/packages-read)" \
-    && pnpm install --frozen-lockfile --filter @lfsx/site... \
-    && pnpm config delete "//npm.pkg.github.com/:_authToken"
+RUN pnpm install --frozen-lockfile --filter @lfsx/site...
 
 COPY site ./site
 COPY docs ./docs

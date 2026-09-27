@@ -159,8 +159,6 @@ jobs:
         done
         echo "::error::the site image never served /"
         exit 1
-    secrets:
-      packages-read: ${{ secrets.FERRFLOW_PACKAGES_READ || secrets.GITHUB_TOKEN }}
 
   verify:
     name: Build without publishing
@@ -259,5 +257,3 @@ jobs:
       dockerfile: site/Dockerfile
       platforms: linux/amd64
       push: false
-    secrets:
-      packages-read: ${{ secrets.FERRFLOW_PACKAGES_READ || secrets.GITHUB_TOKEN }}
