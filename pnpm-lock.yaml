@@ -204,11 +204,11 @@ importers:
         specifier: ^22.0.0
         version: 22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(@angular/platform-browser@22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/ui-foundation':
-        specifier: ^5.1.0
+        specifier: ^5.4.0
         version: 5.4.0(tailwindcss@4.3.3)
       '@ferrlabs/ui-ng':
-        specifier: ^1.23.0
-        version: 1.35.1(0dbd5245241b476801bd6bb8794c82bd)
+        specifier: ^1.37.1
+        version: 1.37.1(b1d6a612fad83eb9c93a564060800edd)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -762,18 +762,22 @@ packages:
     os: [win32]
 
   '@ferrlabs/ui-foundation@5.4.0':
-    resolution: {integrity: sha512-JSli8zOpl9wbPUYgM9BfAUSVrVC8A+oftoEiudPqDi2BKymfiDDkIIoy/uAYX9A5vUgHGP8d0fpFVxebGeLU1g==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-foundation/5.4.0/11adf19001258b52ceb9d76a722d2fcc88ca7219}
+    resolution: {integrity: sha512-M9G1OZ/dueWrZ464zg/4N7Zyslgke5Cm3cJPb83KBlOzVWifnEW3uGdgr05HH9XAQ/vk6Z729hke3KgKzIv7PA==}
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@ferrlabs/ui-ng@1.35.1':
-    resolution: {integrity: sha512-s+uXgMDgMxXWil8ixNeo9mua7aHBlldw7kgQwba0k5+4T5SfgPXP8uUxmuBbW7tI8XwaK11N1xdVxgP8V/01wQ==, tarball: https://npm.pkg.github.com/download/@ferrlabs/ui-ng/1.35.1/e9b1b7f78969df571e52163ef926e8b73d4e0dd5}
+  '@ferrlabs/ui-ng@1.37.1':
+    resolution: {integrity: sha512-3MwGTCfkOyx+qROHFJVOTsxxYSO37cfwopqY0rhDfZ6mU/Wik36Q2C0IAVb5ZEG9boyg6J7sfl5tgewfcsyJoQ==}
     peerDependencies:
       '@angular/cdk': ^22.0.0
       '@angular/common': ^22.0.0
       '@angular/core': ^22.0.0
       '@angular/forms': ^22.0.0
       '@angular/platform-browser': ^22.0.0
+      '@ferrlabs/ui-foundation': ^5.0.0
+    peerDependenciesMeta:
+      '@ferrlabs/ui-foundation':
+        optional: true
 
   '@fontsource/archivo@5.3.0':
     resolution: {integrity: sha512-5DIMgPVJRi62OqdOVoogCFxP73EkNM/E0YVTSDIQlDEJfDbxqZduwM/YoNZwC9Sx1CDgpKinqf8ckRY1QNIecw==}
@@ -4502,7 +4506,7 @@ snapshots:
       '@fontsource/fraunces': 5.3.0
       tailwindcss: 4.3.3
 
-  '@ferrlabs/ui-ng@1.35.1(0dbd5245241b476801bd6bb8794c82bd)':
+  '@ferrlabs/ui-ng@1.37.1(b1d6a612fad83eb9c93a564060800edd)':
     dependencies:
       '@angular/cdk': 22.1.7(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(@angular/forms@22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(@angular/platform-browser@22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -4510,6 +4514,8 @@ snapshots:
       '@angular/forms': 22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(@angular/platform-browser@22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/platform-browser': 22.2.0(@angular/common@22.2.0(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.0(@angular/compiler@22.2.0)(rxjs@7.8.2))
       tslib: 2.8.1
+    optionalDependencies:
+      '@ferrlabs/ui-foundation': 5.4.0(tailwindcss@4.3.3)
 
   '@fontsource/archivo@5.3.0': {}
 
