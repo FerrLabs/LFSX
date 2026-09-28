@@ -26,10 +26,10 @@
     "url": "git+https://github.com/FerrLabs/LFSX.git"
   },
   "optionalDependencies": {
-    "@ferrlabs/lfsx-linux-x64": "0.38.2",
-    "@ferrlabs/lfsx-linux-arm64": "0.38.2",
-    "@ferrlabs/lfsx-darwin-x64": "0.38.2",
-    "@ferrlabs/lfsx-darwin-arm64": "0.38.2",
-    "@ferrlabs/lfsx-win32-x64": "0.38.2"
+    "@ferrlabs/lfsx-linux-x64": "1.18.1",
+    "@ferrlabs/lfsx-linux-arm64": "1.18.1",
+    "@ferrlabs/lfsx-darwin-x64": "1.18.1",
+    "@ferrlabs/lfsx-darwin-arm64": "1.18.1",
+    "@ferrlabs/lfsx-win32-x64": "1.18.1"
   }
 }
