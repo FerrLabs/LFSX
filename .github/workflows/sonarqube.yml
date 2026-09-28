@@ -61,7 +61,7 @@ jobs:
           key: ${{ runner.os }}-cargo-cov-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-cov-
 
-      - uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+      - uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
           tool: cargo-llvm-cov
 
