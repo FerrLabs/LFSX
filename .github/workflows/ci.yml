@@ -200,6 +200,46 @@ jobs:
         env:
           LFSX_TEST_S3_ENDPOINT: http://127.0.0.1:3900
 
+  bucket-azure:
+    name: Objects in an Azure container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Start Azurite
+        run: |
+          set -euo pipefail
+          docker run -d --name azurite -p 10000:10000 \
+            mcr.microsoft.com/azure-storage/azurite:3.37.0 \
+            azurite-blob --blobHost 0.0.0.0 --loose
+          for _ in $(seq 60); do
+            if curl -s -o /dev/null http://127.0.0.1:10000/devstoreaccount1; then
+              az storage container create --name lfsx-test --connection-string \
+                "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs azurite
+          echo "::error::Azurite never came up"
+          exit 1
+
+      - run: cargo test --locked --test bucket
+        env:
+          LFSX_TEST_AZURE_ENDPOINT: http://127.0.0.1:10000/devstoreaccount1
+
   e2e:
     # The audience is a studio: artists on Windows, programmers on macOS, CI on
     # Linux, and whatever git-lfs their tooling happened to bundle. One job on

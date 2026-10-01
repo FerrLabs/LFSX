@@ -24,12 +24,15 @@ All configuration is by environment variable.
 | `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
 | `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
 | `LFSX_MAX_CONCURRENT_TRANSFERS` | `128` | uploads and downloads served at once; the transfer past the cap is answered `503` with `Retry-After` rather than queued; `0` removes the cap |
-| `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume |
+| `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume, `azure` for a Blob Storage container |
 | `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | unset | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_ACCESS_KEY` / `LFSX_S3_SECRET_KEY` | unset | credentials for it, required with `LFSX_STORAGE=s3` |
 | `LFSX_S3_PATH_STYLE` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `LFSX_S3_PRESIGN` | `false` | `true` to hand transfers to the bucket instead of streaming them through the server, ignored for downloads when compression or encryption is configured, and ignored entirely if the bucket does not prove it verifies upload checksums |
 | `LFSX_S3_CACHE_DIR` | unset | directory holding a local copy of what the bucket serves, so a second reader does not pay the round trip again |
+| `LFSX_AZURE_ACCOUNT` / `LFSX_AZURE_CONTAINER` | unset | the storage account and container, required with `LFSX_STORAGE=azure` |
+| `LFSX_AZURE_ENDPOINT` | `https://<account>.blob.core.windows.net` | blob endpoint, for Azurite, a private endpoint or a sovereign cloud |
+| `LFSX_AZURE_ACCOUNT_KEY` / `LFSX_AZURE_SAS_TOKEN` | unset | at most one; neither authenticates with the managed or workload identity, see [Azure](azure.md#credentials) |
 | `LFSX_S3_CACHE_MAX_BYTES` | unset | bytes the cache may hold before the least recently used entries are dropped; required with the directory, which does nothing without it |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
 | `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |

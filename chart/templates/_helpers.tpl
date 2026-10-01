@@ -79,8 +79,24 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.storage.s3.existingSecret -}}
     {{- fail "storage.type=s3 needs storage.s3.existingSecret: the chart never takes the keys as values, because a Helm value ends up in the release secret and in whatever CI printed the command" -}}
   {{- end -}}
+{{- else if eq .Values.storage.type "azure" -}}
+  {{- if and .Values.storage.azure.cacheDir (not .Values.storage.azure.cacheMaxBytes) -}}
+    {{- fail "storage.azure.cacheDir needs storage.azure.cacheMaxBytes: a cache with no ceiling fills the volume this server also stages uploads on" -}}
+  {{- end -}}
+  {{- if not .Values.storage.azure.account -}}
+    {{- fail "storage.type=azure needs storage.azure.account" -}}
+  {{- end -}}
+  {{- if not .Values.storage.azure.container -}}
+    {{- fail "storage.type=azure needs storage.azure.container" -}}
+  {{- end -}}
+  {{- if and .Values.storage.azure.accountKeyKey .Values.storage.azure.sasTokenKey -}}
+    {{- fail "storage.azure takes accountKeyKey or sasTokenKey, not both: leave both empty to authenticate with the pod's identity" -}}
+  {{- end -}}
+  {{- if and (or .Values.storage.azure.accountKeyKey .Values.storage.azure.sasTokenKey) (not .Values.storage.azure.existingSecret) -}}
+    {{- fail "storage.azure.accountKeyKey and sasTokenKey name a key in storage.azure.existingSecret: the chart never takes the credential as a value, because a Helm value ends up in the release secret and in whatever CI printed the command" -}}
+  {{- end -}}
 {{- else if ne .Values.storage.type "local" -}}
-  {{- fail (printf "storage.type must be local or s3, got %q" .Values.storage.type) -}}
+  {{- fail (printf "storage.type must be local, s3 or azure, got %q" .Values.storage.type) -}}
 {{- end -}}
 {{- if .Values.auth.githubApp.appId -}}
   {{- if not .Values.auth.githubApp.existingSecret -}}
@@ -96,8 +112,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end -}}
 {{- end -}}
 {{- if gt (int .Values.replicaCount) 1 -}}
-  {{- if ne .Values.storage.type "s3" -}}
-    {{- fail "replicaCount above 1 needs storage.type=s3: on a volume an upload is staged and renamed, which is atomic on one filesystem and undefined across two, and the locks two pods must agree on live in that same directory" -}}
+  {{- if eq .Values.storage.type "local" -}}
+    {{- fail "replicaCount above 1 needs storage.type=s3 or azure: on a volume an upload is staged and renamed, which is atomic on one filesystem and undefined across two, and the locks two pods must agree on live in that same directory" -}}
   {{- end -}}
   {{- if .Values.persistence.enabled -}}
     {{- fail "replicaCount above 1 needs persistence.enabled=false: the claim is ReadWriteOnce, so a second pod cannot mount it, and each replica stages its own uploads anyway" -}}

@@ -15,7 +15,7 @@ undefined across two, and the locks the pods must agree on live in that same dir
 `replicaCount` above 1 with `storage.type=local` fails the render with that sentence rather than
 letting you find it in production.
 
-**More than one replica needs a bucket.** With `storage.type=s3` the objects and the locks move into
+**More than one replica needs a bucket.** With `storage.type=s3` (or `azure`) the objects and the locks move into
 the bucket, which is what lets two servers agree on who holds what, and the strategy becomes
 `RollingUpdate`. It also needs `persistence.enabled=false`: the claim is `ReadWriteOnce` so a second
 pod could not mount it, and each replica stages its own uploads anyway.
@@ -67,6 +67,11 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `config.otlpEndpoint` | `""` | HTTP traces URL of an OTLP collector; empty keeps traces off |
 | `storage.s3.cacheDir` | `""` | directory holding a local copy of what the bucket serves; empty means every download is a bucket round trip |
 | `storage.s3.cacheMaxBytes` | `""` | bytes that cache may hold; required with a `cacheDir`, which is refused without it |
+| `storage.azure.account` / `storage.azure.container` | `""` | storage account and container, required with `storage.type=azure`; the container has to exist |
+| `storage.azure.endpoint` | `""` | blob endpoint override, empty means `https://<account>.blob.core.windows.net` |
+| `storage.azure.existingSecret` | `""` | secret holding the account key or a SAS, named by `accountKeyKey` or `sasTokenKey` (one of them); leave all three empty to use the pod's identity |
+| `storage.azure.workloadIdentity` | `false` | label the pod for AKS workload identity; the service account still needs its `azure.workload.identity/client-id` annotation through `serviceAccount.annotations` |
+| `storage.azure.presign`, `cacheDir`, `cacheMaxBytes` | as `storage.s3` | same meaning as for a bucket; a download redirect needs the account key |
 | `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |

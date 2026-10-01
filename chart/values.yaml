@@ -16,6 +16,17 @@ storage:
     existingSecret: ""
     accessKeyKey: accessKey
     secretKeyKey: secretKey
+  azure:
+    account: ""
+    container: ""
+    endpoint: ""
+    presign: false
+    cacheDir: ""
+    cacheMaxBytes: ""
+    existingSecret: ""
+    accountKeyKey: ""
+    sasTokenKey: ""
+    workloadIdentity: false
 
 image:
   repository: ghcr.io/ferrlabs/lfsx

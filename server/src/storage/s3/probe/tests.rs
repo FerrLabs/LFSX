@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use super::*;
 use crate::storage::s3::tests::{
-    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace, unreachable_keyspace,
+    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace, s3_keys,
+    unreachable_keyspace,
 };
 
 // The good case, and the one that makes the rest meaningful: a store that
@@ -13,7 +14,7 @@ async fn a_store_that_refuses_a_body_which_does_not_match_is_trusted() {
 
     let (endpoint, objects) = bucket().await;
 
-    assert_eq!(checksums(&keyspace(&endpoint)).await, Checksums::Enforced);
+    assert_eq!(checksums(&s3_keys(&endpoint)).await, Checksums::Enforced);
     assert!(
         objects.lock().unwrap().is_empty(),
         "the probe body does not hash to the digest it was signed for, so a store that checks \
@@ -31,7 +32,7 @@ async fn a_store_that_keeps_a_body_which_does_not_match_is_not_trusted() {
 
     let (endpoint, objects) = bucket_ignoring_checksums().await;
 
-    assert_eq!(checksums(&keyspace(&endpoint)).await, Checksums::Ignored);
+    assert_eq!(checksums(&s3_keys(&endpoint)).await, Checksums::Ignored);
     assert!(
         objects.lock().unwrap().is_empty(),
         "the probe wrote an object to find that out and has to take it back with it"
@@ -45,7 +46,10 @@ async fn a_store_that_keeps_a_body_which_does_not_match_is_not_trusted() {
 async fn a_store_that_cannot_be_asked_is_not_trusted() {
     crate::tls::install_crypto_provider();
 
-    assert_eq!(checksums(&unreachable_keyspace()).await, Checksums::Unknown);
+    assert_eq!(
+        checksums(&s3_keys("http://127.0.0.1:1")).await,
+        Checksums::Unknown
+    );
 }
 
 fn presigning(endpoint: &str) -> crate::config::Config {
@@ -259,7 +263,7 @@ async fn a_probe_object_left_by_an_earlier_run_does_not_condemn_a_compliant_stor
     }
 
     assert_eq!(
-        checksums(&keyspace(&endpoint)).await,
+        checksums(&s3_keys(&endpoint)).await,
         Checksums::Enforced,
         "this store refuses a body that does not match, and no amount of litter changes that"
     );
