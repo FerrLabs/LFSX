@@ -80,6 +80,26 @@ pub enum Dialect {
         container: String,
         credential: AzureCredential,
     },
+    Gcs {
+        endpoint: String,
+        bucket: String,
+        credential: GcsCredential,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GcsCredential {
+    ServiceAccount(PathBuf),
+    Metadata,
+    Anonymous,
+}
+
+fn gcs_credential(value: Option<&str>) -> GcsCredential {
+    match value.filter(|value| !value.is_empty()) {
+        None => GcsCredential::Metadata,
+        Some("none") => GcsCredential::Anonymous,
+        Some(path) => GcsCredential::ServiceAccount(path.into()),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +127,7 @@ fn azure_credential(key: Option<&str>, sas: Option<&str>) -> AzureCredential {
 impl Storage {
     fn from_env() -> Self {
         let kind = std::env::var("LFSX_STORAGE").unwrap_or_default();
-        if !matches!(kind.as_str(), "s3" | "azure") {
+        if !matches!(kind.as_str(), "s3" | "azure" | "gcs") {
             return Self::Local;
         }
 
@@ -118,7 +138,16 @@ impl Storage {
                 .unwrap_or_else(|| panic!("LFSX_STORAGE={kind} needs {name}"))
         };
 
-        let dialect = if kind == "azure" {
+        let dialect = if kind == "gcs" {
+            Dialect::Gcs {
+                endpoint: std::env::var("LFSX_GCS_ENDPOINT")
+                    .ok()
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| "https://storage.googleapis.com".into()),
+                bucket: required("LFSX_GCS_BUCKET"),
+                credential: gcs_credential(std::env::var("LFSX_GCS_CREDENTIALS").ok().as_deref()),
+            }
+        } else if kind == "azure" {
             let account = required("LFSX_AZURE_ACCOUNT");
             Dialect::Azure {
                 endpoint: std::env::var("LFSX_AZURE_ENDPOINT")

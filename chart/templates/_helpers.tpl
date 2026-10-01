@@ -95,8 +95,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if and (or .Values.storage.azure.accountKeyKey .Values.storage.azure.sasTokenKey) (not .Values.storage.azure.existingSecret) -}}
     {{- fail "storage.azure.accountKeyKey and sasTokenKey name a key in storage.azure.existingSecret: the chart never takes the credential as a value, because a Helm value ends up in the release secret and in whatever CI printed the command" -}}
   {{- end -}}
+{{- else if eq .Values.storage.type "gcs" -}}
+  {{- if and .Values.storage.gcs.cacheDir (not .Values.storage.gcs.cacheMaxBytes) -}}
+    {{- fail "storage.gcs.cacheDir needs storage.gcs.cacheMaxBytes: a cache with no ceiling fills the volume this server also stages uploads on" -}}
+  {{- end -}}
+  {{- if not .Values.storage.gcs.bucket -}}
+    {{- fail "storage.type=gcs needs storage.gcs.bucket" -}}
+  {{- end -}}
 {{- else if ne .Values.storage.type "local" -}}
-  {{- fail (printf "storage.type must be local, s3 or azure, got %q" .Values.storage.type) -}}
+  {{- fail (printf "storage.type must be local, s3, azure or gcs, got %q" .Values.storage.type) -}}
 {{- end -}}
 {{- if .Values.auth.githubApp.appId -}}
   {{- if not .Values.auth.githubApp.existingSecret -}}
@@ -113,7 +120,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if gt (int .Values.replicaCount) 1 -}}
   {{- if eq .Values.storage.type "local" -}}
-    {{- fail "replicaCount above 1 needs storage.type=s3 or azure: on a volume an upload is staged and renamed, which is atomic on one filesystem and undefined across two, and the locks two pods must agree on live in that same directory" -}}
+    {{- fail "replicaCount above 1 needs storage.type=s3, azure or gcs: on a volume an upload is staged and renamed, which is atomic on one filesystem and undefined across two, and the locks two pods must agree on live in that same directory" -}}
   {{- end -}}
   {{- if .Values.persistence.enabled -}}
     {{- fail "replicaCount above 1 needs persistence.enabled=false: the claim is ReadWriteOnce, so a second pod cannot mount it, and each replica stages its own uploads anyway" -}}

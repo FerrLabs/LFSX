@@ -19,7 +19,8 @@
           "enum": [
             "local",
             "s3",
-            "azure"
+            "azure",
+            "gcs"
           ]
         },
         "s3": {
@@ -106,6 +107,41 @@
             },
             "workloadIdentity": {
               "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "gcs": {
+          "type": "object",
+          "properties": {
+            "bucket": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            },
+            "presign": {
+              "type": "boolean"
+            },
+            "cacheDir": {
+              "type": "string"
+            },
+            "cacheMaxBytes": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keyFileKey": {
+              "type": "string"
             }
           },
           "additionalProperties": false

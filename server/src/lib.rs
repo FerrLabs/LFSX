@@ -27,7 +27,9 @@ use crate::config::Config;
 use crate::locks::LockStore;
 use crate::metrics::Metrics;
 use crate::state::AppState;
-use crate::storage::s3::{AzureConfig, AzureKeys, Keyspace, S3Config, S3Keys, S3Store};
+use crate::storage::s3::{
+    AzureConfig, AzureKeys, GcsConfig, GcsKeys, Keyspace, S3Config, S3Keys, S3Store,
+};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
@@ -116,6 +118,15 @@ pub async fn verify_presign(config: &mut Config) {
                 tracing::warn!(
                     "LFSX_S3_PRESIGN is set, and only an account key can sign a download URL on \
                      Azure, so downloads keep coming through this server"
+                );
+            }
+            return;
+        }
+        Keyspace::Gcs(keys) => {
+            if keys.signed_download("probe").is_none() {
+                tracing::warn!(
+                    "LFSX_S3_PRESIGN is set, and only a service account key can sign a download \
+                     URL on Google Cloud Storage, so downloads keep coming through this server"
                 );
             }
             return;
@@ -230,6 +241,19 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
                 lifetime,
             })
             .expect("the Azure container configuration is not usable"),
+        ),
+        crate::config::Dialect::Gcs {
+            endpoint,
+            bucket,
+            credential,
+        } => Keyspace::Gcs(
+            GcsKeys::new(&GcsConfig {
+                endpoint: endpoint.clone(),
+                bucket: bucket.clone(),
+                credential: credential.clone(),
+                lifetime,
+            })
+            .expect("the Google Cloud Storage configuration is not usable"),
         ),
     })
 }

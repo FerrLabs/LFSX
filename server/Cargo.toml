@@ -31,6 +31,7 @@ prometheus.workspace = true
 sha2.workspace = true
 hmac.workspace = true
 form_urlencoded.workspace = true
+percent-encoding.workspace = true
 quick-xml.workspace = true
 hex.workspace = true
 futures-util.workspace = true

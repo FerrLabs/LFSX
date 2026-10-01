@@ -15,7 +15,7 @@ undefined across two, and the locks the pods must agree on live in that same dir
 `replicaCount` above 1 with `storage.type=local` fails the render with that sentence rather than
 letting you find it in production.
 
-**More than one replica needs a bucket.** With `storage.type=s3` (or `azure`) the objects and the locks move into
+**More than one replica needs a bucket.** With `storage.type=s3` (or `azure`, or `gcs`) the objects and the locks move into
 the bucket, which is what lets two servers agree on who holds what, and the strategy becomes
 `RollingUpdate`. It also needs `persistence.enabled=false`: the claim is `ReadWriteOnce` so a second
 pod could not mount it, and each replica stages its own uploads anyway.
@@ -72,6 +72,10 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `storage.azure.existingSecret` | `""` | secret holding the account key or a SAS, named by `accountKeyKey` or `sasTokenKey` (one of them); leave all three empty to use the pod's identity |
 | `storage.azure.workloadIdentity` | `false` | label the pod for AKS workload identity; the service account still needs its `azure.workload.identity/client-id` annotation through `serviceAccount.annotations` |
 | `storage.azure.presign`, `cacheDir`, `cacheMaxBytes` | as `storage.s3` | same meaning as for a bucket; a download redirect needs the account key |
+| `storage.gcs.bucket` | `""` | Cloud Storage bucket, required with `storage.type=gcs`; it has to exist |
+| `storage.gcs.endpoint` | `""` | API endpoint override, empty means `https://storage.googleapis.com` |
+| `storage.gcs.existingSecret` / `keyFileKey` | `""` / `key.json` | secret holding a service account key file, mounted read-only; leave it empty for workload identity, with the GCP service account named through `serviceAccount.annotations` (`iam.gke.io/gcp-service-account`) |
+| `storage.gcs.presign`, `cacheDir`, `cacheMaxBytes` | as `storage.s3` | same meaning as for a bucket; a download redirect needs the key file |
 | `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |

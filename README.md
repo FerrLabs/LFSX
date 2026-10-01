@@ -158,6 +158,7 @@ Full documentation lives at **[lfsx.dev](https://lfsx.dev)**. The same pages are
 | [Storage layout](docs/storage-layout.md) | Where the bytes live, and why once |
 | [Objects in a bucket](docs/buckets.md) | S3-compatible storage |
 | [Objects in Azure Blob Storage](docs/azure.md) | a container, with a key, a SAS or a pod identity |
+| [Objects in Google Cloud Storage](docs/gcs.md) | a bucket, with a service account key or workload identity |
 | [Compression](docs/compression.md), [Encryption at rest](docs/encryption.md) | What they cost and what they protect |
 | [Locking](docs/locking.md) | File locks for assets that cannot be merged |
 | [Reclaiming space](docs/reclaiming-space.md) | Collection, deduplication, verification |

@@ -1,8 +1,9 @@
 # Objects in a bucket
 
 `LFSX_STORAGE=s3` puts the objects in an S3-compatible bucket (MinIO, Garage, Backblaze, AWS)
-instead of on the volume, which is what unties capacity from one machine. Azure Blob Storage has its
-own client, `LFSX_STORAGE=azure`, described in [Azure](azure.md).
+instead of on the volume, which is what unties capacity from one machine. Azure Blob Storage and Google
+Cloud Storage have their own clients, `LFSX_STORAGE=azure` ([Azure](azure.md)) and
+`LFSX_STORAGE=gcs` ([Cloud Storage](gcs.md)).
 
 ```bash
 LFSX_STORAGE=s3

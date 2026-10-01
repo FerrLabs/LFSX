@@ -27,6 +27,14 @@ storage:
     accountKeyKey: ""
     sasTokenKey: ""
     workloadIdentity: false
+  gcs:
+    bucket: ""
+    endpoint: ""
+    presign: false
+    cacheDir: ""
+    cacheMaxBytes: ""
+    existingSecret: ""
+    keyFileKey: key.json
 
 image:
   repository: ghcr.io/ferrlabs/lfsx

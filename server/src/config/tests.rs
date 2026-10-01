@@ -244,3 +244,14 @@ fn an_azure_credential_comes_from_one_source_or_from_the_identity() {
 fn an_account_key_and_a_sas_token_refuse_to_start() {
     azure_credential(Some("a2V5"), Some("sv=2022-11-02&sig=x"));
 }
+
+#[test]
+fn gcs_asks_the_metadata_server_unless_given_a_key_file_or_told_none() {
+    assert_eq!(gcs_credential(None), GcsCredential::Metadata);
+    assert_eq!(gcs_credential(Some("")), GcsCredential::Metadata);
+    assert_eq!(gcs_credential(Some("none")), GcsCredential::Anonymous);
+    assert_eq!(
+        gcs_credential(Some("/var/run/secrets/gcs/key.json")),
+        GcsCredential::ServiceAccount("/var/run/secrets/gcs/key.json".into())
+    );
+}

@@ -1,5 +1,7 @@
 pub(crate) mod azure;
+pub(crate) mod gcs;
 mod s3;
+mod token;
 
 use std::path::Path;
 use std::time::Duration;
@@ -10,6 +12,7 @@ use futures_util::Stream;
 use crate::error::Error;
 
 pub use azure::{AzureConfig, AzureKeys};
+pub use gcs::{GcsConfig, GcsKeys};
 pub(crate) use s3::S3Keys;
 
 pub(crate) struct Listing {
@@ -48,6 +51,7 @@ pub struct Presigned {
 pub enum Keyspace {
     S3(S3Keys),
     Azure(AzureKeys),
+    Gcs(GcsKeys),
 }
 
 impl Keyspace {
@@ -55,6 +59,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.reachable().await,
             Self::Azure(keys) => keys.reachable().await,
+            Self::Gcs(keys) => keys.reachable().await,
         }
     }
 
@@ -62,13 +67,14 @@ impl Keyspace {
         match self {
             Self::S3(keys) => Some(keys.signed_download(key)),
             Self::Azure(keys) => keys.signed_download(key),
+            Self::Gcs(keys) => keys.signed_download(key),
         }
     }
 
     pub(crate) fn signed_upload(&self, key: &str, digest: &str) -> Option<Presigned> {
         match self {
             Self::S3(keys) => Some(keys.signed_upload(key, digest)),
-            Self::Azure(_) => None,
+            Self::Azure(_) | Self::Gcs(_) => None,
         }
     }
 
@@ -81,6 +87,7 @@ impl Keyspace {
         let response = match self {
             Self::S3(keys) => keys.get_range(key, start, length).await?,
             Self::Azure(keys) => keys.get_range(key, start, length).await?,
+            Self::Gcs(keys) => keys.get_range(key, start, length).await?,
         };
 
         Ok(response.bytes_stream())
@@ -90,6 +97,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.head(key).await,
             Self::Azure(keys) => keys.head(key).await,
+            Self::Gcs(keys) => keys.head(key).await,
         }
     }
 
@@ -99,6 +107,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.put(key, reqwest::Body::from(body), length).await,
             Self::Azure(keys) => keys.put(key, reqwest::Body::from(body), length).await,
+            Self::Gcs(keys) => keys.put(key, reqwest::Body::from(body), length).await,
         }
     }
 
@@ -106,13 +115,14 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.put_file(key, staged).await,
             Self::Azure(keys) => keys.put_file(key, staged).await,
+            Self::Gcs(keys) => keys.put_file(key, staged).await,
         }
     }
 
     pub(crate) async fn copy(&self, from: &str, to: &str) -> Result<(), Error> {
         match self {
             Self::S3(keys) => keys.copy(from, to).await,
-            Self::Azure(_) => Err(Error::Storage(std::io::Error::other(
+            Self::Azure(_) | Self::Gcs(_) => Err(Error::Storage(std::io::Error::other(
                 "this object store takes no client uploads, so it has nothing to copy",
             ))),
         }
@@ -122,6 +132,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.put_if_absent(key, body).await,
             Self::Azure(keys) => keys.put_if_absent(key, body).await,
+            Self::Gcs(keys) => keys.put_if_absent(key, body).await,
         }
     }
 
@@ -129,6 +140,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.get_bytes(key).await,
             Self::Azure(keys) => keys.get_bytes(key).await,
+            Self::Gcs(keys) => keys.get_bytes(key).await,
         }
     }
 
@@ -136,6 +148,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.delete(key).await,
             Self::Azure(keys) => keys.delete(key).await,
+            Self::Gcs(keys) => keys.delete(key).await,
         }
     }
 
@@ -143,6 +156,7 @@ impl Keyspace {
         match self {
             Self::S3(keys) => keys.entries(prefix).await,
             Self::Azure(keys) => keys.entries(prefix).await,
+            Self::Gcs(keys) => keys.entries(prefix).await,
         }
     }
 
