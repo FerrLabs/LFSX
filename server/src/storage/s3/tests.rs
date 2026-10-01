@@ -11,6 +11,8 @@ use sha2::Digest;
 
 use super::*;
 
+const CHECKSUM: &str = "x-amz-checksum-sha256";
+
 pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 
 // Enough of S3 to prove the layout and the wire format this store depends on:
@@ -261,7 +263,11 @@ fn configured(endpoint: &str, redirect: bool) -> S3Store {
 }
 
 pub(crate) fn keyspace(endpoint: &str) -> Keyspace {
-    Keyspace::new(&S3Config {
+    Keyspace::S3(s3_keys(endpoint))
+}
+
+pub(crate) fn s3_keys(endpoint: &str) -> S3Keys {
+    S3Keys::new(&S3Config {
         endpoint: endpoint.to_owned(),
         bucket: "assets".into(),
         region: "us-east-1".into(),

@@ -46,12 +46,7 @@ pub enum Storage {
     // discovering that on the first upload rather than at boot is the wrong
     // order.
     Bucket {
-        endpoint: String,
-        bucket: String,
-        region: String,
-        access_key: String,
-        secret_key: String,
-        path_style: bool,
+        dialect: Dialect,
         // Whether a download is redirected to the bucket instead of streamed
         // through this server. Off by default: the streamed path is the one
         // that counts bytes, serves ranges and holds the ceiling, and an
@@ -69,6 +64,18 @@ pub enum Storage {
     },
 }
 
+#[derive(Debug, Clone)]
+pub enum Dialect {
+    S3 {
+        endpoint: String,
+        bucket: String,
+        region: String,
+        access_key: String,
+        secret_key: String,
+        path_style: bool,
+    },
+}
+
 impl Storage {
     fn from_env() -> Self {
         if std::env::var("LFSX_STORAGE").as_deref() != Ok("s3") {
@@ -83,12 +90,14 @@ impl Storage {
         };
 
         Self::Bucket {
-            endpoint: required("LFSX_S3_ENDPOINT"),
-            bucket: required("LFSX_S3_BUCKET"),
-            region: std::env::var("LFSX_S3_REGION").unwrap_or_else(|_| "us-east-1".into()),
-            access_key: required("LFSX_S3_ACCESS_KEY"),
-            secret_key: required("LFSX_S3_SECRET_KEY"),
-            path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
+            dialect: Dialect::S3 {
+                endpoint: required("LFSX_S3_ENDPOINT"),
+                bucket: required("LFSX_S3_BUCKET"),
+                region: std::env::var("LFSX_S3_REGION").unwrap_or_else(|_| "us-east-1".into()),
+                access_key: required("LFSX_S3_ACCESS_KEY"),
+                secret_key: required("LFSX_S3_SECRET_KEY"),
+                path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
+            },
             presign: std::env::var("LFSX_S3_PRESIGN").as_deref() == Ok("true"),
             cache: disk_cache(
                 std::env::var("LFSX_S3_CACHE_DIR").ok().as_deref(),

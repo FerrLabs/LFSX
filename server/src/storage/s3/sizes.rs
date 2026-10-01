@@ -51,8 +51,7 @@ pub(crate) async fn write(
     oid: &Oid,
     size: u64,
 ) -> Result<(), Error> {
-    keys.put(&key(ns, oid, size), reqwest::Body::from(Vec::new()), 0)
-        .await
+    keys.put(&key(ns, oid, size), Vec::new()).await
 }
 
 #[cfg(test)]

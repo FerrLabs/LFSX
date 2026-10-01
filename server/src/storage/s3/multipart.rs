@@ -5,7 +5,7 @@ use rusty_s3::actions::{
 };
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use super::keyspace::Keyspace;
+use super::keyspace::{S3Keys, expect_success};
 use crate::error::Error;
 
 // S3 caps one `PutObject` at 5 GiB. For a store built to hold packaged game
@@ -32,17 +32,12 @@ fn part_size(length: u64) -> u64 {
     PART.max(length.div_ceil(MOST_PARTS)).max(SMALLEST_PART)
 }
 
-pub(crate) async fn put(
-    keys: &Keyspace,
-    key: &str,
-    staged: &Path,
-    length: u64,
-) -> Result<(), Error> {
+pub(crate) async fn put(keys: &S3Keys, key: &str, staged: &Path, length: u64) -> Result<(), Error> {
     put_in_parts(keys, key, staged, length, part_size(length)).await
 }
 
 async fn put_in_parts(
-    keys: &Keyspace,
+    keys: &S3Keys,
     key: &str,
     staged: &Path,
     length: u64,
@@ -78,7 +73,7 @@ async fn put_in_parts(
     }
 }
 
-async fn begin(keys: &Keyspace, key: &str) -> Result<String, Error> {
+async fn begin(keys: &S3Keys, key: &str) -> Result<String, Error> {
     let action = CreateMultipartUpload::new(keys.bucket(), Some(keys.credentials()), key);
     let url = action.sign(keys.lifetime());
 
@@ -90,7 +85,7 @@ async fn begin(keys: &Keyspace, key: &str) -> Result<String, Error> {
         .await
         .map_err(|_| unreachable())?;
 
-    let body = keys.expect_success(response, "start a multipart upload").await?.text().await.map_err(|error| {
+    let body = expect_success(response, "start a multipart upload").await?.text().await.map_err(|error| {
         Error::Storage(std::io::Error::other(format!(
             "the object store gave an unreadable answer when starting a multipart upload: {error}"
         )))
@@ -110,7 +105,7 @@ async fn begin(keys: &Keyspace, key: &str) -> Result<String, Error> {
 // on holding at most a few megabytes of one at a time, which a part size does
 // not get to change.
 async fn parts(
-    keys: &Keyspace,
+    keys: &S3Keys,
     key: &str,
     upload: &str,
     staged: &Path,
@@ -151,7 +146,7 @@ async fn parts(
             .await
             .map_err(|_| unreachable())?;
 
-        let response = keys.expect_success(response, "write a part").await?;
+        let response = expect_success(response, "write a part").await?;
 
         // The completion names every part by the tag the store gave it, and a
         // store that sent none has given nothing to assemble the object from.
@@ -169,7 +164,7 @@ async fn parts(
     Ok(etags)
 }
 
-async fn finish(keys: &Keyspace, key: &str, upload: &str, etags: Vec<String>) -> Result<(), Error> {
+async fn finish(keys: &S3Keys, key: &str, upload: &str, etags: Vec<String>) -> Result<(), Error> {
     let action = CompleteMultipartUpload::new(
         keys.bucket(),
         Some(keys.credentials()),
@@ -189,13 +184,12 @@ async fn finish(keys: &Keyspace, key: &str, upload: &str, etags: Vec<String>) ->
         .await
         .map_err(|_| unreachable())?;
 
-    keys.expect_success(response, "assemble a multipart upload")
-        .await?;
+    expect_success(response, "assemble a multipart upload").await?;
 
     Ok(())
 }
 
-async fn abort(keys: &Keyspace, key: &str, upload: &str) -> Result<(), Error> {
+async fn abort(keys: &S3Keys, key: &str, upload: &str) -> Result<(), Error> {
     let action = AbortMultipartUpload::new(keys.bucket(), Some(keys.credentials()), key, upload);
 
     let response = keys
@@ -205,8 +199,7 @@ async fn abort(keys: &Keyspace, key: &str, upload: &str) -> Result<(), Error> {
         .await
         .map_err(|_| unreachable())?;
 
-    keys.expect_success(response, "abort a multipart upload")
-        .await?;
+    expect_success(response, "abort a multipart upload").await?;
 
     Ok(())
 }

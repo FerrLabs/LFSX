@@ -18,9 +18,8 @@ use crate::namespace::Namespace;
 use crate::oid::Oid;
 use crate::storage::Reclaimed;
 
+pub(crate) use keyspace::S3Keys;
 pub use keyspace::{Keyspace, Presigned};
-
-const CHECKSUM: &str = "x-amz-checksum-sha256";
 
 // Enough to hide the round trips a bucket charges for without becoming a burst
 // the store answers with 503, and the same figure the batch endpoint settled on
@@ -128,7 +127,7 @@ impl S3Store {
             return None;
         }
 
-        Some(self.keys.signed_download(&Self::content_key(oid)))
+        self.keys.signed_download(&Self::content_key(oid))
     }
 
     // A URL the client PUTs the object to, and the headers it has to send with
@@ -155,10 +154,8 @@ impl S3Store {
         let digest =
             base64::engine::general_purpose::STANDARD.encode(hex::decode(oid.as_str()).ok()?);
 
-        Some(self.keys.signed_upload(
-            &Self::incoming_key(ns, oid),
-            vec![(CHECKSUM.to_owned(), digest)],
-        ))
+        self.keys
+            .signed_upload(&Self::incoming_key(ns, oid), &digest)
     }
 
     // How big the object a client uploaded actually is, which is the first thing
@@ -194,11 +191,7 @@ impl S3Store {
         }
 
         self.keys
-            .put(
-                &Self::marker_key(ns, oid),
-                reqwest::Body::from(Vec::new()),
-                0,
-            )
+            .put(&Self::marker_key(ns, oid), Vec::new())
             .await?;
 
         sizes::write(&self.keys, ns, oid, size).await?;
@@ -237,36 +230,14 @@ impl S3Store {
         // wants it whether or not these bytes are the ones that go up: an object
         // another repository pushed first is still this repository's to account
         // for.
-        let file = tokio::fs::File::open(staged).await?;
-        let length = file.metadata().await?.len();
+        let length = tokio::fs::metadata(staged).await?.len();
 
         if self.keys.head(&Self::content_key(oid)).await.is_err() {
-            // One request while one request will carry it, which is every
-            // object a store normally sees, and parts when it will not. The
-            // split is here rather than always going in parts because the
-            // single write is one round trip and needs no cleanup if it fails.
-            if length > multipart::SINGLE_PUT_CEILING {
-                drop(file);
-                multipart::put(&self.keys, &Self::content_key(oid), staged, length).await?;
-            } else {
-                let stream = tokio_util::io::ReaderStream::new(file);
-
-                self.keys
-                    .put(
-                        &Self::content_key(oid),
-                        reqwest::Body::wrap_stream(stream),
-                        length,
-                    )
-                    .await?;
-            }
+            self.keys.put_file(&Self::content_key(oid), staged).await?;
         }
 
         self.keys
-            .put(
-                &Self::marker_key(ns, oid),
-                reqwest::Body::from(Vec::new()),
-                0,
-            )
+            .put(&Self::marker_key(ns, oid), Vec::new())
             .await?;
 
         sizes::write(&self.keys, ns, oid, length).await
