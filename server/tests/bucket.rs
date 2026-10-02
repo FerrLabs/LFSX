@@ -22,6 +22,7 @@ use tower::ServiceExt;
 enum Kind {
     S3,
     Azure,
+    Gcs,
 }
 
 struct Bucket {
@@ -37,6 +38,16 @@ const AZURITE_KEY: &str =
 
 fn configured() -> Option<Bucket> {
     let var = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+
+    if let Some(endpoint) = var("LFSX_TEST_GCS_ENDPOINT") {
+        return Some(Bucket {
+            kind: Kind::Gcs,
+            endpoint,
+            bucket: var("LFSX_TEST_GCS_BUCKET").unwrap_or_else(|| "lfsx-test".into()),
+            access_key: String::new(),
+            secret_key: String::new(),
+        });
+    }
 
     if let Some(endpoint) = var("LFSX_TEST_AZURE_ENDPOINT") {
         return Some(Bucket {
@@ -66,11 +77,20 @@ macro_rules! bucket_or_skip {
             Some(bucket) => bucket,
             None => {
                 eprintln!(
-                    "skipped: set LFSX_TEST_S3_ENDPOINT or LFSX_TEST_AZURE_ENDPOINT to run this \
-                     against a real store"
+                    "skipped: set LFSX_TEST_S3_ENDPOINT, LFSX_TEST_AZURE_ENDPOINT or \
+                     LFSX_TEST_GCS_ENDPOINT to run this against a real store"
                 );
                 return;
             }
+        }
+    };
+}
+
+macro_rules! signed_downloads_or_skip {
+    ($bucket:expr) => {
+        if $bucket.kind == Kind::Gcs {
+            eprintln!("skipped: an emulator holds no service account key to sign a download with");
+            return;
         }
     };
 }
@@ -99,6 +119,11 @@ fn dialect(bucket: &Bucket) -> lfsx_server::config::Dialect {
             account: bucket.access_key.clone(),
             container: bucket.bucket.clone(),
             credential: lfsx_server::config::AzureCredential::AccountKey(bucket.secret_key.clone()),
+        },
+        Kind::Gcs => lfsx_server::config::Dialect::Gcs {
+            endpoint: bucket.endpoint.clone(),
+            bucket: bucket.bucket.clone(),
+            credential: lfsx_server::config::GcsCredential::Anonymous,
         },
     }
 }
@@ -405,6 +430,7 @@ async fn an_object_pushed_through_the_server_comes_back_byte_for_byte() {
 #[tokio::test]
 async fn a_pre_signed_download_is_fetched_with_no_credentials_at_all() {
     let bucket = bucket_or_skip!();
+    signed_downloads_or_skip!(bucket);
     let root = tempfile::tempdir().unwrap();
     let payload = payload("the redirected path");
     let oid = oid_of(&payload);
@@ -439,6 +465,7 @@ async fn a_pre_signed_download_is_fetched_with_no_credentials_at_all() {
 #[tokio::test]
 async fn a_pre_signed_url_serves_a_range() {
     let bucket = bucket_or_skip!();
+    signed_downloads_or_skip!(bucket);
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a resumed clone");
     let oid = oid_of(&payload);

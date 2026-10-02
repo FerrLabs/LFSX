@@ -117,6 +117,27 @@ spec:
                   name: {{ $.Values.storage.azure.existingSecret }}
                   key: {{ . }}
             {{- end }}
+            {{- else if eq .Values.storage.type "gcs" }}
+            - name: LFSX_STORAGE
+              value: gcs
+            - name: LFSX_GCS_BUCKET
+              value: {{ .Values.storage.gcs.bucket | quote }}
+            {{- with .Values.storage.gcs.endpoint }}
+            - name: LFSX_GCS_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.storage.gcs.existingSecret }}
+            - name: LFSX_GCS_CREDENTIALS
+              value: /etc/lfsx/gcs/{{ .Values.storage.gcs.keyFileKey }}
+            {{- end }}
+            - name: LFSX_S3_PRESIGN
+              value: {{ .Values.storage.gcs.presign | quote }}
+            {{- if .Values.storage.gcs.cacheDir }}
+            - name: LFSX_S3_CACHE_DIR
+              value: {{ .Values.storage.gcs.cacheDir | quote }}
+            - name: LFSX_S3_CACHE_MAX_BYTES
+              value: {{ .Values.storage.gcs.cacheMaxBytes | quote }}
+            {{- end }}
             {{- end }}
             {{- with (include "lfsx.publicUrl" .) }}
             - name: LFSX_PUBLIC_URL
@@ -215,6 +236,11 @@ spec:
               mountPath: /etc/lfsx/github-app
               readOnly: true
             {{- end }}
+            {{- if and (eq .Values.storage.type "gcs") .Values.storage.gcs.existingSecret }}
+            - name: gcs-key
+              mountPath: /etc/lfsx/gcs
+              readOnly: true
+            {{- end }}
       volumes:
         - name: objects
           {{- if .Values.persistence.enabled }}
@@ -236,6 +262,12 @@ spec:
         - name: github-app-key
           secret:
             secretName: {{ .Values.auth.githubApp.existingSecret }}
+            defaultMode: 0440
+        {{- end }}
+        {{- if and (eq .Values.storage.type "gcs") .Values.storage.gcs.existingSecret }}
+        - name: gcs-key
+          secret:
+            secretName: {{ .Values.storage.gcs.existingSecret }}
             defaultMode: 0440
         {{- end }}
       {{- with .Values.nodeSelector }}

@@ -1,6 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
@@ -8,6 +7,7 @@ use sha2::Sha256;
 
 use crate::config::AzureCredential;
 use crate::error::Error;
+use crate::storage::s3::keyspace::token::{Cached, Issued, issued};
 
 pub(crate) const VERSION: &str = "2022-11-02";
 
@@ -15,7 +15,6 @@ const STORAGE_SCOPE: &str = "https://storage.azure.com/.default";
 const STORAGE_RESOURCE: &str = "https://storage.azure.com/";
 const MANAGED_IDENTITY_ENDPOINT: &str = "http://169.254.169.254/metadata/identity/oauth2/token";
 const DEFAULT_AUTHORITY: &str = "https://login.microsoftonline.com/";
-const REFRESH_BEFORE_EXPIRY: Duration = Duration::from_secs(300);
 
 pub(crate) enum Credential {
     Key { account: String, key: Vec<u8> },
@@ -103,7 +102,7 @@ impl Credential {
 
 pub(crate) struct Identity {
     source: Source,
-    cached: Mutex<Option<(String, Instant)>>,
+    cached: Cached,
 }
 
 pub(crate) enum Source {
@@ -119,17 +118,11 @@ pub(crate) enum Source {
     },
 }
 
-#[derive(serde::Deserialize)]
-struct Token {
-    access_token: String,
-    expires_in: serde_json::Value,
-}
-
 impl Identity {
     pub(crate) fn new(source: Source) -> Self {
         Self {
             source,
-            cached: Mutex::new(None),
+            cached: Cached::default(),
         }
     }
 
@@ -157,30 +150,10 @@ impl Identity {
     }
 
     pub(crate) async fn token(&self, client: &reqwest::Client) -> Result<String, Error> {
-        if let Some((token, until)) = self.cached.lock().unwrap().as_ref()
-            && Instant::now() < *until
-        {
-            return Ok(token.clone());
-        }
-
-        let token = self.fetch(client).await?;
-        let lifetime = match &token.expires_in {
-            serde_json::Value::Number(seconds) => seconds.as_u64(),
-            serde_json::Value::String(seconds) => seconds.parse().ok(),
-            _ => None,
-        }
-        .map(Duration::from_secs)
-        .unwrap_or_default();
-
-        *self.cached.lock().unwrap() = Some((
-            token.access_token.clone(),
-            Instant::now() + lifetime.saturating_sub(REFRESH_BEFORE_EXPIRY),
-        ));
-
-        Ok(token.access_token)
+        self.cached.get(self.fetch(client)).await
     }
 
-    async fn fetch(&self, client: &reqwest::Client) -> Result<Token, Error> {
+    async fn fetch(&self, client: &reqwest::Client) -> Result<Issued, Error> {
         let request = match &self.source {
             Source::Workload {
                 authority,
@@ -229,23 +202,6 @@ impl Identity {
             }
         };
 
-        let response = request
-            .send()
-            .await
-            .map_err(|_| identity_error("the identity endpoint is unreachable"))?;
-
-        if !response.status().is_success() {
-            tracing::warn!(status = %response.status(), "the identity endpoint refused a token");
-            return Err(identity_error("the identity endpoint refused a token"));
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|_| identity_error("the identity endpoint sent no usable token"))
+        issued(request).await
     }
-}
-
-fn identity_error(what: &'static str) -> Error {
-    Error::Storage(std::io::Error::other(what))
 }
