@@ -266,6 +266,10 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
     })
 }
 
+pub fn store(config: &Config) -> Store {
+    backends(config).0
+}
+
 fn backends(config: &Config) -> (Store, LockStore) {
     // Said out loud because it decides who can read the objects. It is off unless
     // asked for, so this line means somebody asked: it belongs in the log so a

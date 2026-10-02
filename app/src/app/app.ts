@@ -38,7 +38,7 @@ function wasCollapsed(): boolean {
 })
 export class App {
   private readonly router = inject(Router);
-  protected readonly session = inject(Session);
+  private readonly session = inject(Session);
   protected readonly theme = inject(Theme);
 
   protected readonly collapsed = signal(wasCollapsed());
@@ -67,7 +67,9 @@ export class App {
   }
 
   protected signOut(): void {
-    this.session.signOut();
-    void this.router.navigate(['sign-in']);
+    this.session.signOut().subscribe({
+      complete: () => void this.router.navigate(['sign-in']),
+      error: () => void this.router.navigate(['sign-in']),
+    });
   }
 }

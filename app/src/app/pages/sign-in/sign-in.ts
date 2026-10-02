@@ -1,4 +1,5 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -31,13 +32,32 @@ export class SignIn {
   readonly refused = input<string | null>(null);
 
   protected readonly token = signal('');
+  protected readonly pending = signal(false);
+  protected readonly answer = signal<string | null>(null);
+  protected readonly problem = computed(() => this.answer() ?? this.refused());
 
   protected submit(): void {
     const token = this.token().trim();
     if (!token) {
       return;
     }
-    this.session.signIn(token);
-    void this.router.navigate(['overview']);
+    this.pending.set(true);
+    this.answer.set(null);
+    this.session.signIn(token).subscribe({
+      next: () => {
+        this.pending.set(false);
+        void this.router.navigate(['overview']);
+      },
+      error: (error: unknown) => {
+        this.pending.set(false);
+        this.answer.set(
+          error instanceof HttpErrorResponse && error.status === 403
+            ? 'forbidden'
+            : error instanceof HttpErrorResponse && error.status === 401
+              ? 'rejected'
+              : 'unreachable',
+        );
+      },
+    });
   }
 }

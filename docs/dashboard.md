@@ -14,20 +14,40 @@ forge can start with `-`, so the prefix never shadows a repository.
 | Variable | Default | Purpose |
 |---|---|---|
 | `LFSX_DASHBOARD` | `false` | `true` to serve the dashboard and its API |
-| `LFSX_DASHBOARD_REPO` | none | `org/repo` whose admins may open it; required unless `LFSX_AUTH=disabled` |
+| `LFSX_DASHBOARD_REPO` | none | `org/repo` whose admins may sign in with their forge token; required unless `LFSX_AUTH=disabled` |
 | `LFSX_DASHBOARD_DIR` | `/usr/share/lfsx/dashboard` | where the built pages are; the image ships them there |
 
 ## Who can open it
 
-The admins of `LFSX_DASHBOARD_REPO` on the forge, and nobody else. Sign in with the same token you
-give git-lfs. The token is kept in the browser tab until it is closed or you sign out.
+Anyone holding a dashboard token, and the admins of `LFSX_DASHBOARD_REPO` on the forge.
 
-Pick a repository whose admins should run the server, an infrastructure repository rather than one
-every contributor administers. It does not have to be in [`LFSX_ALLOWED`](allowed-namespaces.md):
-the dashboard asks the forge about it directly, so an allow-list cannot lock its admins out.
+A dashboard token is issued by the server itself, from where it runs:
 
-With `LFSX_AUTH=disabled` there is no forge to ask, and the dashboard is open to anyone who can
-reach the server, like everything else on it.
+```bash
+lfsx-server dashboard token create alice
+lfsx-server dashboard token list
+lfsx-server dashboard token revoke alice
+```
+
+`create` prints the token once. The store keeps only its SHA-256 hash, in `.lfsx/dashboard-tokens.json`
+on the volume or in the bucket, so every replica accepts it. The command reads the same environment
+as the server, so run it inside the container: `kubectl exec deploy/lfsx -- lfsx-server dashboard
+token create alice`. Revoking a token ends the sessions it opened.
+
+A forge token works too, for an admin of `LFSX_DASHBOARD_REPO`. Pick a repository whose admins should
+run the server, an infrastructure repository rather than one every contributor administers. It does
+not have to be in [`LFSX_ALLOWED`](allowed-namespaces.md): the dashboard asks the forge about it
+directly, so an allow-list cannot lock its admins out.
+
+With `LFSX_AUTH=disabled` there is no forge to ask, and only dashboard tokens get in.
+
+Signing in trades the token for a session cookie valid 12 hours, `HttpOnly` and `SameSite=Strict`,
+and `Secure` when `LFSX_PUBLIC_URL` is `https://`. The browser keeps the cookie, never the token.
+Sessions are signed with a key the server keeps at `.lfsx/session.key`; deleting it ends every
+session. A session opened with a forge token lasts its 12 hours even if its owner stops being an
+admin, so revoke the forge token as well when someone leaves.
+
+Scripts can skip the cookie and send a forge admin's token as `Authorization: Bearer` on every call.
 
 ## What it shows
 

@@ -1,43 +1,21 @@
-import { HttpInterceptorFn } from '@angular/common/http';
-import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
 
-const KEY = 'lfsx.dashboard.token';
-
-function stored(): string | null {
-  try {
-    return sessionStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
+export interface Viewer {
+  readonly via: 'token' | 'forge';
+  readonly name: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class Session {
-  readonly token = signal<string | null>(stored());
+  private readonly http = inject(HttpClient);
 
-  signIn(token: string): void {
-    this.token.set(token);
-    try {
-      sessionStorage.setItem(KEY, token);
-    } catch {
-      return;
-    }
+  signIn(token: string): Observable<Viewer> {
+    return this.http.post<Viewer>('/-/api/session', { token });
   }
 
-  signOut(): void {
-    this.token.set(null);
-    try {
-      sessionStorage.removeItem(KEY);
-    } catch {
-      return;
-    }
+  signOut(): Observable<void> {
+    return this.http.delete<void>('/-/api/session');
   }
 }
-
-export const bearer: HttpInterceptorFn = (request, next) => {
-  const token = stored();
-  if (!token || !request.url.startsWith('/-/api/')) {
-    return next(request);
-  }
-  return next(request.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
-};

@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { Subscription, catchError, of, switchMap, timer } from 'rxjs';
 
 import { Api, Overview } from './api';
-import { Session } from './session';
 
 export type FeedState =
   | { readonly kind: 'loading' }
@@ -17,7 +16,6 @@ const EVERY = 10_000;
 export class Feed {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
-  private readonly session = inject(Session);
   private subscription: Subscription | null = null;
 
   readonly state = signal<FeedState>({ kind: 'loading' });
@@ -52,9 +50,8 @@ export class Feed {
   private refused(error: unknown): void {
     if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
       this.stop();
-      const signedIn = this.session.token() !== null;
       void this.router.navigate(['sign-in'], {
-        queryParams: { refused: error.status === 403 ? 'forbidden' : signedIn ? 'rejected' : null },
+        queryParams: { refused: error.status === 403 ? 'forbidden' : null },
       });
       return;
     }

@@ -1,4 +1,6 @@
 mod access;
+pub mod session;
+pub mod tokens;
 
 use std::path::Path;
 
@@ -87,7 +89,7 @@ impl IntoResponse for Refused {
         match self.0 {
             Error::Unauthenticated => (
                 StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({ "message": "sign in with a forge token" })),
+                Json(serde_json::json!({ "message": "sign in to the dashboard" })),
             )
                 .into_response(),
             error => error.into_response(),
@@ -101,6 +103,12 @@ pub fn router(dir: &Path) -> Router<Shared> {
         .route(
             "/-/api/access",
             get(access::read).put(access::write).delete(access::reset),
+        )
+        .route(
+            "/-/api/session",
+            get(session::current)
+                .post(session::sign_in)
+                .delete(session::sign_out),
         )
         .nest_service(
             "/-/dashboard",
@@ -140,13 +148,17 @@ pub(crate) async fn admit(state: &Shared, headers: &HeaderMap) -> Result<(), Err
         return Err(Error::NotServed);
     };
 
-    match &dashboard.admins {
-        Some(admins) => state
+    if session::viewer(state, headers).await?.is_some() {
+        return Ok(());
+    }
+
+    match (&state.config.auth, &dashboard.admins) {
+        (Auth::Forge { .. }, Some(admins)) => state
             .authorizer
             .forge_permission(headers, admins)
             .await?
             .require_admin(),
-        None => Ok(()),
+        _ => Err(Error::Unauthenticated),
     }
 }
 
