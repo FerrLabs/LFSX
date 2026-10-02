@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.21.0] - 2026-10-02
+
+### Features
+
+- feat(dashboard): serve a web dashboard with KPIs and live access settings (#498)
+
 ## [1.20.2] - 2026-10-02
 
 ### Bug Fixes

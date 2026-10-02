@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.3] - 2026-10-02
+
+### Features
+
+- feat(dashboard): serve a web dashboard with KPIs and live access settings (#498)
+
 ## [2026.10.2] - 2026-10-02
 
 ### Features
