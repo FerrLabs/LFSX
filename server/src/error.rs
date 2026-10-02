@@ -91,6 +91,9 @@ pub enum Error {
     #[error("object not found")]
     NotFound,
 
+    #[error("this server does not serve that repository")]
+    NotServed,
+
     #[error("storage failure: {0}")]
     Storage(#[from] std::io::Error),
 
@@ -124,7 +127,7 @@ impl Error {
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::LockHeld(_) => StatusCode::CONFLICT,
-            Self::NotFound | Self::LockNotFound => StatusCode::NOT_FOUND,
+            Self::NotFound | Self::LockNotFound | Self::NotServed => StatusCode::NOT_FOUND,
             Self::Forge => StatusCode::BAD_GATEWAY,
             // Not 502: a bad gateway invites an immediate retry, which is the
             // one thing that must not happen here.
@@ -166,6 +169,7 @@ impl Error {
             Self::LockHeld(_) => "lock_held",
             Self::LockNotFound => "lock_not_found",
             Self::NotFound => "not_found",
+            Self::NotServed => "not_served",
             Self::Storage(_) => "storage",
             Self::Serialisation(_) => "serialisation",
         }

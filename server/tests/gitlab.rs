@@ -91,7 +91,8 @@ fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
             rejection_ttl: Duration::from_secs(60),
             lookup_budget: None,
             anonymous_read: false,
-            restricted: lfsx_server::auth::Restricted::parse(None),
+            restricted: lfsx_server::auth::Namespaces::parse("LFSX_RESTRICTED", None),
+            allowed: None,
             github_app: None,
         },
     })

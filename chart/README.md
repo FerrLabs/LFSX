@@ -83,6 +83,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.githubApp.appId` | `""` | GitHub App id lending the server its own quota for anonymous lookups; empty keeps today's unauthenticated ask |
 | `auth.githubApp.existingSecret` | `""` | Secret holding the App's RSA private key; required with an `appId`, the chart never takes the key as a value |
 | `auth.githubApp.key` | `private-key.pem` | key of the PEM inside that Secret |
+| `auth.allowed` | `[]` | repositories this server serves, `org/repo`, `org/prefix-*` or `org/*`; anything else is a `404`. Empty serves every repository on the forge, which on a public one means anybody can store objects here, see [Allowed namespaces](../docs/allowed-namespaces.md) |
 | `auth.anonymousRead` | `false` | resolve credential-less requests against the forge, so public repositories clone anonymously |
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |

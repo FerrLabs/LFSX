@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::auth::Restricted;
+use crate::auth::Namespaces;
 use crate::model::Action;
 use crate::namespace::Namespace;
 
@@ -206,7 +206,8 @@ pub enum Auth {
         // Namespaces whose objects take write access to read, so a repository the
         // forge serves publicly can still keep its assets to the people who could
         // push them.
-        restricted: Restricted,
+        restricted: Namespaces,
+        allowed: Option<Namespaces>,
     },
     Disabled,
 }
@@ -449,9 +450,19 @@ impl Auth {
             lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
             github_app: github_app(provider),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
-            restricted: Restricted::parse(std::env::var("LFSX_RESTRICTED").ok().as_deref()),
+            restricted: Namespaces::parse(
+                "LFSX_RESTRICTED",
+                std::env::var("LFSX_RESTRICTED").ok().as_deref(),
+            ),
+            allowed: allowed(std::env::var("LFSX_ALLOWED").ok().as_deref()),
         }
     }
+}
+
+fn allowed(value: Option<&str>) -> Option<Namespaces> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| Namespaces::parse("LFSX_ALLOWED", Some(value)))
 }
 
 // Both variables or neither. One without the other is a configuration that

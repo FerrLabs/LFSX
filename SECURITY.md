@@ -24,6 +24,7 @@ a server you control is welcome and is not required.
 The server and the CLI in this repository, the published container image, and the Helm chart:
 
 - Serving an object to a caller the forge would refuse, or refusing one it would admit.
+- Serving a repository outside `LFSX_ALLOWED` when it is set.
 - Reading or writing outside the storage root through a crafted object identifier or repository
   name.
 - Accepting an object whose bytes do not hash to its declared digest.
@@ -37,6 +38,8 @@ The server and the CLI in this repository, the published container image, and th
   so at boot. That mode is for a trusted network.
 - The permissions the forge itself grants. LFSX mirrors them; if a token can push to a repository
   upstream, it can push objects for that repository here, and that is the model rather than a bug.
+  Including a repository a stranger created for the purpose: on a server the internet can reach,
+  set [`LFSX_ALLOWED`](docs/allowed-namespaces.md).
 - Denial of service by volume from an authenticated client. There is a transfer cap and a lookup
   budget, and the reverse proxy owns request-rate limiting, which
   [the documentation says outright](docs/reverse-proxy.md).

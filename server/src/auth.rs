@@ -5,7 +5,7 @@ mod credentials;
 mod gitea;
 mod github;
 mod gitlab;
-mod restricted;
+mod namespaces;
 
 use std::collections::HashMap;
 
@@ -20,7 +20,7 @@ use crate::namespace::Namespace;
 use crate::state::Shared;
 use budget::Budget;
 use cache::{Cache, Caller, Decision, IdentityCache};
-pub use restricted::Restricted;
+pub use namespaces::Namespaces;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Permission {
@@ -64,7 +64,8 @@ pub enum Authorizer {
         // Namespaces whose objects take write access to read. The forge answer
         // stays the ceiling, this is a floor underneath it that a public
         // repository's `pull: true` cannot reach.
-        restricted: Restricted,
+        restricted: Namespaces,
+        allowed: Option<Box<Namespaces>>,
         app: Option<Box<github::app::App>>,
     },
     Disabled,
@@ -84,6 +85,7 @@ impl Authorizer {
                 lookup_budget,
                 anonymous_read,
                 restricted,
+                allowed,
                 github_app,
             } => Self::Forge {
                 provider: *provider,
@@ -98,6 +100,7 @@ impl Authorizer {
                 budget: Budget::new(*lookup_budget),
                 anonymous_read: *anonymous_read,
                 restricted: restricted.clone(),
+                allowed: allowed.clone().map(Box::new),
                 app: github_app.as_ref().map(|configured| {
                     Box::new(github::app::App::load(
                         &configured.app_id,
@@ -119,12 +122,17 @@ impl Authorizer {
             budget,
             anonymous_read,
             restricted,
+            allowed,
             app,
             ..
         } = self
         else {
             return Ok(Permission::Admin);
         };
+
+        if allowed.as_ref().is_some_and(|allowed| !allowed.covers(ns)) {
+            return Err(Error::NotServed);
+        }
 
         let writers_only = restricted.covers(ns);
         let decided = |outcome: Result<Permission, Error>| {
