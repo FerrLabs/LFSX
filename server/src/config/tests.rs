@@ -255,3 +255,13 @@ fn gcs_asks_the_metadata_server_unless_given_a_key_file_or_told_none() {
         GcsCredential::ServiceAccount("/var/run/secrets/gcs/key.json".into())
     );
 }
+
+#[test]
+fn an_allow_list_is_only_in_force_when_something_is_listed() {
+    assert_eq!(allowed(None), None);
+    assert_eq!(allowed(Some("  ")), None);
+    assert!(
+        allowed(Some("not-a-namespace")).is_some_and(|allowed| allowed.is_empty()),
+        "a list that parsed to nothing serves nothing, rather than falling open to every repository"
+    );
+}

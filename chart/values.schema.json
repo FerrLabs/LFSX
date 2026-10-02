@@ -271,6 +271,12 @@
         "lookupBudget": {
           "type": "integer",
           "minimum": 0
+        },
+        "allowed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

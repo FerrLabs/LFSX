@@ -14,10 +14,10 @@ struct Pattern {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Restricted(Vec<Pattern>);
+pub struct Namespaces(Vec<Pattern>);
 
-impl Restricted {
-    pub fn parse(value: Option<&str>) -> Self {
+impl Namespaces {
+    pub fn parse(variable: &str, value: Option<&str>) -> Self {
         let mut patterns = Vec::new();
 
         for entry in value.unwrap_or_default().split(',') {
@@ -35,8 +35,9 @@ impl Restricted {
                 // below stays quiet when nothing parsed at all.
                 None => tracing::warn!(
                     entry,
-                    "LFSX_RESTRICTED entry is not org/repo and was ignored, so that \
-                     repository keeps the permissions the forge gives it"
+                    variable,
+                    "an entry is not org/repo and was ignored, and is never widened to \
+                     the whole organisation"
                 ),
             }
         }
@@ -95,7 +96,7 @@ mod tests {
 
     #[test]
     fn nothing_configured_covers_nothing() {
-        let restricted = Restricted::parse(None);
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", None);
 
         assert!(restricted.is_empty());
         assert!(!restricted.covers(&ns("acme", "assets")));
@@ -103,7 +104,7 @@ mod tests {
 
     #[test]
     fn an_exact_entry_covers_only_that_repository() {
-        let restricted = Restricted::parse(Some("acme/assets"));
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", Some("acme/assets"));
 
         assert!(restricted.covers(&ns("acme", "assets")));
         assert!(!restricted.covers(&ns("acme", "assets-public")));
@@ -112,7 +113,7 @@ mod tests {
 
     #[test]
     fn a_trailing_star_covers_the_prefix_it_names() {
-        let restricted = Restricted::parse(Some("acme/game-*"));
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", Some("acme/game-*"));
 
         assert!(restricted.covers(&ns("acme", "game-art")));
         assert!(restricted.covers(&ns("acme", "game-")));
@@ -122,7 +123,7 @@ mod tests {
 
     #[test]
     fn a_bare_star_covers_the_whole_organisation() {
-        let restricted = Restricted::parse(Some("acme/*"));
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", Some("acme/*"));
 
         assert!(restricted.covers(&ns("acme", "anything")));
         assert!(!restricted.covers(&ns("acmecorp", "anything")));
@@ -130,7 +131,7 @@ mod tests {
 
     #[test]
     fn entries_are_matched_without_regard_to_case() {
-        let restricted = Restricted::parse(Some("ACME/Assets,acme/Game-*"));
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", Some("ACME/Assets,acme/Game-*"));
 
         assert!(restricted.covers(&ns("acme", "assets")));
         assert!(restricted.covers(&ns("Acme", "ASSETS")));
@@ -139,7 +140,7 @@ mod tests {
 
     #[test]
     fn several_entries_are_read_and_whitespace_around_them_is_not() {
-        let restricted = Restricted::parse(Some(" acme/assets , acme/game-* "));
+        let restricted = Namespaces::parse("LFSX_RESTRICTED", Some(" acme/assets , acme/game-* "));
 
         assert!(restricted.covers(&ns("acme", "assets")));
         assert!(restricted.covers(&ns("acme", "game-art")));
@@ -147,7 +148,8 @@ mod tests {
 
     #[test]
     fn an_entry_that_names_no_repository_is_dropped_rather_than_widened() {
-        let restricted = Restricted::parse(Some("acme,,/assets,acme/,acme/assets"));
+        let restricted =
+            Namespaces::parse("LFSX_RESTRICTED", Some("acme,,/assets,acme/,acme/assets"));
 
         assert_eq!(restricted.0.len(), 1);
         assert!(restricted.covers(&ns("acme", "assets")));

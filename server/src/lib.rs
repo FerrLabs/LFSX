@@ -289,6 +289,24 @@ fn backends(config: &Config) -> (Store, LockStore) {
         );
     }
 
+    if let crate::config::Auth::Forge { allowed, .. } = &config.auth {
+        match allowed {
+            None => tracing::warn!(
+                "LFSX_ALLOWED is unset, so this server stores objects for any repository on the \
+                 forge whose caller can push to it, including a repository a stranger creates \
+                 for the purpose. List the organisations or repositories it is for"
+            ),
+            Some(allowed) if allowed.is_empty() => tracing::warn!(
+                "LFSX_ALLOWED is set and none of its entries is org/repo, so this server serves no \
+                 repository at all"
+            ),
+            Some(_) => tracing::info!(
+                "an allow-list is configured: a repository outside LFSX_ALLOWED is answered 404 \
+                 without asking the forge"
+            ),
+        }
+    }
+
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written

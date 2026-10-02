@@ -160,6 +160,10 @@ spec:
               value: {{ .Values.auth.anonymousRead | quote }}
             - name: LFSX_RESTRICTED
               value: {{ join "," .Values.auth.restricted | quote }}
+            {{- with .Values.auth.allowed }}
+            - name: LFSX_ALLOWED
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: LFSX_AUTH_CACHE_TTL
               value: {{ .Values.auth.cacheTtl | quote }}
             - name: LFSX_AUTH_REJECTION_TTL

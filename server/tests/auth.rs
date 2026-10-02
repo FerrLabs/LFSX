@@ -7,8 +7,8 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use common::{
-    app, app_restricted, app_with_lookup_budget, app_with_rejection_ttl, batch, credentials, forge,
-    put,
+    app, app_allowing, app_restricted, app_with_lookup_budget, app_with_rejection_ttl, batch,
+    credentials, forge, put,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -733,4 +733,48 @@ async fn an_unrestricted_namespace_still_serves_an_anonymous_caller() {
     let response = anonymous_batch(app_restricted(&root, &api_url, "acme/*"), "Public").await;
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_repository_outside_the_allow_list_is_not_served_even_to_its_admin() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, forge) = forge().await;
+
+    let status = batch(app_allowing(&root, &api_url, "acme/*"), "admin", "upload").await;
+
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "a stranger owns their own repository, so the forge would grant them everything: the \
+         allow-list is the only thing between them and this server's disk"
+    );
+    assert_eq!(
+        forge.calls.load(Ordering::SeqCst),
+        0,
+        "a namespace this server does not serve costs no forge lookup"
+    );
+}
+
+#[tokio::test]
+async fn a_caller_with_no_credentials_outside_the_list_is_not_challenged() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let response = anonymous_batch(app_allowing(&root, &api_url, "acme/*"), "Public").await;
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_listed_repository_keeps_the_permissions_the_forge_gives_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app_allowing(&root, &api_url, "ferrlabs/lfsx,acme/*");
+
+    assert_eq!(batch(app.clone(), "writer", "upload").await, StatusCode::OK);
+    assert_eq!(
+        batch(app, "reader", "upload").await,
+        StatusCode::FORBIDDEN,
+        "being listed lets a repository in, it does not lend anybody rights the forge withheld"
+    );
 }
