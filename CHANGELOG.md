@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.2] - 2026-10-02
+
+### Refactoring
+
+- refactor(storage): dispatch bucket operations through a dialect (#483)
+
 ## [1.18.1] - 2026-09-25
 
 ### Bug Fixes
