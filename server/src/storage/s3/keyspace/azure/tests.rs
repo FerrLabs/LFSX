@@ -155,6 +155,31 @@ async fn an_object_goes_up_in_blocks_and_comes_back_whole() {
 }
 
 #[tokio::test]
+async fn two_uploads_of_one_blob_never_share_a_block() {
+    let (endpoint, container) = store().await;
+    let keys = keys(&endpoint);
+    let root = tempfile::tempdir().unwrap();
+    let staged = root.path().join("staged");
+    std::fs::write(&staged, vec![1u8; 120_000]).unwrap();
+
+    for _ in 0..2 {
+        keys.put_in_blocks("a/b/object", &staged, 120_000, 50_000)
+            .await
+            .unwrap();
+    }
+
+    let container = container.lock().unwrap();
+    let (first, second) = (&container.block_lists[0], &container.block_lists[1]);
+    assert!(
+        first.iter().all(|id| !second.contains(id)),
+        "uncommitted blocks live on the blob, so two pushes of the same object over the ceiling \
+         would overwrite each other's blocks and commit a mix: with encryption that is two salts \
+         in one blob that never decrypts"
+    );
+    assert!(second.iter().all(|id| id.len() == first[0].len()));
+}
+
+#[tokio::test]
 async fn the_second_writer_is_refused_with_azures_conflict() {
     let (endpoint, _container) = store().await;
     let keys = keys(&endpoint);

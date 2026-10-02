@@ -42,8 +42,14 @@ fn block_size(length: u64) -> u64 {
     BLOCK.max(length.div_ceil(MOST_BLOCKS)).min(LARGEST_BLOCK)
 }
 
-fn block_id(index: u64) -> String {
-    base64::engine::general_purpose::STANDARD.encode(format!("{index:08}"))
+fn upload_tag() -> u64 {
+    let mut tag = [0u8; 8];
+    getrandom::fill(&mut tag).expect("the operating system has a random number generator");
+    u64::from_le_bytes(tag)
+}
+
+fn block_id(upload: u64, index: u64) -> String {
+    base64::engine::general_purpose::STANDARD.encode(format!("{upload:016x}{index:08}"))
 }
 
 impl AzureKeys {
@@ -266,6 +272,7 @@ impl AzureKeys {
             "an object over the single-request ceiling is going up in blocks"
         );
 
+        let upload = upload_tag();
         let mut ids = Vec::new();
         for index in 0..count {
             let offset = index * size;
@@ -275,7 +282,7 @@ impl AzureKeys {
             file.seek(std::io::SeekFrom::Start(offset)).await?;
             let stream = tokio_util::io::ReaderStream::new(file.take(this));
 
-            let id = block_id(index);
+            let id = block_id(upload, index);
             let response = self
                 .request(
                     Method::PUT,
