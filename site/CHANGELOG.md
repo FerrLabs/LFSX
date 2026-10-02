@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.4] - 2026-10-02
+
+### Features
+
+- feat(dashboard): sign in with tokens the server issues, kept as a session cookie (#500)
+
 ## [2026.10.3] - 2026-10-02
 
 ### Features

@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.0] - 2026-10-02
+
+### Features
+
+- feat(dashboard): sign in with tokens the server issues, kept as a session cookie (#500)
+
 ## [1.21.0] - 2026-10-02
 
 ### Features
