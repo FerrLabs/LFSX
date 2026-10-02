@@ -114,8 +114,20 @@ impl Credential {
     }
 
     pub(crate) async fn bearer(&self, client: &reqwest::Client) -> Result<Option<String>, Error> {
+        if matches!(self.source, Source::Anonymous) {
+            return Ok(None);
+        }
+
+        self.cached.get(self.fetch(client)).await.map(Some)
+    }
+
+    async fn fetch(&self, client: &reqwest::Client) -> Result<Issued, Error> {
         let request = match &self.source {
-            Source::Anonymous => return Ok(None),
+            Source::Anonymous => {
+                return Err(Error::Storage(std::io::Error::other(
+                    "an anonymous credential has no token to fetch",
+                )));
+            }
             Source::Metadata { endpoint } => {
                 client.get(endpoint).header("Metadata-Flavor", "Google")
             }
@@ -135,10 +147,6 @@ impl Credential {
             }
         };
 
-        self.cached.get(fetch(request)).await.map(Some)
+        issued(request).await
     }
-}
-
-async fn fetch(request: reqwest::RequestBuilder) -> Result<Issued, Error> {
-    issued(request).await
 }
