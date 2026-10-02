@@ -68,6 +68,7 @@ pub fn app(config: Config) -> Router {
         metrics: Metrics::new(),
         transfers,
         started: std::time::Instant::now(),
+        session_key: tokio::sync::OnceCell::new(),
     });
 
     if state.config.dashboard.is_some() && tokio::runtime::Handle::try_current().is_ok() {
@@ -264,6 +265,10 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
             .expect("the Google Cloud Storage configuration is not usable"),
         ),
     })
+}
+
+pub fn store(config: &Config) -> Store {
+    backends(config).0
 }
 
 fn backends(config: &Config) -> (Store, LockStore) {

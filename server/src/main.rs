@@ -1,12 +1,13 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use lfsx_server::config::Config;
+use lfsx_server::console::tokens;
 use tokio::net::TcpListener;
 
-// No arguments on purpose: everything is configured through the environment.
-// The parser still earns its place, because a daemon that ignores `--version`
-// starts serving when somebody only asked what is installed, and a packaging
-// smoke test (`versionCheckHook` and its Debian, Homebrew and Arch cousins)
-// has nothing to call. Stray arguments are refused for the same reason.
+// Configuration is the environment only. The parser still earns its place,
+// because a daemon that ignores `--version` starts serving when somebody only
+// asked what is installed, and a packaging smoke test (`versionCheckHook` and
+// its Debian, Homebrew and Arch cousins) has nothing to call. Stray arguments
+// are refused for the same reason.
 #[derive(Parser)]
 #[command(
     name = "lfsx-server",
@@ -14,11 +15,77 @@ use tokio::net::TcpListener;
     about = "A fast, lightweight, secure Git LFS server",
     after_help = "Configuration is environment variables only; see https://lfsx.dev/docs/configuration"
 )]
-struct Cli {}
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    #[command(about = "Manage the web dashboard")]
+    Dashboard {
+        #[command(subcommand)]
+        command: DashboardCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum DashboardCommand {
+    #[command(about = "Tokens that sign in to the dashboard, kept in the store")]
+    Token {
+        #[command(subcommand)]
+        command: TokenCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TokenCommand {
+    #[command(about = "Create a token and print it, once")]
+    Create { name: String },
+    #[command(about = "List the tokens by name")]
+    List,
+    #[command(about = "Revoke a token and end the sessions it opened")]
+    Revoke { name: String },
+}
+
+async fn run(command: TokenCommand) -> Result<(), Box<dyn std::error::Error>> {
+    let store = lfsx_server::store(&Config::from_env());
+
+    match command {
+        TokenCommand::Create { name } => {
+            let token = tokens::create(&store, &name).await?;
+            eprintln!("Created dashboard token {name}. It is shown once:");
+            println!("{token}");
+        }
+        TokenCommand::List => {
+            for issued in tokens::issued(&store).await? {
+                let created = time::OffsetDateTime::from_unix_timestamp(issued.created as i64)?
+                    .format(&time::format_description::well_known::Rfc3339)?;
+                println!("{}\t{created}", issued.name);
+            }
+        }
+        TokenCommand::Revoke { name } => {
+            tokens::revoke(&store, &name).await?;
+            eprintln!("Revoked dashboard token {name}.");
+        }
+    }
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Cli::parse();
+    if let Some(Command::Dashboard {
+        command: DashboardCommand::Token { command },
+    }) = Cli::parse().command
+    {
+        if let Err(error) = run(command).await {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     let telemetry = lfsx_server::telemetry::init();
 
     let mut config = Config::from_env();

@@ -53,13 +53,11 @@
             </svg>
           }
         </flr-sidebar-item>
-        @if (session.token()) {
-          <flr-sidebar-item label="Sign out" [collapsed]="collapsed()" (selected)="signOut()">
-            <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <path d="M6 3H3v10h3M10 5l3 3-3 3M13 8H6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </flr-sidebar-item>
-        }
+        <flr-sidebar-item label="Sign out" [collapsed]="collapsed()" (selected)="signOut()">
+          <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M6 3H3v10h3M10 5l3 3-3 3M13 8H6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </flr-sidebar-item>
         <div class="collapse">
           <flr-rail-toggle [collapsed]="collapsed()" (collapsedChange)="collapse($event)" />
         </div>

@@ -19,6 +19,7 @@ pub struct AppState {
     // client keeps reading the body, so the permit travels with the stream.
     pub transfers: Option<Arc<Semaphore>>,
     pub started: std::time::Instant,
+    pub session_key: tokio::sync::OnceCell<Vec<u8>>,
 }
 
 impl AppState {

@@ -4,12 +4,12 @@
       <lfsx-logo />
       <h1 id="sign-in-title">Sign in to the dashboard</h1>
       <p class="lead">
-        This server shows its dashboard to the admins of the repository it names in
-        <code>LFSX_DASHBOARD_REPO</code>. Sign in with the forge token you already give git-lfs.
+        Sign in with a dashboard token from <code>lfsx-server dashboard token create</code>, or with
+        the forge token of an admin of the repository named in <code>LFSX_DASHBOARD_REPO</code>.
       </p>
     </header>
 
-    @switch (refused()) {
+    @switch (problem()) {
       @case ('forbidden') {
         <flr-banner variant="danger" title="Not an admin">
           The forge accepted this token, but its owner is not an admin of that repository.
@@ -17,31 +17,41 @@
       }
       @case ('rejected') {
         <flr-banner variant="danger" title="Token refused">
-          The forge did not accept this token. It may have expired or been revoked.
+          Neither this server nor the forge accepted this token. It may have expired or been revoked.
+        </flr-banner>
+      }
+      @case ('unreachable') {
+        <flr-banner variant="danger" title="Not signed in">
+          The server could not be reached. Try again.
+        </flr-banner>
+      }
+      @case ('failed') {
+        <flr-banner variant="danger" title="Not signed in">
+          The server answered with an error. Its log says why.
         </flr-banner>
       }
     }
 
     <form class="form" (ngSubmit)="submit()">
       <flr-field
-        label="Forge token"
-        hint="A personal access token. It stays in this browser tab and is only sent to this server."
+        label="Token"
+        hint="Sent once to sign in. The browser keeps a 12-hour session, not the token."
       >
         <flr-input
           type="password"
           name="token"
           autocomplete="off"
-          placeholder="ghp_..."
+          placeholder="lfsx_..."
           [ngModel]="token()"
           (ngModelChange)="token.set($event)"
         />
       </flr-field>
-      <flr-button type="submit" [fullWidth]="true" [disabled]="!token().trim()">Sign in</flr-button>
+      <flr-button type="submit" [fullWidth]="true" [loading]="pending()" [disabled]="!token().trim()">Sign in</flr-button>
     </form>
 
     <footer class="foot">
-      Need a token? On GitHub, a fine-grained token with read access to metadata on that repository
-      is enough.
+      No token yet? Run <code>lfsx-server dashboard token create &lt;name&gt;</code> where the server
+      runs.
     </footer>
   </section>
 </main>

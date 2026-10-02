@@ -8,6 +8,7 @@ use axum::http::{Method, Request, StatusCode};
 use axum::response::Response;
 use common::{batch, config, forge, put, read_json};
 use lfsx_server::config::{Auth, Config, Dashboard};
+use lfsx_server::console::tokens;
 use lfsx_server::namespace::Namespace;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -316,29 +317,63 @@ async fn a_server_starting_on_a_store_with_saved_access_uses_it() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
+async fn with_cookie(app: Router, method: Method, cookie: &str, body: Option<Value>) -> Response {
+    let mut request = Request::builder()
+        .method(method)
+        .uri("/-/api/access")
+        .header("cookie", cookie);
+    let body = match body {
+        Some(body) => {
+            request = request.header("content-type", "application/json");
+            Body::from(body.to_string())
+        }
+        None => Body::empty(),
+    };
+
+    app.oneshot(request.body(body).unwrap()).await.unwrap()
+}
+
 #[tokio::test]
 async fn with_authentication_disabled_there_is_no_access_to_change() {
     let root = tempfile::tempdir().unwrap();
     let (api_url, _forge) = forge().await;
     let pages = pages();
-    let app = lfsx_server::app(Config {
+    let config = Config {
         auth: Auth::Disabled,
         dashboard: dashboard(&pages, None),
         ..config(&root, &api_url)
-    });
+    };
+    let token = tokens::create(&lfsx_server::store(&config), "ops")
+        .await
+        .unwrap();
+    let app = lfsx_server::app(config);
+    let signed_in = call(
+        app.clone(),
+        Method::POST,
+        "/-/api/session",
+        None,
+        Some(json!({ "token": token })),
+    )
+    .await;
+    let cookie = signed_in.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_owned();
 
-    let shown = read_json(call(app.clone(), Method::GET, "/-/api/access", None, None).await).await;
+    let shown = read_json(with_cookie(app.clone(), Method::GET, &cookie, None).await).await;
     assert_eq!(shown["editable"], false);
 
-    let response = call(
+    let response = with_cookie(
         app.clone(),
         Method::PUT,
-        "/-/api/access",
-        None,
+        &cookie,
         Some(json!({ "anonymous_read": false, "restricted": [], "allowed": ["Elsewhere/*"] })),
     )
     .await;
     assert_eq!(response.status(), StatusCode::CONFLICT);
-    let response = call(app, Method::DELETE, "/-/api/access", None, None).await;
+    let response = with_cookie(app, Method::DELETE, &cookie, None).await;
     assert_eq!(response.status(), StatusCode::CONFLICT);
 }
