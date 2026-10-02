@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.20.1] - 2026-10-02
+
+### Bug Fixes
+
+- fix(auth): say at boot that LFSX_ALLOWED does nothing with auth disabled (#493)
+
 ## [1.20.0] - 2026-10-02
 
 ### Features
