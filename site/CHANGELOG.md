@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.2] - 2026-10-02
+
+### Features
+
+- feat(auth): serve only the repositories LFSX_ALLOWED lists (#490)
+
 ## [2026.10.1] - 2026-10-02
 
 ### Features

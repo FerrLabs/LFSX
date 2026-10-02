@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.20.0] - 2026-10-02
+
+### Features
+
+- feat(auth): serve only the repositories LFSX_ALLOWED lists (#490)
+
 ## [1.19.0] - 2026-10-02
 
 ### Features
