@@ -151,6 +151,23 @@ async fn revoking_a_token_ends_the_sessions_it_opened() {
 }
 
 #[tokio::test]
+async fn a_token_created_again_under_a_revoked_name_does_not_revive_old_sessions() {
+    let served = served(None).await;
+    let leaked = tokens::create(&served.store, "alice").await.unwrap();
+    let session = session_of(&sign_in(served.app.clone(), &leaked).await);
+
+    tokens::revoke(&served.store, "alice").await.unwrap();
+    let fresh = tokens::create(&served.store, "alice").await.unwrap();
+
+    assert_eq!(
+        overview(served.app.clone(), Some(&session)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let renewed = session_of(&sign_in(served.app.clone(), &fresh).await);
+    assert_eq!(overview(served.app, Some(&renewed)).await, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn a_forged_session_cookie_is_ignored() {
     let served = served(None).await;
     let token = tokens::create(&served.store, "alice").await.unwrap();

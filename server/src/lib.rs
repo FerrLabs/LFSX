@@ -68,6 +68,7 @@ pub fn app(config: Config) -> Router {
         metrics: Metrics::new(),
         transfers,
         started: std::time::Instant::now(),
+        session_key: tokio::sync::OnceCell::new(),
     });
 
     if state.config.dashboard.is_some() && tokio::runtime::Handle::try_current().is_ok() {

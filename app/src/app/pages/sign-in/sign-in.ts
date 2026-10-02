@@ -12,6 +12,22 @@ import {
 import { Logo } from '../../logo/logo';
 import { Session } from '../../session';
 
+function refusal(error: unknown): string {
+  if (!(error instanceof HttpErrorResponse)) {
+    return 'failed';
+  }
+  switch (error.status) {
+    case 0:
+      return 'unreachable';
+    case 401:
+      return 'rejected';
+    case 403:
+      return 'forbidden';
+    default:
+      return 'failed';
+  }
+}
+
 @Component({
   selector: 'lfsx-sign-in',
   imports: [
@@ -50,13 +66,7 @@ export class SignIn {
       },
       error: (error: unknown) => {
         this.pending.set(false);
-        this.answer.set(
-          error instanceof HttpErrorResponse && error.status === 403
-            ? 'forbidden'
-            : error instanceof HttpErrorResponse && error.status === 401
-              ? 'rejected'
-              : 'unreachable',
-        );
+        this.answer.set(refusal(error));
       },
     });
   }

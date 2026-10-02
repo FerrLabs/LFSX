@@ -88,7 +88,13 @@ pub async fn revoke(store: &Store, name: &str) -> Result<(), Refusal> {
     Ok(keep(store, &issued).await?)
 }
 
-pub async fn holder(store: &Store, token: &str) -> Result<Option<String>, Error> {
+impl Issued {
+    pub fn hash(&self) -> &str {
+        &self.hash
+    }
+}
+
+pub async fn holder(store: &Store, token: &str) -> Result<Option<Issued>, Error> {
     if !token.starts_with(PREFIX) {
         return Ok(None);
     }
@@ -97,13 +103,12 @@ pub async fn holder(store: &Store, token: &str) -> Result<Option<String>, Error>
     Ok(issued(store)
         .await?
         .into_iter()
-        .find(|issued| issued.hash == hash)
-        .map(|issued| issued.name))
+        .find(|issued| issued.hash == hash))
 }
 
-pub async fn still_issued(store: &Store, name: &str) -> Result<bool, Error> {
+pub async fn still_issued(store: &Store, hash: &str) -> Result<bool, Error> {
     Ok(issued(store)
         .await?
         .iter()
-        .any(|issued| issued.name == name))
+        .any(|issued| issued.hash == hash))
 }

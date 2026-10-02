@@ -30,6 +30,8 @@ pub enum Viewer {
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
     viewer: Viewer,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    issued: Option<String>,
     expires: i64,
 }
 
@@ -38,7 +40,15 @@ pub struct SignIn {
     token: String,
 }
 
-async fn key(state: &Shared) -> Result<Vec<u8>, Error> {
+async fn key(state: &Shared) -> Result<&[u8], Error> {
+    state
+        .session_key
+        .get_or_try_init(|| kept_key(state))
+        .await
+        .map(Vec::as_slice)
+}
+
+async fn kept_key(state: &Shared) -> Result<Vec<u8>, Error> {
     if let Some(key) = state.store.read_meta(KEY).await? {
         return Ok(key);
     }
@@ -64,9 +74,10 @@ fn now() -> i64 {
     time::OffsetDateTime::now_utc().unix_timestamp()
 }
 
-fn seal(key: &[u8], viewer: Viewer) -> Result<String, Error> {
+fn seal(key: &[u8], viewer: Viewer, issued: Option<String>) -> Result<String, Error> {
     let claims = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&Claims {
         viewer,
+        issued,
         expires: now() + LIFETIME.as_secs() as i64,
     })?);
     let mut mac = mac(key);
@@ -78,7 +89,7 @@ fn seal(key: &[u8], viewer: Viewer) -> Result<String, Error> {
     ))
 }
 
-fn open(key: &[u8], sealed: &str) -> Option<Viewer> {
+fn open(key: &[u8], sealed: &str) -> Option<Claims> {
     let (claims, signature) = sealed.split_once('.')?;
     let mut mac = mac(key);
     mac.update(claims.as_bytes());
@@ -86,7 +97,7 @@ fn open(key: &[u8], sealed: &str) -> Option<Viewer> {
         .ok()?;
 
     let claims: Claims = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).ok()?).ok()?;
-    (claims.expires > now()).then_some(claims.viewer)
+    (claims.expires > now()).then_some(claims)
 }
 
 fn presented(headers: &HeaderMap) -> Option<&str> {
@@ -103,9 +114,16 @@ pub(crate) async fn viewer(state: &Shared, headers: &HeaderMap) -> Result<Option
         return Ok(None);
     };
 
-    match open(&key(state).await?, sealed) {
-        Some(Viewer::Token(name)) if !tokens::still_issued(&state.store, &name).await? => Ok(None),
-        viewer => Ok(viewer),
+    let Some(claims) = open(key(state).await?, sealed) else {
+        return Ok(None);
+    };
+
+    match (&claims.viewer, &claims.issued) {
+        (Viewer::Forge(_), _) => Ok(Some(claims.viewer)),
+        (Viewer::Token(_), Some(hash)) if tokens::still_issued(&state.store, hash).await? => {
+            Ok(Some(claims.viewer))
+        }
+        (Viewer::Token(_), _) => Ok(None),
     }
 }
 
@@ -123,9 +141,10 @@ fn cookie(state: &Shared, value: &str, max_age: u64) -> HeaderValue {
     .expect("a cookie built from base64 and fixed text is a valid header")
 }
 
-async fn admitted(state: &Shared, token: &str) -> Result<Viewer, Error> {
-    if let Some(name) = tokens::holder(&state.store, token).await? {
-        return Ok(Viewer::Token(name));
+async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>), Error> {
+    if let Some(issued) = tokens::holder(&state.store, token).await? {
+        let hash = issued.hash().to_owned();
+        return Ok((Viewer::Token(issued.name), Some(hash)));
     }
 
     let (Auth::Forge { .. }, Some(admins)) = (
@@ -150,7 +169,10 @@ async fn admitted(state: &Shared, token: &str) -> Result<Viewer, Error> {
         .await?
         .require_admin()?;
 
-    Ok(Viewer::Forge(state.authorizer.actor(&headers).await?.0))
+    Ok((
+        Viewer::Forge(state.authorizer.actor(&headers).await?.0),
+        None,
+    ))
 }
 
 pub(crate) async fn sign_in(
@@ -161,8 +183,8 @@ pub(crate) async fn sign_in(
         return Err(Error::NotServed.into());
     }
 
-    let viewer = admitted(&state, token.trim()).await?;
-    let sealed = seal(&key(&state).await?, viewer.clone())?;
+    let (viewer, issued) = admitted(&state, token.trim()).await?;
+    let sealed = seal(key(&state).await?, viewer.clone(), issued)?;
     tracing::info!(?viewer, "signed in to the dashboard");
 
     Ok((

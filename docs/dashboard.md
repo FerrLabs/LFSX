@@ -43,8 +43,8 @@ With `LFSX_AUTH=disabled` there is no forge to ask, and only dashboard tokens ge
 
 Signing in trades the token for a session cookie valid 12 hours, `HttpOnly` and `SameSite=Strict`,
 and `Secure` when `LFSX_PUBLIC_URL` is `https://`. The browser keeps the cookie, never the token.
-Sessions are signed with a key the server keeps at `.lfsx/session.key`; deleting it ends every
-session. A session opened with a forge token lasts its 12 hours even if its owner stops being an
+Sessions are signed with a key the server keeps at `.lfsx/session.key` and reads once; deleting it
+and restarting every replica ends every session. A session opened with a forge token lasts its 12 hours even if its owner stops being an
 admin, so revoke the forge token as well when someone leaves.
 
 Scripts can skip the cookie and send a forge admin's token as `Authorization: Bearer` on every call.

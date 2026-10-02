@@ -25,6 +25,11 @@
           The server could not be reached. Try again.
         </flr-banner>
       }
+      @case ('failed') {
+        <flr-banner variant="danger" title="Not signed in">
+          The server answered with an error. Its log says why.
+        </flr-banner>
+      }
     }
 
     <form class="form" (ngSubmit)="submit()">

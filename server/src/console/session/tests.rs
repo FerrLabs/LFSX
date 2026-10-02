@@ -8,31 +8,35 @@ fn alice() -> Viewer {
 
 #[test]
 fn a_sealed_session_opens_with_the_key_that_sealed_it() {
-    let sealed = seal(SECRET, alice()).unwrap();
+    let sealed = seal(SECRET, alice(), None).unwrap();
 
-    assert_eq!(open(SECRET, &sealed), Some(alice()));
+    assert_eq!(
+        open(SECRET, &sealed).map(|claims| claims.viewer),
+        Some(alice())
+    );
 }
 
 #[test]
 fn a_session_sealed_with_another_key_does_not_open() {
-    let sealed = seal(b"some other server's key", alice()).unwrap();
+    let sealed = seal(b"some other server's key", alice(), None).unwrap();
 
-    assert_eq!(open(SECRET, &sealed), None);
+    assert!(open(SECRET, &sealed).is_none());
 }
 
 #[test]
 fn a_session_whose_claims_were_changed_does_not_open() {
-    let sealed = seal(SECRET, alice()).unwrap();
+    let sealed = seal(SECRET, alice(), None).unwrap();
     let (_, signature) = sealed.split_once('.').unwrap();
     let forged = URL_SAFE_NO_PAD.encode(
         serde_json::to_vec(&Claims {
             viewer: Viewer::Forge("mallory".into()),
+            issued: None,
             expires: now() + 3600,
         })
         .unwrap(),
     );
 
-    assert_eq!(open(SECRET, &format!("{forged}.{signature}")), None);
+    assert!(open(SECRET, &format!("{forged}.{signature}")).is_none());
 }
 
 #[test]
@@ -40,6 +44,7 @@ fn an_expired_session_does_not_open() {
     let claims = URL_SAFE_NO_PAD.encode(
         serde_json::to_vec(&Claims {
             viewer: alice(),
+            issued: None,
             expires: now() - 1,
         })
         .unwrap(),
@@ -51,13 +56,13 @@ fn an_expired_session_does_not_open() {
         URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
     );
 
-    assert_eq!(open(SECRET, &sealed), None);
+    assert!(open(SECRET, &sealed).is_none());
 }
 
 #[test]
 fn garbage_does_not_open() {
     for sealed in ["", ".", "nodot", "a.b", "!!!.???"] {
-        assert_eq!(open(SECRET, sealed), None, "{sealed}");
+        assert!(open(SECRET, sealed).is_none(), "{sealed}");
     }
 }
 
