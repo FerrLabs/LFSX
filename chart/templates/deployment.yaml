@@ -171,6 +171,14 @@ spec:
             - name: LFSX_AUTH_LOOKUP_BUDGET
               value: {{ .Values.auth.lookupBudget | quote }}
             {{- end }}
+            {{- if .Values.dashboard.enabled }}
+            - name: LFSX_DASHBOARD
+              value: "true"
+            {{- with .Values.dashboard.repo }}
+            - name: LFSX_DASHBOARD_REPO
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             - name: LFSX_GC_GRACE
               value: {{ .Values.gc.grace | quote }}
             - name: LFSX_STAGING_MAX_AGE

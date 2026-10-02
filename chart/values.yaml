@@ -84,6 +84,12 @@ auth:
   # could not answer. 0 removes the ceiling.
   lookupBudget: 600
 
+dashboard:
+  # Serves the web dashboard at /-/dashboard/, to the admins of `repo` (org/repo
+  # on the forge). Required unless auth.mode is disabled.
+  enabled: false
+  repo: ""
+
 gc:
   grace: 1209600
   # Seconds before an interrupted upload's leftovers are reclaimed, on the

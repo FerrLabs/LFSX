@@ -1,0 +1,47 @@
+<main class="page">
+  <section class="panel" aria-labelledby="sign-in-title">
+    <header class="head">
+      <lfsx-logo />
+      <h1 id="sign-in-title">Sign in to the dashboard</h1>
+      <p class="lead">
+        This server shows its dashboard to the admins of the repository it names in
+        <code>LFSX_DASHBOARD_REPO</code>. Sign in with the forge token you already give git-lfs.
+      </p>
+    </header>
+
+    @switch (refused()) {
+      @case ('forbidden') {
+        <flr-banner variant="danger" title="Not an admin">
+          The forge accepted this token, but its owner is not an admin of that repository.
+        </flr-banner>
+      }
+      @case ('rejected') {
+        <flr-banner variant="danger" title="Token refused">
+          The forge did not accept this token. It may have expired or been revoked.
+        </flr-banner>
+      }
+    }
+
+    <form class="form" (ngSubmit)="submit()">
+      <flr-field
+        label="Forge token"
+        hint="A personal access token. It stays in this browser tab and is only sent to this server."
+      >
+        <flr-input
+          type="password"
+          name="token"
+          autocomplete="off"
+          placeholder="ghp_..."
+          [ngModel]="token()"
+          (ngModelChange)="token.set($event)"
+        />
+      </flr-field>
+      <flr-button type="submit" [fullWidth]="true" [disabled]="!token().trim()">Sign in</flr-button>
+    </form>
+
+    <footer class="foot">
+      Need a token? On GitHub, a fine-grained token with read access to metadata on that repository
+      is enough.
+    </footer>
+  </section>
+</main>

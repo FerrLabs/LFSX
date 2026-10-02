@@ -1,0 +1,70 @@
+@if (view(); as view) {
+  <header class="head">
+    <div>
+      <h1>Overview</h1>
+      <span class="running">{{ view.running }}</span>
+    </div>
+    <span class="refreshed">Refreshed {{ view.refreshed }}</span>
+  </header>
+
+  @if (view.authDisabled) {
+    <flr-banner variant="danger" title="Authentication is disabled">
+      Every request is accepted. Run this only on a trusted network.
+    </flr-banner>
+  } @else if (view.openToTheForge) {
+    <flr-banner variant="warning" title="No allow-list">
+      Any repository on the forge can store objects here, including one a stranger creates for the
+      purpose. List the organisations this server is for under Settings, or in LFSX_ALLOWED.
+    </flr-banner>
+  }
+
+  <section class="top">
+    <flr-card variant="flat" padding="lg" class="hero">
+      <span class="label">Data stored</span>
+      <span class="big">{{ view.stored }}</span>
+      <span class="sub">
+        @if (view.measured) {
+          on the {{ view.kind }} store
+        } @else {
+          a {{ view.kind }} bucket is not measured as a whole, it would cost a request per object
+        }
+      </span>
+      @if (view.uploads > 0) {
+        <flr-bar-chart
+          class="chart"
+          title="Uploads by object size"
+          summary="Objects accepted since the server started, by size"
+          [points]="view.sizes"
+          [height]="120"
+          [labelEvery]="1"
+          [color]="chartColor()"
+          [format]="formatCount"
+        />
+      } @else {
+        <p class="empty">No upload since the server started.</p>
+      }
+    </flr-card>
+
+    <div class="side">
+      @for (tile of view.side; track tile.label) {
+        <flr-card variant="flat" padding="md">
+          <span class="label">{{ tile.label }}</span>
+          <span class="value" [attr.data-tone]="tile.tone">{{ tile.value }}</span>
+        </flr-card>
+      }
+    </div>
+  </section>
+
+  <section class="lower">
+    @for (tile of view.lower; track tile.label) {
+      <flr-card variant="flat" padding="md">
+        <span class="label">{{ tile.label }}</span>
+        <span class="value" [attr.data-tone]="tile.tone">{{ tile.value }}</span>
+      </flr-card>
+    }
+  </section>
+} @else if (feed.state().kind === 'failed') {
+  <flr-error-state title="No figures" message="The server could not be read." [canRetry]="false" />
+} @else {
+  <flr-loading-state label="Asking the server" />
+}

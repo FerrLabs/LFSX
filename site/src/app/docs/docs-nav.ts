@@ -25,6 +25,7 @@ export const DOCS_NAV: readonly DocSection[] = [
     items: [
       { label: 'Authentication', slug: 'authentication' },
       { label: 'Anonymous read', slug: 'anonymous-read' },
+      { label: 'Allowed namespaces', slug: 'allowed-namespaces' },
       { label: 'Restricted namespaces', slug: 'restricted-namespaces' },
       { label: 'Size limits', slug: 'size-limits' },
     ],
@@ -42,6 +43,7 @@ export const DOCS_NAV: readonly DocSection[] = [
     label: 'Running it',
     items: [
       { label: 'Operations', slug: 'operations' },
+      { label: 'Dashboard', slug: 'dashboard' },
       { label: 'Observability', slug: 'observability' },
       { label: 'Kubernetes', slug: 'kubernetes' },
       { label: 'Reverse proxy', slug: 'reverse-proxy' },

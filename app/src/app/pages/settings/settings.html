@@ -1,0 +1,38 @@
+<header class="head">
+  <h1>Settings</h1>
+  <p class="sub">Access can be changed here. Everything else comes from the server's environment and takes a restart to change.</p>
+</header>
+
+<lfsx-access-form />
+
+<section class="server">
+  <h2>Server</h2>
+
+@if (rows(); as rows) {
+  <table class="settings">
+    <tbody>
+      @for (row of rows; track row.variable) {
+        <tr>
+          <th scope="row">
+            <span class="name">{{ row.name }}</span>
+            <code class="variable">{{ row.variable }}</code>
+          </th>
+          <td>
+            @if (row.on === null) {
+              {{ row.value }}
+            } @else {
+              <flr-tag [variant]="row.on ? 'success' : 'neutral'" [soft]="true">
+                {{ row.on ? 'on' : 'off' }}
+              </flr-tag>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+} @else if (feed.state().kind === 'failed') {
+  <flr-error-state title="No settings" message="The server could not be read." [canRetry]="false" />
+} @else {
+  <flr-loading-state label="Asking the server" />
+}
+</section>

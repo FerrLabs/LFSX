@@ -88,6 +88,8 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `auth.lookupBudget` | `600` | forge lookups a minute, counting only cache misses; `0` removes the ceiling |
+| `dashboard.enabled` | `false` | serve the web dashboard at `/-/dashboard/`, see [Dashboard](../docs/dashboard.md) |
+| `dashboard.repo` | `""` | `org/repo` whose admins may open the dashboard; required with `dashboard.enabled` unless `auth.mode` is `disabled` |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
 | `gc.stagingMaxAge` | `86400` | seconds before an interrupted upload's leftovers are reclaimed, on the volume and in the bucket; keep it above your longest transfer, `0` sweeps them all at boot and hourly, uploads in flight included |
 | `locks.maxAge` | `""` | seconds a lock may go untouched before anyone can take it over; empty means never |

@@ -1,3 +1,18 @@
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS dashboard
+
+WORKDIR /src
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY app/package.json ./app/
+
+RUN pnpm install --frozen-lockfile --filter @lfsx/app...
+
+COPY app ./app
+RUN pnpm --filter @lfsx/app build
+
 FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0 AS builder
 
 ARG TARGETARCH
@@ -109,6 +124,7 @@ RUN --mount=type=secret,id=gha-cache-url \
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
 COPY --from=builder /out/lfsx-server /usr/local/bin/lfsx-server
+COPY --from=dashboard /src/app/dist/dashboard/browser /usr/share/lfsx/dashboard
 COPY --from=builder --chown=65532:65532 /out/storage /var/lib/lfsx
 
 ENV LFSX_STORAGE_ROOT=/var/lib/lfsx

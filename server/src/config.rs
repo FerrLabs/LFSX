@@ -36,6 +36,46 @@ pub struct Config {
     pub encryption_key: Option<KeySource>,
     pub storage: Storage,
     pub auth: Auth,
+    pub dashboard: Option<Dashboard>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Dashboard {
+    pub dir: PathBuf,
+    pub admins: Option<Namespace>,
+}
+
+const DASHBOARD_DIR: &str = "/usr/share/lfsx/dashboard";
+
+fn dashboard(
+    enabled: Option<&str>,
+    dir: Option<&str>,
+    repo: Option<&str>,
+    auth: &Auth,
+) -> Option<Dashboard> {
+    if enabled != Some("true") {
+        return None;
+    }
+
+    let admins = repo.filter(|repo| !repo.is_empty()).map(|repo| {
+        repo.split_once('/')
+            .and_then(|(org, name)| Namespace::new(org, name).ok())
+            .unwrap_or_else(|| panic!("LFSX_DASHBOARD_REPO is not org/repo: {repo}"))
+    });
+    if admins.is_none() && matches!(auth, Auth::Forge { .. }) {
+        panic!(
+            "LFSX_DASHBOARD=true needs LFSX_DASHBOARD_REPO: the dashboard is shown to the admins of \
+             that repository, and nobody else"
+        );
+    }
+
+    Some(Dashboard {
+        dir: dir
+            .filter(|dir| !dir.is_empty())
+            .unwrap_or(DASHBOARD_DIR)
+            .into(),
+        admins,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -357,7 +397,21 @@ impl Config {
                 std::env::var("LFSX_ENCRYPTION_KEY_COMMAND").ok().as_deref(),
             ),
             storage: Storage::from_env(),
+            dashboard: None,
             auth: Auth::from_env(),
+        }
+        .with_dashboard()
+    }
+
+    fn with_dashboard(self) -> Self {
+        Self {
+            dashboard: dashboard(
+                std::env::var("LFSX_DASHBOARD").ok().as_deref(),
+                std::env::var("LFSX_DASHBOARD_DIR").ok().as_deref(),
+                std::env::var("LFSX_DASHBOARD_REPO").ok().as_deref(),
+                &self.auth,
+            ),
+            ..self
         }
     }
 

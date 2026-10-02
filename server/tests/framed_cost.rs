@@ -22,6 +22,7 @@ const ROUNDS: u32 = 20;
 fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Router {
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        dashboard: None,
         storage_root: root.path().to_path_buf(),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,

@@ -108,6 +108,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
 
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        dashboard: None,
         storage_root: PathBuf::from("."),
         public_url: None,
         action_lifetime: 1800,
@@ -185,6 +186,7 @@ fn a_configured_public_url_wins() {
     let config = Config {
         public_url: Some("https://lfs.example.com".into()),
         bind: "127.0.0.1:0".parse().unwrap(),
+        dashboard: None,
         storage_root: PathBuf::from("."),
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
@@ -264,4 +266,53 @@ fn an_allow_list_is_only_in_force_when_something_is_listed() {
         allowed(Some("not-a-namespace")).is_some_and(|allowed| allowed.is_empty()),
         "a list that parsed to nothing serves nothing, rather than falling open to every repository"
     );
+}
+
+fn github() -> Auth {
+    Auth::Forge {
+        provider: Provider::Github,
+        api_url: "https://api.github.com".into(),
+        cache_ttl: Duration::from_secs(60),
+        rejection_ttl: Duration::from_secs(10),
+        lookup_budget: None,
+        anonymous_read: false,
+        restricted: Namespaces::parse("LFSX_RESTRICTED", None),
+        allowed: None,
+        github_app: None,
+    }
+}
+
+#[test]
+fn the_dashboard_is_off_unless_it_is_asked_for() {
+    assert!(dashboard(None, None, Some("FerrLabs/Infra"), &github()).is_none());
+    assert!(dashboard(Some("yes"), None, Some("FerrLabs/Infra"), &github()).is_none());
+}
+
+#[test]
+fn the_dashboard_is_shown_to_the_admins_of_the_named_repository() {
+    let dashboard = dashboard(Some("true"), Some(""), Some("FerrLabs/Infra"), &github()).unwrap();
+
+    let admins = dashboard.admins.unwrap();
+    assert_eq!((admins.org(), admins.repo()), ("FerrLabs", "Infra"));
+    assert_eq!(dashboard.dir, PathBuf::from(DASHBOARD_DIR));
+}
+
+#[test]
+#[should_panic(expected = "needs LFSX_DASHBOARD_REPO")]
+fn a_dashboard_behind_a_forge_refuses_to_start_without_a_repository() {
+    dashboard(Some("true"), None, None, &github());
+}
+
+#[test]
+#[should_panic(expected = "LFSX_DASHBOARD_REPO is not org/repo")]
+fn a_dashboard_repository_that_is_not_org_repo_refuses_to_start() {
+    dashboard(Some("true"), None, Some("Infra"), &github());
+}
+
+#[test]
+fn without_authentication_the_dashboard_needs_no_repository() {
+    let dashboard = dashboard(Some("true"), Some("/srv/dashboard"), None, &Auth::Disabled).unwrap();
+
+    assert!(dashboard.admins.is_none());
+    assert_eq!(dashboard.dir, PathBuf::from("/srv/dashboard"));
 }

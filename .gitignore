@@ -3,6 +3,8 @@ CLAUDE.md
 .claude/
 node_modules/
 site/dist/
+app/dist/
+app/.angular/
 site/src/content/
 packaging/nix/build/
 packaging/nix/result

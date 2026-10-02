@@ -156,6 +156,7 @@ Full documentation lives at **[lfsx.dev](https://lfsx.dev)**. The same pages are
 | [Anonymous read](docs/anonymous-read.md) | Public repositories, and turning it off |
 | [Allowed namespaces](docs/allowed-namespaces.md) | The repositories this server is for, and nobody else's |
 | [Restricted namespaces](docs/restricted-namespaces.md) | Public code, assets kept to whoever can push |
+| [Dashboard](docs/dashboard.md) | Store figures and traffic, and the access settings changed without a restart |
 | [Storage layout](docs/storage-layout.md) | Where the bytes live, and why once |
 | [Objects in a bucket](docs/buckets.md) | S3-compatible storage |
 | [Objects in Azure Blob Storage](docs/azure.md) | a container, with a key, a SAS or a pod identity |

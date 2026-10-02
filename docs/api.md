@@ -18,6 +18,8 @@ The Git LFS protocol is small: four routes, plus a health check:
 | `GET` | `/{org}/{repo}/locks` | list locks, filterable by `path` or `id` |
 | `POST` | `/{org}/{repo}/locks/verify` | the client's own locks, and everyone else's |
 | `POST` | `/{org}/{repo}/locks/{id}/unlock` | release a lock |
+| `GET` | `/-/api/overview` | the [dashboard](dashboard.md)'s figures, for the admins of `LFSX_DASHBOARD_REPO` |
+| `GET`, `PUT`, `DELETE` | `/-/api/access` | read, save or reset the access settings the dashboard edits |
 | `GET` | `/metrics` | Prometheus exposition |
 | `GET` | `/health` | liveness: the process is up |
 | `GET` | `/ready` | readiness: the storage root is writable |

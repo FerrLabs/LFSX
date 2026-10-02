@@ -1,0 +1,22 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.mark {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+  color: var(--color-ink);
+}
+
+.x {
+  color: var(--accent);
+}

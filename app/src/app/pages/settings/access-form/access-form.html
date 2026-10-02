@@ -1,0 +1,98 @@
+<flr-card variant="flat" padding="lg">
+  <div class="head">
+    <h2>Access</h2>
+    <p class="sub">Who can reach which repository. Changes apply at once and on every replica within 30 seconds.</p>
+    @if (current(); as current) {
+      <p class="source">
+        {{
+          current.source === 'dashboard'
+            ? 'Saved from the dashboard, in place of the environment variables.'
+            : 'Read from the environment variables.'
+        }}
+      </p>
+    }
+  </div>
+
+  @if (problem(); as problem) {
+    <flr-banner variant="danger" title="Not saved">{{ problem }}</flr-banner>
+  }
+  @if (saved()) {
+    <flr-banner variant="success" title="Saved">The server now uses these settings.</flr-banner>
+  }
+
+  @if (current(); as current) {
+    @if (!current.editable) {
+      <flr-banner variant="info" title="Nothing to change">
+        Authentication is disabled, so every request is accepted and these settings do not apply.
+      </flr-banner>
+    } @else {
+      <form class="form" (ngSubmit)="save()">
+        <flr-switch
+          name="limited"
+          label="Serve only listed repositories"
+          hint="Off serves every repository on the forge, including one a stranger creates to store objects here."
+          [ngModel]="limited()"
+          (ngModelChange)="limited.set($event)"
+        />
+        @if (limited()) {
+          <flr-field label="Allowed repositories" hint="One per line: org/repo, org/prefix-* or org/*.">
+            <flr-textarea
+              name="allowed"
+              [rows]="4"
+              placeholder="acme/*"
+              [ngModel]="allowed()"
+              (ngModelChange)="allowed.set($event)"
+            />
+          </flr-field>
+        }
+
+        <flr-field
+          label="Restricted repositories"
+          hint="Their objects take write access to read, so a public repository can keep its assets to the people who could push them."
+        >
+          <flr-textarea
+            name="restricted"
+            [rows]="3"
+            placeholder="acme/licensed-art"
+            [ngModel]="restricted()"
+            (ngModelChange)="restricted.set($event)"
+          />
+        </flr-field>
+
+        <flr-switch
+          name="anonymous"
+          label="Anonymous reads"
+          hint="Resolve requests without credentials against the forge, so public repositories clone without a token."
+          [ngModel]="anonymous()"
+          (ngModelChange)="anonymous.set($event)"
+        />
+
+        <div class="actions">
+          <flr-button type="submit" [loading]="saving()" [disabled]="!dirty()">Save changes</flr-button>
+          @if (dirty()) {
+            <flr-button variant="ghost" (pressed)="discard()">Discard</flr-button>
+          }
+          @if (current.source === 'dashboard') {
+            <flr-button variant="ghost" class="reset" (pressed)="confirming.set(true)">
+              Reset to the environment
+            </flr-button>
+          }
+        </div>
+      </form>
+    }
+  } @else if (!problem()) {
+    <flr-loading-state label="Reading the access settings" />
+  }
+</flr-card>
+
+<flr-modal
+  [open]="confirming()"
+  title="Reset to the environment?"
+  description="The settings saved from the dashboard are deleted, and the server goes back to LFSX_ALLOWED, LFSX_RESTRICTED and LFSX_ANONYMOUS_READ."
+  (closed)="confirming.set(false)"
+>
+  <div modal-footer class="modal-actions">
+    <flr-button variant="ghost" (pressed)="confirming.set(false)">Cancel</flr-button>
+    <flr-button variant="danger" (pressed)="reset()">Reset</flr-button>
+  </div>
+</flr-modal>

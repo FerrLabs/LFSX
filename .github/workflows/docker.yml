@@ -11,6 +11,8 @@ on:
     paths:
       - Dockerfile
       - site/Dockerfile
+      - app/**
+      - pnpm-lock.yaml
       - .github/workflows/docker.yml
   workflow_dispatch:
     inputs:
