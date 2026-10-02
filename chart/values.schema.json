@@ -18,7 +18,8 @@
           "type": "string",
           "enum": [
             "local",
-            "s3"
+            "s3",
+            "azure"
           ]
         },
         "s3": {
@@ -61,6 +62,50 @@
                   "type": "string"
                 }
               ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "azure": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string"
+            },
+            "container": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            },
+            "presign": {
+              "type": "boolean"
+            },
+            "cacheDir": {
+              "type": "string"
+            },
+            "cacheMaxBytes": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "accountKeyKey": {
+              "type": "string"
+            },
+            "sasTokenKey": {
+              "type": "string"
+            },
+            "workloadIdentity": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false

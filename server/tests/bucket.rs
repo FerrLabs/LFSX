@@ -18,19 +18,40 @@ use lfsx_server::config::{Auth, Config, Storage};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    S3,
+    Azure,
+}
+
 struct Bucket {
+    kind: Kind,
     endpoint: String,
     bucket: String,
     access_key: String,
     secret_key: String,
 }
 
+const AZURITE_KEY: &str =
+    "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
+
 fn configured() -> Option<Bucket> {
-    let endpoint = std::env::var("LFSX_TEST_S3_ENDPOINT")
-        .ok()
-        .filter(|value| !value.is_empty())?;
+    let var = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+
+    if let Some(endpoint) = var("LFSX_TEST_AZURE_ENDPOINT") {
+        return Some(Bucket {
+            kind: Kind::Azure,
+            endpoint,
+            bucket: var("LFSX_TEST_AZURE_CONTAINER").unwrap_or_else(|| "lfsx-test".into()),
+            access_key: var("LFSX_TEST_AZURE_ACCOUNT").unwrap_or_else(|| "devstoreaccount1".into()),
+            secret_key: var("LFSX_TEST_AZURE_KEY").unwrap_or_else(|| AZURITE_KEY.into()),
+        });
+    }
+
+    let endpoint = var("LFSX_TEST_S3_ENDPOINT")?;
 
     Some(Bucket {
+        kind: Kind::S3,
         endpoint,
         bucket: std::env::var("LFSX_TEST_S3_BUCKET").unwrap_or_else(|_| "lfsx-test".into()),
         access_key: std::env::var("LFSX_TEST_S3_ACCESS_KEY").unwrap_or_else(|_| "lfsxkey".into()),
@@ -44,11 +65,42 @@ macro_rules! bucket_or_skip {
         match configured() {
             Some(bucket) => bucket,
             None => {
-                eprintln!("skipped: set LFSX_TEST_S3_ENDPOINT to run this against a real bucket");
+                eprintln!(
+                    "skipped: set LFSX_TEST_S3_ENDPOINT or LFSX_TEST_AZURE_ENDPOINT to run this \
+                     against a real store"
+                );
                 return;
             }
         }
     };
+}
+
+macro_rules! client_uploads_or_skip {
+    ($bucket:expr) => {
+        if $bucket.kind != Kind::S3 {
+            eprintln!("skipped: only S3 can bind a digest into a signed write");
+            return;
+        }
+    };
+}
+
+fn dialect(bucket: &Bucket) -> lfsx_server::config::Dialect {
+    match bucket.kind {
+        Kind::S3 => lfsx_server::config::Dialect::S3 {
+            endpoint: bucket.endpoint.clone(),
+            bucket: bucket.bucket.clone(),
+            region: "us-east-1".into(),
+            access_key: bucket.access_key.clone(),
+            secret_key: bucket.secret_key.clone(),
+            path_style: true,
+        },
+        Kind::Azure => lfsx_server::config::Dialect::Azure {
+            endpoint: bucket.endpoint.clone(),
+            account: bucket.access_key.clone(),
+            container: bucket.bucket.clone(),
+            credential: lfsx_server::config::AzureCredential::AccountKey(bucket.secret_key.clone()),
+        },
+    }
 }
 
 // Collection honours a grace window, and everything a test pushes is seconds
@@ -131,14 +183,7 @@ fn bucket_config(
         compression,
         encryption_key,
         storage: Storage::Bucket {
-            dialect: lfsx_server::config::Dialect::S3 {
-                endpoint: bucket.endpoint.clone(),
-                bucket: bucket.bucket.clone(),
-                region: "us-east-1".into(),
-                access_key: bucket.access_key.clone(),
-                secret_key: bucket.secret_key.clone(),
-                path_style: true,
-            },
+            dialect: dialect(bucket),
             presign,
             cache: None,
             locking: true,
@@ -1166,6 +1211,7 @@ async fn download(app: Router, repo: &str, oid: &str) -> axum::response::Respons
 #[tokio::test]
 async fn a_client_uploads_straight_to_the_bucket_and_then_owns_the_object() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a presigned upload");
@@ -1216,6 +1262,7 @@ async fn a_client_uploads_straight_to_the_bucket_and_then_owns_the_object() {
 #[tokio::test]
 async fn the_store_refuses_bytes_that_are_not_the_object() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("the object it claims");
@@ -1245,6 +1292,7 @@ async fn the_store_refuses_bytes_that_are_not_the_object() {
 #[tokio::test]
 async fn knowing_a_digest_is_not_holding_the_object() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("somebody elses asset");
@@ -1274,6 +1322,7 @@ async fn knowing_a_digest_is_not_holding_the_object() {
 #[tokio::test]
 async fn a_declared_size_that_does_not_match_what_arrived_is_refused() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a misdeclared object");
@@ -1326,6 +1375,7 @@ async fn a_keyed_server_does_not_hand_out_upload_urls() {
 #[tokio::test]
 async fn an_upload_nobody_reported_is_reclaimed() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("an abandoned upload");
@@ -1358,6 +1408,7 @@ async fn an_upload_nobody_reported_is_reclaimed() {
 #[tokio::test]
 async fn an_upload_still_within_the_window_is_left_alone() {
     let bucket = bucket_or_skip!();
+    client_uploads_or_skip!(bucket);
     let _incoming = INCOMING.lock().await;
     let root = tempfile::tempdir().unwrap();
     let payload = payload("a slow upload");

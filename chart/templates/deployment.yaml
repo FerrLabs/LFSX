@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
-    {{- if eq .Values.storage.type "s3" }}
+    {{- if ne .Values.storage.type "local" }}
     type: RollingUpdate
     {{- else }}
     type: Recreate
@@ -20,6 +20,9 @@ spec:
     metadata:
       labels:
         {{- include "lfsx.selectorLabels" . | nindent 8 }}
+        {{- if and (eq .Values.storage.type "azure") .Values.storage.azure.workloadIdentity }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
@@ -81,6 +84,39 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.storage.s3.existingSecret }}
                   key: {{ .Values.storage.s3.secretKeyKey }}
+            {{- else if eq .Values.storage.type "azure" }}
+            - name: LFSX_STORAGE
+              value: azure
+            - name: LFSX_AZURE_ACCOUNT
+              value: {{ .Values.storage.azure.account | quote }}
+            - name: LFSX_AZURE_CONTAINER
+              value: {{ .Values.storage.azure.container | quote }}
+            {{- with .Values.storage.azure.endpoint }}
+            - name: LFSX_AZURE_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            - name: LFSX_S3_PRESIGN
+              value: {{ .Values.storage.azure.presign | quote }}
+            {{- if .Values.storage.azure.cacheDir }}
+            - name: LFSX_S3_CACHE_DIR
+              value: {{ .Values.storage.azure.cacheDir | quote }}
+            - name: LFSX_S3_CACHE_MAX_BYTES
+              value: {{ .Values.storage.azure.cacheMaxBytes | quote }}
+            {{- end }}
+            {{- with .Values.storage.azure.accountKeyKey }}
+            - name: LFSX_AZURE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.storage.azure.existingSecret }}
+                  key: {{ . }}
+            {{- end }}
+            {{- with .Values.storage.azure.sasTokenKey }}
+            - name: LFSX_AZURE_SAS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.storage.azure.existingSecret }}
+                  key: {{ . }}
+            {{- end }}
             {{- end }}
             {{- with (include "lfsx.publicUrl" .) }}
             - name: LFSX_PUBLIC_URL

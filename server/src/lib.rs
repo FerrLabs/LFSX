@@ -27,7 +27,7 @@ use crate::config::Config;
 use crate::locks::LockStore;
 use crate::metrics::Metrics;
 use crate::state::AppState;
-use crate::storage::s3::{Keyspace, S3Config, S3Keys, S3Store};
+use crate::storage::s3::{AzureConfig, AzureKeys, Keyspace, S3Config, S3Keys, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
@@ -109,6 +109,19 @@ pub async fn verify_presign(config: &mut Config) {
         return;
     };
 
+    let keys = match keys {
+        Keyspace::S3(keys) => keys,
+        Keyspace::Azure(keys) => {
+            if keys.signed_download("").is_none() {
+                tracing::warn!(
+                    "LFSX_S3_PRESIGN is set, and only an account key can sign a download URL on \
+                     Azure, so downloads keep coming through this server"
+                );
+            }
+            return;
+        }
+    };
+
     let refusal = match checksums(&keys).await {
         Checksums::Enforced => return,
         Checksums::Ignored => {
@@ -181,27 +194,44 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
         return None;
     };
 
-    let crate::config::Dialect::S3 {
-        endpoint,
-        bucket,
-        region,
-        access_key,
-        secret_key,
-        path_style,
-    } = dialect;
+    let lifetime = std::time::Duration::from_secs(config.action_lifetime.into());
 
-    Some(Keyspace::S3(
-        S3Keys::new(&S3Config {
-            endpoint: endpoint.clone(),
-            bucket: bucket.clone(),
-            region: region.clone(),
-            access_key: access_key.clone(),
-            secret_key: secret_key.clone(),
-            path_style: *path_style,
-            lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
-        })
-        .expect("the bucket configuration is not usable"),
-    ))
+    Some(match dialect {
+        crate::config::Dialect::S3 {
+            endpoint,
+            bucket,
+            region,
+            access_key,
+            secret_key,
+            path_style,
+        } => Keyspace::S3(
+            S3Keys::new(&S3Config {
+                endpoint: endpoint.clone(),
+                bucket: bucket.clone(),
+                region: region.clone(),
+                access_key: access_key.clone(),
+                secret_key: secret_key.clone(),
+                path_style: *path_style,
+                lifetime,
+            })
+            .expect("the bucket configuration is not usable"),
+        ),
+        crate::config::Dialect::Azure {
+            endpoint,
+            account,
+            container,
+            credential,
+        } => Keyspace::Azure(
+            AzureKeys::new(&AzureConfig {
+                endpoint: endpoint.clone(),
+                account: account.clone(),
+                container: container.clone(),
+                credential: credential.clone(),
+                lifetime,
+            })
+            .expect("the Azure container configuration is not usable"),
+        ),
+    })
 }
 
 fn backends(config: &Config) -> (Store, LockStore) {

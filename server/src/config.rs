@@ -74,11 +74,40 @@ pub enum Dialect {
         secret_key: String,
         path_style: bool,
     },
+    Azure {
+        endpoint: String,
+        account: String,
+        container: String,
+        credential: AzureCredential,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AzureCredential {
+    AccountKey(String),
+    Sas(String),
+    Identity,
+}
+
+fn azure_credential(key: Option<&str>, sas: Option<&str>) -> AzureCredential {
+    let key = key.filter(|key| !key.is_empty());
+    let sas = sas.filter(|sas| !sas.is_empty());
+
+    match (key, sas) {
+        (Some(_), Some(_)) => panic!(
+            "LFSX_AZURE_ACCOUNT_KEY and LFSX_AZURE_SAS_TOKEN are both set: pick one, or neither \
+             to authenticate with the pod's managed or workload identity"
+        ),
+        (Some(key), None) => AzureCredential::AccountKey(key.to_owned()),
+        (None, Some(sas)) => AzureCredential::Sas(sas.to_owned()),
+        (None, None) => AzureCredential::Identity,
+    }
 }
 
 impl Storage {
     fn from_env() -> Self {
-        if std::env::var("LFSX_STORAGE").as_deref() != Ok("s3") {
+        let kind = std::env::var("LFSX_STORAGE").unwrap_or_default();
+        if !matches!(kind.as_str(), "s3" | "azure") {
             return Self::Local;
         }
 
@@ -86,18 +115,36 @@ impl Storage {
             std::env::var(name)
                 .ok()
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| panic!("LFSX_STORAGE=s3 needs {name}"))
+                .unwrap_or_else(|| panic!("LFSX_STORAGE={kind} needs {name}"))
         };
 
-        Self::Bucket {
-            dialect: Dialect::S3 {
+        let dialect = if kind == "azure" {
+            let account = required("LFSX_AZURE_ACCOUNT");
+            Dialect::Azure {
+                endpoint: std::env::var("LFSX_AZURE_ENDPOINT")
+                    .ok()
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| format!("https://{account}.blob.core.windows.net")),
+                container: required("LFSX_AZURE_CONTAINER"),
+                credential: azure_credential(
+                    std::env::var("LFSX_AZURE_ACCOUNT_KEY").ok().as_deref(),
+                    std::env::var("LFSX_AZURE_SAS_TOKEN").ok().as_deref(),
+                ),
+                account,
+            }
+        } else {
+            Dialect::S3 {
                 endpoint: required("LFSX_S3_ENDPOINT"),
                 bucket: required("LFSX_S3_BUCKET"),
                 region: std::env::var("LFSX_S3_REGION").unwrap_or_else(|_| "us-east-1".into()),
                 access_key: required("LFSX_S3_ACCESS_KEY"),
                 secret_key: required("LFSX_S3_SECRET_KEY"),
                 path_style: std::env::var("LFSX_S3_PATH_STYLE").as_deref() != Ok("false"),
-            },
+            }
+        };
+
+        Self::Bucket {
+            dialect,
             presign: std::env::var("LFSX_S3_PRESIGN").as_deref() == Ok("true"),
             cache: disk_cache(
                 std::env::var("LFSX_S3_CACHE_DIR").ok().as_deref(),

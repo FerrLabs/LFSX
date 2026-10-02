@@ -221,3 +221,26 @@ fn an_encryption_key_comes_from_one_source() {
 fn two_key_sources_refuse_to_start() {
     encryption_key(Some("/etc/keys"), Some("vault kv get"));
 }
+
+#[test]
+fn an_azure_credential_comes_from_one_source_or_from_the_identity() {
+    assert_eq!(azure_credential(None, None), AzureCredential::Identity);
+    assert_eq!(
+        azure_credential(Some(""), Some("")),
+        AzureCredential::Identity
+    );
+    assert_eq!(
+        azure_credential(Some("a2V5"), None),
+        AzureCredential::AccountKey("a2V5".into())
+    );
+    assert_eq!(
+        azure_credential(None, Some("sv=2022-11-02&sig=x")),
+        AzureCredential::Sas("sv=2022-11-02&sig=x".into())
+    );
+}
+
+#[test]
+#[should_panic(expected = "both set")]
+fn an_account_key_and_a_sas_token_refuse_to_start() {
+    azure_credential(Some("a2V5"), Some("sv=2022-11-02&sig=x"));
+}

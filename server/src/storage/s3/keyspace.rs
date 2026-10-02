@@ -1,3 +1,4 @@
+pub(crate) mod azure;
 mod s3;
 
 use std::path::Path;
@@ -8,6 +9,7 @@ use futures_util::Stream;
 
 use crate::error::Error;
 
+pub use azure::{AzureConfig, AzureKeys};
 pub(crate) use s3::S3Keys;
 
 pub(crate) struct Listing {
@@ -45,24 +47,28 @@ pub struct Presigned {
 #[derive(Clone)]
 pub enum Keyspace {
     S3(S3Keys),
+    Azure(AzureKeys),
 }
 
 impl Keyspace {
     pub(crate) async fn reachable(&self) -> Result<(), Error> {
         match self {
             Self::S3(keys) => keys.reachable().await,
+            Self::Azure(keys) => keys.reachable().await,
         }
     }
 
     pub(crate) fn signed_download(&self, key: &str) -> Option<String> {
         match self {
             Self::S3(keys) => Some(keys.signed_download(key)),
+            Self::Azure(keys) => keys.signed_download(key),
         }
     }
 
     pub(crate) fn signed_upload(&self, key: &str, digest: &str) -> Option<Presigned> {
         match self {
             Self::S3(keys) => Some(keys.signed_upload(key, digest)),
+            Self::Azure(_) => None,
         }
     }
 
@@ -74,6 +80,7 @@ impl Keyspace {
     ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>> + use<>, Error> {
         let response = match self {
             Self::S3(keys) => keys.get_range(key, start, length).await?,
+            Self::Azure(keys) => keys.get_range(key, start, length).await?,
         };
 
         Ok(response.bytes_stream())
@@ -82,6 +89,7 @@ impl Keyspace {
     pub(crate) async fn head(&self, key: &str) -> Result<u64, Error> {
         match self {
             Self::S3(keys) => keys.head(key).await,
+            Self::Azure(keys) => keys.head(key).await,
         }
     }
 
@@ -90,42 +98,51 @@ impl Keyspace {
 
         match self {
             Self::S3(keys) => keys.put(key, reqwest::Body::from(body), length).await,
+            Self::Azure(keys) => keys.put(key, reqwest::Body::from(body), length).await,
         }
     }
 
     pub(crate) async fn put_file(&self, key: &str, staged: &Path) -> Result<(), Error> {
         match self {
             Self::S3(keys) => keys.put_file(key, staged).await,
+            Self::Azure(keys) => keys.put_file(key, staged).await,
         }
     }
 
     pub(crate) async fn copy(&self, from: &str, to: &str) -> Result<(), Error> {
         match self {
             Self::S3(keys) => keys.copy(from, to).await,
+            Self::Azure(_) => Err(Error::Storage(std::io::Error::other(
+                "this object store takes no client uploads, so it has nothing to copy",
+            ))),
         }
     }
 
     pub(crate) async fn put_if_absent(&self, key: &str, body: Vec<u8>) -> Result<bool, Error> {
         match self {
             Self::S3(keys) => keys.put_if_absent(key, body).await,
+            Self::Azure(keys) => keys.put_if_absent(key, body).await,
         }
     }
 
     pub(crate) async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
         match self {
             Self::S3(keys) => keys.get_bytes(key).await,
+            Self::Azure(keys) => keys.get_bytes(key).await,
         }
     }
 
     pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {
         match self {
             Self::S3(keys) => keys.delete(key).await,
+            Self::Azure(keys) => keys.delete(key).await,
         }
     }
 
     pub(crate) async fn entries(&self, prefix: &str) -> Result<Vec<Entry>, Error> {
         match self {
             Self::S3(keys) => keys.entries(prefix).await,
+            Self::Azure(keys) => keys.entries(prefix).await,
         }
     }
 

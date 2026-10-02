@@ -19,7 +19,7 @@ use crate::oid::Oid;
 use crate::storage::Reclaimed;
 
 pub(crate) use keyspace::S3Keys;
-pub use keyspace::{Keyspace, Presigned};
+pub use keyspace::{AzureConfig, AzureKeys, Keyspace, Presigned};
 
 // Enough to hide the round trips a bucket charges for without becoming a burst
 // the store answers with 503, and the same figure the batch endpoint settled on

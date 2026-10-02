@@ -1,6 +1,6 @@
 use base64::Engine;
 
-use super::keyspace::Keyspace;
+use super::keyspace::{Keyspace, S3Keys};
 use crate::error::Error;
 
 // Does this store actually refuse a body that does not match the checksum its
@@ -60,9 +60,9 @@ fn wrong_digest() -> String {
     base64::engine::general_purpose::STANDARD.encode([0u8; 32])
 }
 
-pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
+pub(crate) async fn checksums(s3: &S3Keys) -> Checksums {
     let key = probe_key("checksum");
-    let Keyspace::S3(s3) = keys;
+    let keys = Keyspace::S3(s3.clone());
     let signed = s3.signed_upload(&key, &wrong_digest());
 
     let mut request = s3.client().put(&signed.href).body(BODY.to_vec());
@@ -85,14 +85,14 @@ pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
         Err(Error::NotFound) => Checksums::Enforced,
         Err(error) => {
             tracing::warn!(%error, "the object store could not say whether it kept the probe");
-            discard(keys, &key).await;
+            discard(&keys, &key).await;
             Checksums::Unknown
         }
         Ok(_) => {
             // They landed. This store took a body that does not hash to the
             // digest its own signature named, so nothing stops a client doing the
             // same with a digest somebody else's repository will later claim.
-            discard(keys, &key).await;
+            discard(&keys, &key).await;
             Checksums::Ignored
         }
     }
