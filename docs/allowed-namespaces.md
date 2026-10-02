@@ -26,10 +26,13 @@ walking repository names spends none of the [lookup budget](configuration.md).
 
 The server logs a warning at boot when it talks to a forge and no list is set.
 
+The [dashboard](dashboard.md) can change the list without a restart. What it saves takes precedence
+over `LFSX_ALLOWED` until it is reset.
+
 ## Doing it in the reverse proxy instead
 
 It works, and it is the right place if the proxy already filters by path. The server answers on
-`/health`, `/ready`, `/metrics` and under `/{org}/{repo}/` and nowhere else, so allowing the first
-three and the prefixes you want, and refusing the rest, is the whole rule. Match the organisation
+`/health`, `/ready`, `/metrics`, under `/-/` when the [dashboard](dashboard.md) is on, and under
+`/{org}/{repo}/` and nowhere else, so allowing the first three, `/-/` and the prefixes you want, and refusing the rest, is the whole rule. Match the organisation
 without regard to case, since the forge does. `LFSX_ALLOWED` does the same thing without needing
 the proxy to know the URL layout, and keeps working if a route is ever added.

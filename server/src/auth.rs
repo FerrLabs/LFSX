@@ -8,6 +8,7 @@ mod gitlab;
 mod namespaces;
 
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use axum::extract::{Path, Request, State};
 use axum::http::HeaderMap;
@@ -46,6 +47,16 @@ impl Permission {
     }
 }
 
+// What decides who reaches which repository, beyond what the forge answers. Held
+// behind a lock rather than fixed at boot, so the dashboard can change it on a
+// running server and every request after sees the new rules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Access {
+    pub anonymous_read: bool,
+    pub restricted: Namespaces,
+    pub allowed: Option<Namespaces>,
+}
+
 pub enum Authorizer {
     Forge {
         provider: Provider,
@@ -60,12 +71,7 @@ pub enum Authorizer {
         // makes it a ceiling on forge traffic rather than on requests: a push of
         // two hundred objects under one token costs one.
         budget: Budget,
-        anonymous_read: bool,
-        // Namespaces whose objects take write access to read. The forge answer
-        // stays the ceiling, this is a floor underneath it that a public
-        // repository's `pull: true` cannot reach.
-        restricted: Namespaces,
-        allowed: Option<Box<Namespaces>>,
+        access: Arc<RwLock<Access>>,
         app: Option<Box<github::app::App>>,
     },
     Disabled,
@@ -98,9 +104,11 @@ impl Authorizer {
                 cache: Box::new(Cache::new(*cache_ttl, *rejection_ttl)),
                 identities: IdentityCache::new(*cache_ttl),
                 budget: Budget::new(*lookup_budget),
-                anonymous_read: *anonymous_read,
-                restricted: restricted.clone(),
-                allowed: allowed.clone().map(Box::new),
+                access: Arc::new(RwLock::new(Access {
+                    anonymous_read: *anonymous_read,
+                    restricted: restricted.clone(),
+                    allowed: allowed.clone(),
+                })),
                 app: github_app.as_ref().map(|configured| {
                     Box::new(github::app::App::load(
                         &configured.app_id,
@@ -112,17 +120,52 @@ impl Authorizer {
         }
     }
 
+    pub fn access(&self) -> Option<Access> {
+        match self {
+            Self::Forge { access, .. } => Some(access.read().unwrap().clone()),
+            Self::Disabled => None,
+        }
+    }
+
+    pub fn set_access(&self, replacement: Access) {
+        if let Self::Forge { access, .. } = self {
+            *access.write().unwrap() = replacement;
+        }
+    }
+
+    pub(crate) async fn permission(
+        &self,
+        headers: &HeaderMap,
+        ns: &Namespace,
+    ) -> Result<Permission, Error> {
+        self.served(ns)?;
+        self.forge_permission(headers, ns).await
+    }
+
+    fn served(&self, ns: &Namespace) -> Result<(), Error> {
+        let Self::Forge { access, .. } = self else {
+            return Ok(());
+        };
+
+        match &access.read().unwrap().allowed {
+            Some(allowed) if !allowed.covers(ns) => Err(Error::NotServed),
+            _ => Ok(()),
+        }
+    }
+
     #[tracing::instrument(skip_all, fields(namespace = %ns))]
-    async fn permission(&self, headers: &HeaderMap, ns: &Namespace) -> Result<Permission, Error> {
+    pub(crate) async fn forge_permission(
+        &self,
+        headers: &HeaderMap,
+        ns: &Namespace,
+    ) -> Result<Permission, Error> {
         let Self::Forge {
             provider,
             client,
             api_url,
             cache,
             budget,
-            anonymous_read,
-            restricted,
-            allowed,
+            access,
             app,
             ..
         } = self
@@ -130,11 +173,10 @@ impl Authorizer {
             return Ok(Permission::Admin);
         };
 
-        if allowed.as_ref().is_some_and(|allowed| !allowed.covers(ns)) {
-            return Err(Error::NotServed);
-        }
-
-        let writers_only = restricted.covers(ns);
+        let (anonymous_read, writers_only) = {
+            let access = access.read().unwrap();
+            (access.anonymous_read, access.restricted.covers(ns))
+        };
         let decided = |outcome: Result<Permission, Error>| {
             if writers_only {
                 let permission = outcome?;
@@ -155,7 +197,7 @@ impl Authorizer {
             // repositories: a 403 tells git-lfs the answer is final and it stops
             // asking the credential helper, so the caller who does hold write
             // access could never present it.
-            if !*anonymous_read || writers_only {
+            if !anonymous_read || writers_only {
                 return Err(Error::Unauthenticated);
             }
 

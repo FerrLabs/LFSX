@@ -89,6 +89,18 @@ impl S3Store {
         format!("{}/{}/", ns.org(), ns.repo())
     }
 
+    pub(crate) async fn read_meta(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
+        self.keys.get_bytes(key).await
+    }
+
+    pub(crate) async fn write_meta(&self, key: &str, bytes: Vec<u8>) -> Result<(), Error> {
+        self.keys.put(key, bytes).await
+    }
+
+    pub(crate) async fn delete_meta(&self, key: &str) -> Result<(), Error> {
+        self.keys.delete(key).await.map(|_| ())
+    }
+
     pub async fn reachable(&self) -> Result<(), Error> {
         self.keys.reachable().await
     }

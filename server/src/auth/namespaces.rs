@@ -45,8 +45,40 @@ impl Namespaces {
         Self(patterns)
     }
 
+    pub fn from_entries(entries: &[String]) -> Result<Self, Vec<String>> {
+        let mut patterns = Vec::new();
+        let mut unreadable = Vec::new();
+
+        for entry in entries.iter().map(|entry| entry.trim()) {
+            if entry.is_empty() {
+                continue;
+            }
+            match Pattern::parse(entry) {
+                Some(pattern) => patterns.push(pattern),
+                None => unreadable.push(entry.to_owned()),
+            }
+        }
+
+        if unreadable.is_empty() {
+            Ok(Self(patterns))
+        } else {
+            Err(unreadable)
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn entries(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .map(|pattern| match &pattern.repo {
+                Repo::Any => format!("{}/*", pattern.org),
+                Repo::Prefix(prefix) => format!("{}/{prefix}*", pattern.org),
+                Repo::Exact(repo) => format!("{}/{repo}", pattern.org),
+            })
+            .collect()
     }
 
     pub fn covers(&self, ns: &Namespace) -> bool {

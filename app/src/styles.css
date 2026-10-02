@@ -1,0 +1,84 @@
+@import '@ferrlabs/ui-foundation/styles/global.css';
+
+@import '@fontsource/archivo/400.css';
+@import '@fontsource/archivo/500.css';
+@import '@fontsource/archivo/600.css';
+@import '@fontsource/archivo/700.css';
+
+:root {
+  color-scheme: light;
+
+  --font-sans: 'Archivo', system-ui, sans-serif;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --accent: #1d6b52;
+  --color-accent: #1d6b52;
+  --accent-soft: #e3f1eb;
+  --chart: #1d6b52;
+  --bad: #b42318;
+
+  --color-paper: #f5f7f6;
+  --color-paper-2: #ffffff;
+  --color-card: #ffffff;
+  --color-surface: #ffffff;
+  --color-card-rule: rgba(23, 32, 28, 0.08);
+
+  --color-ink: #17201c;
+  --color-ink-2: #4a5852;
+  --color-ink-3: #6f7c76;
+
+  --color-rule: rgba(23, 32, 28, 0.1);
+  --color-rule-strong: rgba(23, 32, 28, 0.2);
+
+  --color-app-bg: #f5f7f6;
+  --color-app-bg-2: #ffffff;
+  --color-app-sidebar: #ffffff;
+  --color-app-rule: rgba(23, 32, 28, 0.08);
+  --color-app-rule-strong: rgba(23, 32, 28, 0.18);
+  --color-app-nav-active: #d8ece3;
+  --color-app-nav-hover: rgba(23, 32, 28, 0.04);
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --accent: #5cc79f;
+  --color-accent: #26805f;
+  --accent-soft: rgba(92, 199, 159, 0.14);
+  --chart: #5cc79f;
+  --bad: #f97066;
+
+  --color-paper: #0e1311;
+  --color-paper-2: #161d1a;
+  --color-card: #161d1a;
+  --color-surface: #161d1a;
+  --color-card-rule: rgba(230, 238, 234, 0.08);
+
+  --color-ink: #e6eeea;
+  --color-ink-2: #b3c0ba;
+  --color-ink-3: #85938d;
+
+  --color-rule: rgba(230, 238, 234, 0.1);
+  --color-rule-strong: rgba(230, 238, 234, 0.2);
+
+  --color-app-bg: #0e1311;
+  --color-app-bg-2: #161d1a;
+  --color-app-sidebar: #121815;
+  --color-app-rule: rgba(230, 238, 234, 0.08);
+  --color-app-rule-strong: rgba(230, 238, 234, 0.18);
+  --color-app-nav-active: rgba(92, 199, 159, 0.14);
+  --color-app-nav-hover: rgba(230, 238, 234, 0.05);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}

@@ -1,6 +1,7 @@
 pub(crate) mod audit;
 pub mod auth;
 pub mod config;
+pub mod console;
 pub mod dashboard;
 pub mod error;
 #[cfg(feature = "fuzzing")]
@@ -59,14 +60,21 @@ pub fn app(config: Config) -> Router {
     let transfers = (config.max_concurrent_transfers > 0)
         .then(|| Arc::new(tokio::sync::Semaphore::new(config.max_concurrent_transfers)));
 
-    routes::router(Arc::new(AppState {
+    let state = Arc::new(AppState {
         store,
         locks,
         config,
         authorizer,
         metrics: Metrics::new(),
         transfers,
-    }))
+        started: std::time::Instant::now(),
+    });
+
+    if state.config.dashboard.is_some() && tokio::runtime::Handle::try_current().is_ok() {
+        console::start(state.clone());
+    }
+
+    routes::router(state)
 }
 
 // Everything an interrupted upload left behind, wherever it left it: a staging

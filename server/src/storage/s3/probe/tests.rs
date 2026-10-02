@@ -55,6 +55,7 @@ async fn a_store_that_cannot_be_asked_is_not_trusted() {
 fn presigning(endpoint: &str) -> crate::config::Config {
     crate::config::Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        dashboard: None,
         storage_root: std::path::PathBuf::from("."),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,

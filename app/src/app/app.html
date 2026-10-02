@@ -1,0 +1,72 @@
+@if (current() === 'sign-in') {
+  <router-outlet />
+} @else {
+  <div class="layout" [class.collapsed]="collapsed()">
+    <flr-sidebar navLabel="Dashboard" [collapsed]="collapsed()" (collapsedChange)="collapse($event)">
+      <div sidebar-brand class="brand">
+        <lfsx-logo [wordmark]="!collapsed()" />
+      </div>
+      <flr-sidebar-section>
+        <flr-sidebar-item
+          label="Overview"
+          [collapsed]="collapsed()"
+          [active]="current() === 'overview'"
+          (selected)="go('overview')"
+        >
+          <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="2" y="2" width="5" height="5" rx="1" />
+            <rect x="9" y="2" width="5" height="5" rx="1" />
+            <rect x="2" y="9" width="5" height="5" rx="1" />
+            <rect x="9" y="9" width="5" height="5" rx="1" />
+          </svg>
+        </flr-sidebar-item>
+        <flr-sidebar-item
+          label="Settings"
+          [collapsed]="collapsed()"
+          [active]="current() === 'settings'"
+          (selected)="go('settings')"
+        >
+          <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M2 4h7M12 4h2M2 12h3M8 12h6" stroke-linecap="round" />
+            <circle cx="10.5" cy="4" r="1.5" />
+            <circle cx="6.5" cy="12" r="1.5" />
+          </svg>
+        </flr-sidebar-item>
+      </flr-sidebar-section>
+      <div sidebar-footer class="footer">
+        <flr-sidebar-item
+          [label]="theme.mode() === 'dark' ? 'Light mode' : 'Dark mode'"
+          [collapsed]="collapsed()"
+          (selected)="theme.toggle()"
+        >
+          @if (theme.mode() === 'dark') {
+            <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="8" cy="8" r="3" />
+              <path
+                d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"
+                stroke-linecap="round"
+              />
+            </svg>
+          } @else {
+            <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z" stroke-linejoin="round" />
+            </svg>
+          }
+        </flr-sidebar-item>
+        @if (session.token()) {
+          <flr-sidebar-item label="Sign out" [collapsed]="collapsed()" (selected)="signOut()">
+            <svg item-icon viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M6 3H3v10h3M10 5l3 3-3 3M13 8H6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </flr-sidebar-item>
+        }
+        <div class="collapse">
+          <flr-rail-toggle [collapsed]="collapsed()" (collapsedChange)="collapse($event)" />
+        </div>
+      </div>
+    </flr-sidebar>
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+}

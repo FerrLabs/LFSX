@@ -18,6 +18,7 @@ pub struct AppState {
     // transfer keeps bytes moving, which for a download means as long as the
     // client keeps reading the body, so the permit travels with the stream.
     pub transfers: Option<Arc<Semaphore>>,
+    pub started: std::time::Instant,
 }
 
 impl AppState {

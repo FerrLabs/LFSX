@@ -49,11 +49,19 @@ pub fn router(state: Shared) -> Router {
             auth::authorize,
         ));
 
+    let console = state
+        .config
+        .dashboard
+        .as_ref()
+        .map(|dashboard| crate::console::router(&dashboard.dir))
+        .unwrap_or_default();
+
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/ready", get(ready))
         .route("/metrics", get(scrape))
         .merge(objects)
+        .merge(console)
         .layer(middleware::from_fn_with_state(
             state.clone(),
             metrics::record,

@@ -493,5 +493,7 @@ impl Store {
     }
 }
 
+mod meta;
+
 #[cfg(test)]
 mod tests;
