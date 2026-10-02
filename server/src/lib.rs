@@ -27,7 +27,7 @@ use crate::config::Config;
 use crate::locks::LockStore;
 use crate::metrics::Metrics;
 use crate::state::AppState;
-use crate::storage::s3::{Keyspace, S3Config, S3Store};
+use crate::storage::s3::{Keyspace, S3Config, S3Keys, S3Store};
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
@@ -177,21 +177,21 @@ pub async fn verify_locking(config: &mut Config) {
 }
 
 fn keyspace(config: &Config) -> Option<Keyspace> {
-    let crate::config::Storage::Bucket {
+    let crate::config::Storage::Bucket { dialect, .. } = &config.storage else {
+        return None;
+    };
+
+    let crate::config::Dialect::S3 {
         endpoint,
         bucket,
         region,
         access_key,
         secret_key,
         path_style,
-        ..
-    } = &config.storage
-    else {
-        return None;
-    };
+    } = dialect;
 
-    Some(
-        Keyspace::new(&S3Config {
+    Some(Keyspace::S3(
+        S3Keys::new(&S3Config {
             endpoint: endpoint.clone(),
             bucket: bucket.clone(),
             region: region.clone(),
@@ -201,7 +201,7 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
             lifetime: std::time::Duration::from_secs(config.action_lifetime.into()),
         })
         .expect("the bucket configuration is not usable"),
-    )
+    ))
 }
 
 fn backends(config: &Config) -> (Store, LockStore) {

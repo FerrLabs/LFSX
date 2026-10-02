@@ -8,7 +8,7 @@ use axum::response::IntoResponse;
 use axum::routing::any;
 
 use super::*;
-use crate::storage::s3::tests::keyspace;
+use crate::storage::s3::tests::s3_keys;
 
 #[derive(Default)]
 struct Store {
@@ -138,7 +138,7 @@ async fn an_object_goes_up_in_parts_and_the_store_puts_it_back_together() {
     let payload: Vec<u8> = (0..40_000u32).flat_map(u32::to_le_bytes).collect();
     let (_root, path) = staged(&payload).await;
     let (endpoint, store) = bucket(None).await;
-    let keys = keyspace(&endpoint);
+    let keys = s3_keys(&endpoint);
 
     let upload = begin(&keys, KEY).await.unwrap();
     let etags = parts(&keys, KEY, &upload, &path, payload.len() as u64, 50_000)
@@ -169,7 +169,7 @@ async fn a_failed_part_aborts_the_upload() {
     let (endpoint, store) = bucket(Some(3)).await;
 
     let failed = put_in_parts(
-        &keyspace(&endpoint),
+        &s3_keys(&endpoint),
         KEY,
         &path,
         payload.len() as u64,

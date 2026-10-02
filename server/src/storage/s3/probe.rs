@@ -1,6 +1,5 @@
 use base64::Engine;
 
-use super::CHECKSUM;
 use super::keyspace::Keyspace;
 use crate::error::Error;
 
@@ -63,9 +62,10 @@ fn wrong_digest() -> String {
 
 pub(crate) async fn checksums(keys: &Keyspace) -> Checksums {
     let key = probe_key("checksum");
-    let signed = keys.signed_upload(&key, vec![(CHECKSUM.to_owned(), wrong_digest())]);
+    let Keyspace::S3(s3) = keys;
+    let signed = s3.signed_upload(&key, &wrong_digest());
 
-    let mut request = keys.client().put(&signed.href).body(BODY.to_vec());
+    let mut request = s3.client().put(&signed.href).body(BODY.to_vec());
     for (name, value) in &signed.headers {
         request = request.header(name, value);
     }

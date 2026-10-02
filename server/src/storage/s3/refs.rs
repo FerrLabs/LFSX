@@ -38,8 +38,7 @@ pub(crate) async fn ready(keys: &Keyspace) -> bool {
 }
 
 pub(crate) async fn write(keys: &Keyspace, ns: &Namespace, oid: &Oid) -> Result<(), Error> {
-    keys.put(&key(ns, oid), reqwest::Body::from(Vec::new()), 0)
-        .await
+    keys.put(&key(ns, oid), Vec::new()).await
 }
 
 // Answered by listing a prefix that holds one key per holder.
@@ -103,7 +102,7 @@ pub(crate) async fn backfill(keys: &Keyspace, markers: &[String]) -> Result<(), 
     // lifetime it was built with, and axum needs one that is Send for any.
     let mut writes = futures_util::stream::iter(refs.into_iter().map(|key| {
         let keys = keys.clone();
-        async move { keys.put(&key, reqwest::Body::from(Vec::new()), 0).await }
+        async move { keys.put(&key, Vec::new()).await }
     }))
     .buffer_unordered(CONCURRENCY);
 
@@ -111,5 +110,5 @@ pub(crate) async fn backfill(keys: &Keyspace, markers: &[String]) -> Result<(), 
         written?;
     }
 
-    keys.put(COMPLETE, reqwest::Body::from(Vec::new()), 0).await
+    keys.put(COMPLETE, Vec::new()).await
 }

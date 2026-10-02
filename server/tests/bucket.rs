@@ -131,12 +131,14 @@ fn bucket_config(
         compression,
         encryption_key,
         storage: Storage::Bucket {
-            endpoint: bucket.endpoint.clone(),
-            bucket: bucket.bucket.clone(),
-            region: "us-east-1".into(),
-            access_key: bucket.access_key.clone(),
-            secret_key: bucket.secret_key.clone(),
-            path_style: true,
+            dialect: lfsx_server::config::Dialect::S3 {
+                endpoint: bucket.endpoint.clone(),
+                bucket: bucket.bucket.clone(),
+                region: "us-east-1".into(),
+                access_key: bucket.access_key.clone(),
+                secret_key: bucket.secret_key.clone(),
+                path_style: true,
+            },
             presign,
             cache: None,
             locking: true,
@@ -275,22 +277,12 @@ async fn a_cached_download_is_the_same_download() {
         lfsx_server::app(Config {
             storage: match bucket_config(&root, &bucket, false, None, None, false).storage {
                 Storage::Bucket {
-                    endpoint,
-                    bucket,
-                    region,
-                    access_key,
-                    secret_key,
-                    path_style,
+                    dialect,
                     presign,
                     locking,
                     ..
                 } => Storage::Bucket {
-                    endpoint,
-                    bucket,
-                    region,
-                    access_key,
-                    secret_key,
-                    path_style,
+                    dialect,
                     presign,
                     cache: Some(lfsx_server::config::DiskCache {
                         dir: cache.clone(),
