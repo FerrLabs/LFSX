@@ -440,6 +440,17 @@ impl Auth {
                      to ask, every repository is served"
                 );
             }
+            if !Namespaces::parse(
+                "LFSX_RESTRICTED",
+                std::env::var("LFSX_RESTRICTED").ok().as_deref(),
+            )
+            .is_empty()
+            {
+                tracing::warn!(
+                    "LFSX_RESTRICTED is set and LFSX_AUTH=disabled, so it does nothing: every \
+                     caller already holds every right"
+                );
+            }
             return Self::Disabled;
         }
 
