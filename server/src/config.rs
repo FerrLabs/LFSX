@@ -434,6 +434,12 @@ impl Auth {
             tracing::warn!(
                 "LFSX_AUTH=disabled: every request is accepted, run this on a trusted network only"
             );
+            if allowed(std::env::var("LFSX_ALLOWED").ok().as_deref()).is_some() {
+                tracing::warn!(
+                    "LFSX_ALLOWED is set and LFSX_AUTH=disabled, so it does nothing: with no forge \
+                     to ask, every repository is served"
+                );
+            }
             return Self::Disabled;
         }
 

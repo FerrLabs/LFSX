@@ -62,6 +62,9 @@ auth:
   # can keep its assets to whoever could push them. Entries are org/repo,
   # org/prefix-* or org/*. Empty serves every repository what the forge grants.
   restricted: []
+  # Repositories this server serves, same syntax; anything else is a 404. Empty
+  # serves every repository on the forge, which on a public one means anybody
+  # can store objects here.
   allowed: []
   githubApiUrl: https://api.github.com
   gitlabApiUrl: https://gitlab.com/api/v4
