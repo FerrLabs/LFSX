@@ -4,6 +4,13 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.1] - 2026-10-02
+
+### Features
+
+- feat(storage): add a Google Cloud Storage backend (#486)
+- feat(storage): add an Azure Blob Storage backend (#484)
+
 ## [2026.9.19] - 2026-09-25
 
 ### Bug Fixes

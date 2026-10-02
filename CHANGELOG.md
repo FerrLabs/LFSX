@@ -4,6 +4,13 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.19.0] - 2026-10-02
+
+### Features
+
+- feat(storage): add a Google Cloud Storage backend (#486)
+- feat(storage): add an Azure Blob Storage backend (#484)
+
 ## [1.18.2] - 2026-10-02
 
 ### Refactoring
