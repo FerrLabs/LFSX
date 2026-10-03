@@ -298,3 +298,30 @@ async fn an_emulator_is_asked_with_no_credentials() {
 
     assert_eq!(bucket.lock().unwrap().authorizations, vec![None]);
 }
+
+#[test]
+fn a_credentials_file_that_cannot_serve_refuses_to_start() {
+    let missing = Credential::new(&GcsCredential::ServiceAccount(
+        tempfile::tempdir().unwrap().path().join("absent.json"),
+    ));
+    assert!(
+        matches!(missing, Err(Error::Misconfigured(message)) if message.contains("cannot be read")),
+        "a Secret that failed to mount should stop the server at boot"
+    );
+
+    assert!(matches!(
+        ServiceAccount::from_json("{\"type\": \"authorized_user\"}"),
+        Err(Error::Misconfigured(message)) if message.contains("not a service account key file")
+    ));
+
+    let unusable = serde_json::json!({
+        "client_email": "lfsx@project.iam.gserviceaccount.com",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nnot a key\n-----END PRIVATE KEY-----\n",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    })
+    .to_string();
+    assert!(matches!(
+        ServiceAccount::from_json(&unusable),
+        Err(Error::Misconfigured(message)) if message.contains("no usable RSA key")
+    ));
+}
