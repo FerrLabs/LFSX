@@ -147,6 +147,16 @@ async fn a_token_lookup_tells_a_refusal_from_a_broken_forge() {
             "{status}"
         );
     }
+    let (api, _) = forge(
+        StatusCode::TOO_MANY_REQUESTS,
+        vec![("retry-after", "7")],
+        "{}",
+    )
+    .await;
+    assert!(matches!(
+        permission(&reqwest::Client::new(), &api, "a-token", &namespace()).await,
+        Err(Error::RateLimited { retry_after: 7 })
+    ));
     assert!(matches!(
         with_token(StatusCode::BAD_GATEWAY, "{}").await,
         Err(Error::Forge)

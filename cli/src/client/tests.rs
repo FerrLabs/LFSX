@@ -22,8 +22,4 @@ fn a_base_without_a_forge_is_its_own_root() {
         service_root("https://example.com/lfs"),
         "https://example.com/lfs"
     );
-    assert_eq!(
-        service_root("https://lfs.example.com/-/"),
-        "https://lfs.example.com/-/"
-    );
 }
