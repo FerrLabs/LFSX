@@ -59,7 +59,7 @@ function rows(settings: Configured): readonly Row[] {
       name: `Forge under /-/${forge.name}/`,
       variable: `LFSX_FORGE_${forge.name.toUpperCase().replaceAll('-', '_')}_*`,
       value: `${forge.auth} at ${forge.api_url}, ${
-        forge.allowed === null ? 'every repository' : forge.allowed.join(', ')
+        forge.allowed === null ? 'every repository' : forge.allowed.join(', ') || 'nothing'
       }`,
       on: null,
     })),

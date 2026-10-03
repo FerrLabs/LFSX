@@ -84,7 +84,7 @@ auth:
   # could not answer. 0 removes the ceiling.
   lookupBudget: 600
   # More forges, each served under /-/<name>/<org>/<repo>. Entries take name,
-  # mode (github, gitlab, gitea), apiUrl, allowed, restricted and
+  # mode (github, gitlab, gitea, forgejo), apiUrl, allowed, restricted and
   # anonymousRead, with the meaning they have above for the main forge.
   forges: []
 
