@@ -127,3 +127,15 @@ fn a_pages_worth_of_locks_carries_no_summary_row() {
     assert!(page.contains("Assets/049.unity"));
     assert!(!page.contains("more, list them"), "{page}");
 }
+
+#[test]
+fn a_repository_on_a_named_forge_is_titled_as_its_forge_knows_it() {
+    let page = render(&Overview {
+        namespace: Namespace::on("work", "FerrLabs", "Blastlands").unwrap(),
+        ..overview(Vec::new())
+    });
+
+    assert!(page.contains("<title>FerrLabs/Blastlands (work) | LFSX</title>"));
+    assert!(page.contains("<h1>FerrLabs/Blastlands (work)</h1>"));
+    assert!(!page.contains("work~"));
+}

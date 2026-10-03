@@ -21,6 +21,7 @@ pub fn render(overview: &Overview) -> String {
         lock_max_age,
         writable,
     } = overview;
+    let name = title(namespace);
 
     format!(
         r#"<!doctype html>
@@ -28,12 +29,12 @@ pub fn render(overview: &Overview) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{namespace} | LFSX</title>
+<title>{name} | LFSX</title>
 <style>{STYLE}</style>
 </head>
 <body>
 <main>
-<h1>{namespace}</h1>
+<h1>{name}</h1>
 <dl>
 <div><dt>Objects</dt><dd>{objects}</dd></div>
 <div><dt>On disk</dt><dd>{}</dd></div>
@@ -61,6 +62,13 @@ pub fn render(overview: &Overview) -> String {
 // opened it, and a thousand rows answer no question the first fifty and a
 // count do not.
 const LOCKS_SHOWN: usize = 50;
+
+fn title(namespace: &Namespace) -> String {
+    match namespace.forge() {
+        Some(forge) => format!("{} ({forge})", namespace.upstream()),
+        None => namespace.upstream(),
+    }
+}
 
 fn locks_table(locks: &[Lock], max_age: Option<Duration>) -> String {
     if locks.is_empty() {
