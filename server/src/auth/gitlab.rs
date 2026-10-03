@@ -86,7 +86,7 @@ pub async fn public(
     api_url: &str,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/projects/{}", urlencoding(&ns.to_string()));
+    let url = format!("{api_url}/projects/{}", urlencoding(&ns.upstream()));
 
     let response = crate::telemetry::propagated(client.get(&url))
         .send()

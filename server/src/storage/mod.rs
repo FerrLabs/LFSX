@@ -214,7 +214,7 @@ impl LocalStore {
     fn object_path(&self, ns: &Namespace, oid: &Oid) -> PathBuf {
         let (first, second) = oid.fanout();
         self.root
-            .join(ns.org())
+            .join(ns.stored_org())
             .join(ns.repo())
             .join(first)
             .join(second)

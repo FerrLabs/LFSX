@@ -224,11 +224,16 @@ async fn resolve_upload(
     }
 }
 
+#[derive(serde::Deserialize)]
+pub(super) struct ObjectPath {
+    oid: String,
+}
+
 pub(super) async fn upload(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
-    Path((.., oid)): Path<(String, String, String)>,
+    Path(ObjectPath { oid }): Path<ObjectPath>,
     headers: axum::http::HeaderMap,
     body: Body,
 ) -> Result<StatusCode, Error> {
@@ -273,7 +278,7 @@ pub(super) async fn upload(
 pub(super) async fn download(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
-    Path((.., oid)): Path<(String, String, String)>,
+    Path(ObjectPath { oid }): Path<ObjectPath>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Error> {
     let transfer = state.transfer_permit()?;
@@ -392,7 +397,7 @@ pub(super) async fn verify(
     // never crossed this server, which is why lfsx_uploaded_bytes does not move:
     // counting a figure nothing here measured would make that counter mean two
     // different things.
-    let crate::auth::Actor(actor) = state.authorizer.actor(&headers).await?;
+    let crate::auth::Actor(actor) = state.authorizer_for(&ns)?.actor(&headers).await?;
     state.store.adopt(&ns, &oid, arrived).await?;
     state.metrics.object_size.observe(arrived as f64);
 

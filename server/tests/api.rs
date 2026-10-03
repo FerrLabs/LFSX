@@ -15,6 +15,7 @@ fn app_with_grace(root: &tempfile::TempDir, gc_grace: std::time::Duration) -> Ro
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: root.path().to_path_buf(),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
@@ -448,6 +449,7 @@ async fn a_storage_root_that_cannot_be_written_fails_readiness_but_not_liveness(
     let app = lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: blocked.join("objects"),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
@@ -502,6 +504,7 @@ async fn transfers_are_advertised_on_the_host_the_client_asked_for() {
     let app = lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: root.path().to_path_buf(),
         public_url: None,
         action_lifetime: 1800,

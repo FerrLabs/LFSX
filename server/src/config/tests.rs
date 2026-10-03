@@ -109,6 +109,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: PathBuf::from("."),
         public_url: None,
         action_lifetime: 1800,
@@ -187,6 +188,7 @@ fn a_configured_public_url_wins() {
         public_url: Some("https://lfs.example.com".into()),
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: PathBuf::from("."),
         action_lifetime: 1800,
         gc_grace: Duration::ZERO,
@@ -260,10 +262,10 @@ fn gcs_asks_the_metadata_server_unless_given_a_key_file_or_told_none() {
 
 #[test]
 fn an_allow_list_is_only_in_force_when_something_is_listed() {
-    assert_eq!(allowed(None), None);
-    assert_eq!(allowed(Some("  ")), None);
+    assert_eq!(allowed("LFSX_ALLOWED", None), None);
+    assert_eq!(allowed("LFSX_ALLOWED", Some("  ")), None);
     assert!(
-        allowed(Some("not-a-namespace")).is_some_and(|allowed| allowed.is_empty()),
+        allowed("LFSX_ALLOWED", Some("not-a-namespace")).is_some_and(|allowed| allowed.is_empty()),
         "a list that parsed to nothing serves nothing, rather than falling open to every repository"
     );
 }

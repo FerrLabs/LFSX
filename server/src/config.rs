@@ -8,6 +8,10 @@ use crate::auth::Namespaces;
 use crate::model::Action;
 use crate::namespace::Namespace;
 
+mod forges;
+
+pub use forges::Forge;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind: SocketAddr,
@@ -37,6 +41,7 @@ pub struct Config {
     pub storage: Storage,
     pub auth: Auth,
     pub dashboard: Option<Dashboard>,
+    pub forges: Vec<Forge>,
 }
 
 #[derive(Debug, Clone)]
@@ -398,9 +403,18 @@ impl Config {
             ),
             storage: Storage::from_env(),
             dashboard: None,
+            forges: Vec::new(),
             auth: Auth::from_env(),
         }
         .with_dashboard()
+        .with_forges()
+    }
+
+    fn with_forges(self) -> Self {
+        Self {
+            forges: forges::from_env(&self.auth),
+            ..self
+        }
     }
 
     fn with_dashboard(self) -> Self {
@@ -443,11 +457,11 @@ impl Config {
     }
 
     pub fn object_url(&self, base: &str, ns: &Namespace, oid: &str) -> String {
-        format!("{base}/{ns}/objects/{oid}")
+        format!("{base}/{}/objects/{oid}", ns.url_path())
     }
 
     pub fn verify_url(&self, base: &str, ns: &Namespace) -> String {
-        format!("{base}/{ns}/objects/verify")
+        format!("{base}/{}/objects/verify", ns.url_path())
     }
 
     pub fn action(&self, href: String) -> Action {
@@ -520,7 +534,10 @@ impl Auth {
                 "LFSX_RESTRICTED",
                 std::env::var("LFSX_RESTRICTED").ok().as_deref(),
             ),
-            allowed: allowed(std::env::var("LFSX_ALLOWED").ok().as_deref()),
+            allowed: allowed(
+                "LFSX_ALLOWED",
+                std::env::var("LFSX_ALLOWED").ok().as_deref(),
+            ),
         }
     }
 }
@@ -529,8 +546,8 @@ fn is_set(value: Option<&str>) -> bool {
     value.is_some_and(|value| !value.trim().is_empty())
 }
 
-fn allowed(value: Option<&str>) -> Option<Namespaces> {
-    is_set(value).then(|| Namespaces::parse("LFSX_ALLOWED", value))
+fn allowed(variable: &str, value: Option<&str>) -> Option<Namespaces> {
+    is_set(value).then(|| Namespaces::parse(variable, value))
 }
 
 // Both variables or neither. One without the other is a configuration that
@@ -593,8 +610,10 @@ fn provider(value: Option<&str>) -> Provider {
 // left on the end produces `//repos/...`, which some forges answer and others do
 // not, and the ones that do not answer 404 for a repository that is right there.
 fn api_url(provider: Provider, configured: Option<&str>) -> String {
-    let variable = provider.api_url_variable();
+    api_url_from(provider, provider.api_url_variable(), configured)
+}
 
+fn api_url_from(provider: Provider, variable: &str, configured: Option<&str>) -> String {
     configured
         .map(str::to_owned)
         .or_else(|| provider.default_api_url().map(str::to_owned))

@@ -88,6 +88,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.cacheTtl` | `60` | seconds a granted permission is reused |
 | `auth.rejectionTtl` | `10` | seconds a refusal is remembered |
 | `auth.lookupBudget` | `600` | forge lookups a minute, counting only cache misses; `0` removes the ceiling |
+| `auth.forges` | `[]` | more forges, each `{name, mode, apiUrl, allowed, restricted, anonymousRead}` and served under `/-/<name>/`, see [Several forges](../docs/forges.md) |
 | `dashboard.enabled` | `false` | serve the web dashboard at `/-/dashboard/`, see [Dashboard](../docs/dashboard.md) |
 | `dashboard.repo` | `""` | `org/repo` whose admins may sign in with their forge token; required with `dashboard.enabled` unless `auth.mode` is `disabled`. Dashboard tokens: `kubectl exec deploy/<release> -- lfsx-server dashboard token create <name>` |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |

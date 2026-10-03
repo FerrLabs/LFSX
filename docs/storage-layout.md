@@ -7,6 +7,9 @@ $LFSX_STORAGE_ROOT/.content/<oid[0:2]>/<oid[2:4]>/<oid>   the bytes, once
 $LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per repository
 ```
 
+A repository on one of the [other forges](forges.md) has `<forge>~<org>` in place of `<org>`, so
+`acme/game` on the forge named `work` lives under `work~acme/game`.
+
 **The bytes are stored once.** Two projects sharing the same Synty or Quixel pack cost the disk
 once, however many repositories push it, and for a studio that is most of the disk. Each
 repository holds a hard link, so the filesystem keeps the reference count and the content survives

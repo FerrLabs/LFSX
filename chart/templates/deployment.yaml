@@ -164,6 +164,33 @@ spec:
             - name: LFSX_ALLOWED
               value: {{ join "," . | quote }}
             {{- end }}
+            {{- with .Values.auth.forges }}
+            {{- $names := list }}
+            {{- range . }}
+            {{- $names = append $names .name }}
+            {{- end }}
+            - name: LFSX_FORGES
+              value: {{ join "," $names | quote }}
+            {{- range . }}
+            {{- $prefix := printf "LFSX_FORGE_%s_" (.name | upper | replace "-" "_") }}
+            - name: {{ printf "%sAUTH" $prefix }}
+              value: {{ .mode | quote }}
+            {{- with .apiUrl }}
+            - name: {{ printf "%sAPI_URL" $prefix }}
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .allowed }}
+            - name: {{ printf "%sALLOWED" $prefix }}
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .restricted }}
+            - name: {{ printf "%sRESTRICTED" $prefix }}
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: {{ printf "%sANONYMOUS_READ" $prefix }}
+              value: {{ .anonymousRead | default false | quote }}
+            {{- end }}
+            {{- end }}
             - name: LFSX_AUTH_CACHE_TTL
               value: {{ .Values.auth.cacheTtl | quote }}
             - name: LFSX_AUTH_REJECTION_TTL

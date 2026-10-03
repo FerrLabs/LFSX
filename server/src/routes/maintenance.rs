@@ -44,7 +44,7 @@ pub(super) async fn retain(
     if !request.dry_run {
         permission.require_admin()?;
     }
-    let actor = attributed(&state, &headers, request.dry_run).await?;
+    let actor = attributed(&state, &ns, &headers, request.dry_run).await?;
 
     let retained = request.oids.into_iter().collect();
     let report = state
@@ -76,7 +76,7 @@ pub(super) async fn dedupe(
     Json(request): Json<DedupeRequest>,
 ) -> Result<Json<DedupeReport>, Error> {
     permission.require_admin()?;
-    let actor = attributed(&state, &headers, request.dry_run).await?;
+    let actor = attributed(&state, &ns, &headers, request.dry_run).await?;
 
     let report = state.store.dedupe(&ns, request.dry_run).await?;
 
@@ -103,7 +103,7 @@ pub(super) async fn compress(
     Json(request): Json<CompressRequest>,
 ) -> Result<Json<CompressReport>, Error> {
     permission.require_admin()?;
-    let actor = attributed(&state, &headers, request.dry_run).await?;
+    let actor = attributed(&state, &ns, &headers, request.dry_run).await?;
 
     let report = state.store.compress(&ns, request.dry_run).await?;
 
@@ -126,6 +126,7 @@ pub(super) async fn compress(
 // is a read and stays silent.
 async fn attributed(
     state: &Shared,
+    ns: &Namespace,
     headers: &HeaderMap,
     dry_run: bool,
 ) -> Result<Option<Actor>, Error> {
@@ -133,7 +134,7 @@ async fn attributed(
         return Ok(None);
     }
 
-    Ok(Some(state.authorizer.actor(headers).await?))
+    Ok(Some(state.authorizer_for(ns)?.actor(headers).await?))
 }
 
 // Reading every object back through the path a download takes is the only check

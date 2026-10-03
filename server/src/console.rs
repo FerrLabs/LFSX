@@ -74,6 +74,15 @@ pub struct Settings {
     pub locking: bool,
     pub gc_grace_seconds: u64,
     pub lock_max_age_seconds: Option<u64>,
+    pub forges: Vec<NamedForge>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NamedForge {
+    pub name: String,
+    pub auth: &'static str,
+    pub api_url: String,
+    pub allowed: Option<Vec<String>>,
 }
 
 pub struct Refused(Error);
@@ -240,11 +249,7 @@ pub fn start(state: Shared) {
 pub(crate) fn settings(config: &Config, live: Option<crate::auth::Access>) -> Settings {
     let auth = match &config.auth {
         Auth::Disabled => "disabled",
-        Auth::Forge { provider, .. } => match provider {
-            Provider::Github => "github",
-            Provider::Gitlab => "gitlab",
-            Provider::Gitea => "gitea",
-        },
+        Auth::Forge { provider, .. } => provider_name(*provider),
     };
     let (allowed, restricted, anonymous_read) = match live {
         None => (None, Vec::new(), true),
@@ -275,5 +280,31 @@ pub(crate) fn settings(config: &Config, live: Option<crate::auth::Access>) -> Se
         locking,
         gc_grace_seconds: config.gc_grace.as_secs(),
         lock_max_age_seconds: config.lock_max_age.map(|age| age.as_secs()),
+        forges: config
+            .forges
+            .iter()
+            .filter_map(|forge| match &forge.auth {
+                Auth::Forge {
+                    provider,
+                    api_url,
+                    allowed,
+                    ..
+                } => Some(NamedForge {
+                    name: forge.name.clone(),
+                    auth: provider_name(*provider),
+                    api_url: api_url.clone(),
+                    allowed: allowed.as_ref().map(|allowed| allowed.entries()),
+                }),
+                Auth::Disabled => None,
+            })
+            .collect(),
+    }
+}
+
+fn provider_name(provider: Provider) -> &'static str {
+    match provider {
+        Provider::Github => "github",
+        Provider::Gitlab => "gitlab",
+        Provider::Gitea => "gitea",
     }
 }

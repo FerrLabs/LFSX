@@ -37,7 +37,7 @@ pub async fn permission(
     token: &str,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/repos/{ns}");
+    let url = format!("{api_url}/repos/{}", ns.upstream());
 
     let repository = send(client, &url, token)
         .await?
@@ -74,7 +74,7 @@ pub async fn public(
     api_url: &str,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/repos/{ns}");
+    let url = format!("{api_url}/repos/{}", ns.upstream());
 
     let response = crate::telemetry::propagated(client.get(&url))
         .send()

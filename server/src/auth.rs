@@ -282,9 +282,16 @@ pub async fn authorize(
     let (Some(org), Some(repo)) = (params.get("org"), params.get("repo")) else {
         return Err(Error::MalformedNamespace);
     };
-    let ns = Namespace::new(org.as_str(), repo.as_str())?;
+    let ns = match params.get("forge") {
+        Some(forge) => Namespace::on(forge.as_str(), org.as_str(), repo.as_str())
+            .map_err(|_| Error::NotServed)?,
+        None => Namespace::new(org.as_str(), repo.as_str())?,
+    };
 
-    let permission = state.authorizer.permission(request.headers(), &ns).await?;
+    let permission = state
+        .authorizer_for(&ns)?
+        .permission(request.headers(), &ns)
+        .await?;
     request.extensions_mut().insert(permission);
     request.extensions_mut().insert(ns);
 

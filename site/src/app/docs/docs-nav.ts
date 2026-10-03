@@ -24,6 +24,7 @@ export const DOCS_NAV: readonly DocSection[] = [
     label: 'Access',
     items: [
       { label: 'Authentication', slug: 'authentication' },
+      { label: 'Several forges', slug: 'forges' },
       { label: 'Anonymous read', slug: 'anonymous-read' },
       { label: 'Allowed namespaces', slug: 'allowed-namespaces' },
       { label: 'Restricted namespaces', slug: 'restricted-namespaces' },

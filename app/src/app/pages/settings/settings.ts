@@ -55,6 +55,14 @@ function rows(settings: Configured): readonly Row[] {
       value: settings.lock_max_age_seconds === null ? 'never' : duration(settings.lock_max_age_seconds),
       on: null,
     },
+    ...settings.forges.map((forge) => ({
+      name: `Forge under /-/${forge.name}/`,
+      variable: `LFSX_FORGE_${forge.name.toUpperCase().replaceAll('-', '_')}_*`,
+      value: `${forge.auth} at ${forge.api_url}, ${
+        forge.allowed === null ? 'every repository' : forge.allowed.join(', ')
+      }`,
+      on: null,
+    })),
   ];
 }
 

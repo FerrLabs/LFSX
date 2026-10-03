@@ -17,7 +17,30 @@ mod maintenance;
 mod objects;
 
 pub fn router(state: Shared) -> Router {
-    let objects = Router::new()
+    let repositories = repositories(&state);
+    let console = state
+        .config
+        .dashboard
+        .as_ref()
+        .map(|dashboard| crate::console::router(&dashboard.dir))
+        .unwrap_or_default();
+
+    Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .route("/ready", get(ready))
+        .route("/metrics", get(scrape))
+        .merge(repositories.clone())
+        .nest("/-/{forge}", repositories)
+        .merge(console)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            metrics::record,
+        ))
+        .with_state(state)
+}
+
+fn repositories(state: &Shared) -> Router<Shared> {
+    Router::new()
         .route("/{org}/{repo}/objects/batch", post(objects::batch))
         .route("/{org}/{repo}/objects/verify", post(objects::verify))
         .route(
@@ -47,26 +70,7 @@ pub fn router(state: Shared) -> Router {
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::authorize,
-        ));
-
-    let console = state
-        .config
-        .dashboard
-        .as_ref()
-        .map(|dashboard| crate::console::router(&dashboard.dir))
-        .unwrap_or_default();
-
-    Router::new()
-        .route("/health", get(|| async { "ok" }))
-        .route("/ready", get(ready))
-        .route("/metrics", get(scrape))
-        .merge(objects)
-        .merge(console)
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            metrics::record,
         ))
-        .with_state(state)
 }
 
 async fn scrape(State(state): State<Shared>) -> Response {

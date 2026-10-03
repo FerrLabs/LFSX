@@ -277,6 +277,45 @@
           "items": {
             "type": "string"
           }
+        },
+        "forges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "mode"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                "not": {
+                  "enum": ["api", "dashboard"]
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["github", "gitlab", "gitea", "forgejo"]
+              },
+              "apiUrl": {
+                "type": "string"
+              },
+              "allowed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "restricted": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "anonymousRead": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

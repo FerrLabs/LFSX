@@ -24,7 +24,7 @@ pub(super) async fn create_lock(
 ) -> Result<(StatusCode, Json<LockResponse>), Error> {
     permission.require_write()?;
 
-    let Actor(owner) = state.authorizer.actor(&headers).await?;
+    let Actor(owner) = state.authorizer_for(&ns)?.actor(&headers).await?;
     let lock = state.locks.create(&ns, &request.path, &owner).await?;
 
     Ok((StatusCode::CREATED, Json(LockResponse { lock })))
@@ -58,7 +58,7 @@ pub(super) async fn verify_locks(
     headers: axum::http::HeaderMap,
     Json(request): Json<VerifyLocksRequest>,
 ) -> Result<Json<VerifyLocksResponse>, Error> {
-    let Actor(caller) = state.authorizer.actor(&headers).await?;
+    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     // Paginated over the whole list before it is split, so a cursor means the
     // same position on both sides and a client walking pages sees each lock once.
@@ -79,11 +79,16 @@ pub(super) async fn verify_locks(
     }))
 }
 
+#[derive(serde::Deserialize)]
+pub(super) struct LockPath {
+    id: String,
+}
+
 pub(super) async fn unlock(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Extension(permission): Extension<Permission>,
-    Path((.., id)): Path<(String, String, String)>,
+    Path(LockPath { id }): Path<LockPath>,
     headers: axum::http::HeaderMap,
     Json(request): Json<UnlockRequest>,
 ) -> Result<Json<LockResponse>, Error> {
@@ -94,7 +99,7 @@ pub(super) async fn unlock(
         .get(&ns, &id)
         .await?
         .ok_or(Error::LockNotFound)?;
-    let Actor(caller) = state.authorizer.actor(&headers).await?;
+    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     let forced = lock.owner.name != caller;
     if forced {

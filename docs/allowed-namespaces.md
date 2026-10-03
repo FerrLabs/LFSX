@@ -32,7 +32,7 @@ over `LFSX_ALLOWED` until it is reset.
 ## Doing it in the reverse proxy instead
 
 It works, and it is the right place if the proxy already filters by path. The server answers on
-`/health`, `/ready`, `/metrics`, under `/-/` when the [dashboard](dashboard.md) is on, and under
+`/health`, `/ready`, `/metrics`, under `/-/` for the [dashboard](dashboard.md) and any [other forge](forges.md), and under
 `/{org}/{repo}/` and nowhere else, so allowing the first three, `/-/` and the prefixes you want, and refusing the rest, is the whole rule. Match the organisation
 without regard to case, since the forge does. `LFSX_ALLOWED` does the same thing without needing
 the proxy to know the URL layout, and keeps working if a route is ever added.

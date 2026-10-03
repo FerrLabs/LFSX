@@ -13,6 +13,7 @@ All configuration is by environment variable.
 | `LFSX_GITEA_API_URL` | none, required | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1` |
 | `LFSX_ANONYMOUS_READ` | `false` | `true` to let a request with no credentials read a repository the forge serves publicly |
 | `LFSX_ALLOWED` | none | repositories this server serves, same syntax as `LFSX_RESTRICTED`; anything else is `404` without asking the forge. Unset serves every repository on the forge, see [Allowed namespaces](allowed-namespaces.md) |
+| `LFSX_FORGES` | none | more forges served beside the one `LFSX_AUTH` names, each under `/-/{name}/` and configured by `LFSX_FORGE_<NAME>_*`, see [Several forges](forges.md) |
 | `LFSX_RESTRICTED` | none | repositories whose objects take write access to read, comma-separated, `org/repo` or `org/prefix-*` or `org/*` |
 | `LFSX_AUTH_CACHE_TTL` | `60` | seconds a granted permission is reused before being checked again |
 | `LFSX_AUTH_REJECTION_TTL` | `10` | seconds a refusal is remembered, so a bad token cannot hammer the forge |
