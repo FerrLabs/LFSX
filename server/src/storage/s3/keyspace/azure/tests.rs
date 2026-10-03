@@ -279,3 +279,77 @@ async fn an_identity_signs_no_download_url() {
 
     assert_eq!(keys.signed_download("objects/x"), None);
 }
+
+type Asked = Arc<Mutex<Vec<(Option<String>, HashMap<String, String>)>>>;
+
+async fn managed_token(
+    State(asked): State<Asked>,
+    Query(query): Query<HashMap<String, String>>,
+    headers: HeaderMap,
+) -> Response {
+    let metadata = headers
+        .get("metadata")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    asked.lock().unwrap().push((metadata, query));
+
+    axum::Json(serde_json::json!({
+        "access_token": "managed-token",
+        "expires_in": "3600",
+    }))
+    .into_response()
+}
+
+#[tokio::test]
+async fn a_managed_identity_is_asked_the_way_the_instance_metadata_service_expects() {
+    let (endpoint, container) = store().await;
+    let asked = Asked::default();
+    let metadata = serve(
+        Router::new()
+            .route(
+                "/metadata/identity/oauth2/token",
+                axum::routing::get(managed_token),
+            )
+            .with_state(asked.clone()),
+    )
+    .await;
+    let identity = Identity::new(Source::Managed {
+        endpoint: format!("{metadata}/metadata/identity/oauth2/token"),
+        client_id: Some("user-assigned".into()),
+    });
+    let keys =
+        AzureKeys::with_credential(&config(&endpoint), Credential::Identity(identity)).unwrap();
+
+    keys.put("one", reqwest::Body::from(b"1".to_vec()), 1)
+        .await
+        .unwrap();
+
+    let asked = asked.lock().unwrap();
+    assert_eq!(asked.len(), 1);
+    let (metadata, query) = &asked[0];
+    assert_eq!(
+        metadata.as_deref(),
+        Some("true"),
+        "the metadata service refuses a request without it, to stop SSRF through a proxy"
+    );
+    assert_eq!(query["resource"], "https://storage.azure.com/");
+    assert_eq!(query["client_id"], "user-assigned");
+    assert!(query.contains_key("api-version"));
+    assert_eq!(
+        container.lock().unwrap().bearers,
+        vec![Some("Bearer managed-token".to_owned())]
+    );
+}
+
+#[test]
+fn an_account_key_that_is_not_base64_refuses_to_start() {
+    let refused = AzureKeys::new(&AzureConfig {
+        credential: AzureCredential::AccountKey("not base64 at all!".into()),
+        ..config("http://127.0.0.1:9")
+    });
+
+    assert!(
+        matches!(refused, Err(Error::Misconfigured(message)) if message.contains("not base64")),
+        "a key that cannot sign anything should stop the server, not every request"
+    );
+}
