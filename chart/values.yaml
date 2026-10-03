@@ -85,7 +85,8 @@ auth:
   lookupBudget: 600
   # More forges, each served under /-/<name>/<org>/<repo>. Entries take name,
   # mode (github, gitlab, gitea, forgejo), apiUrl, allowed, restricted and
-  # anonymousRead, with the meaning they have above for the main forge.
+  # anonymousRead, with the meaning they have above for the main forge. An
+  # empty allowed list is left unset, so that forge serves every repository.
   forges: []
 
 dashboard:
