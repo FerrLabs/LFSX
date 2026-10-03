@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.2] - 2026-10-03
+
+### Bug Fixes
+
+- fix(config): warn about ignored access variables from their raw value (#507)
+
 ## [1.22.1] - 2026-10-03
 
 ### Bug Fixes
