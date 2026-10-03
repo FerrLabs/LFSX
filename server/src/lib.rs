@@ -55,6 +55,7 @@ pub fn app(config: Config) -> Router {
         );
     }
 
+    announce_access(&config);
     let (store, locks) = backends(&config);
     let authorizer = Authorizer::new(&config.auth);
     let transfers = (config.max_concurrent_transfers > 0)
@@ -271,7 +272,7 @@ pub fn store(config: &Config) -> Store {
     backends(config).0
 }
 
-fn backends(config: &Config) -> (Store, LockStore) {
+fn announce_access(config: &Config) {
     // Said out loud because it decides who can read the objects. It is off unless
     // asked for, so this line means somebody asked: it belongs in the log so a
     // deployment that inherited the flag from an older chart sees it rather than
@@ -319,7 +320,9 @@ fn backends(config: &Config) -> (Store, LockStore) {
             ),
         }
     }
+}
 
+fn backends(config: &Config) -> (Store, LockStore) {
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
     // must never have: nothing downstream would notice, and the objects written
