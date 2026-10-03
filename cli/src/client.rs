@@ -30,10 +30,6 @@ impl Server {
         &self.base
     }
 
-    pub fn get(&self, path: &str) -> Result<Response> {
-        self.fetch(format!("{}{path}", self.base))
-    }
-
     pub fn get_from_root(&self, path: &str) -> Result<Response> {
         self.fetch(format!("{}{path}", service_root(&self.base)))
     }
