@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.3] - 2026-10-03
+
+### Bug Fixes
+
+- fix(server): announce the bucket settings once at boot (#511)
+
 ## [1.22.2] - 2026-10-03
 
 ### Bug Fixes
