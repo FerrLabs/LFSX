@@ -316,7 +316,7 @@ fn a_credentials_file_that_cannot_serve_refuses_to_start() {
 
     let unusable = serde_json::json!({
         "client_email": "lfsx@project.iam.gserviceaccount.com",
-        "private_key": "-----BEGIN PRIVATE KEY-----\nnot a key\n-----END PRIVATE KEY-----\n",
+        "private_key": "not a key in any format",
         "token_uri": "https://oauth2.googleapis.com/token",
     })
     .to_string();
