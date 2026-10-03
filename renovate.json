@@ -65,7 +65,7 @@
       ]
     },
     {
-      "description": "Analog's Vite plugin reaches into @angular/build internals, so each only works with the release of the other it was built against: analog 2.7.5 needs a hash module that @angular/build 22.2 introduced, and @angular/build 22.2 asserts an initialisation analog 2.7.2 never does. Updated apart, both PRs fail the site build (LFSX#463, LFSX#465). One branch for both.",
+      "description": "Analog's Vite plugin reaches into @angular/build internals, so each only works with the release of the other it was built against: analog 2.7.5 needs a hash module that @angular/build 22.2 introduced, and @angular/build 22.2 asserts an initialisation analog 2.7.2 never does. Updated apart, both PRs fail the site build (LFSX#463, LFSX#465). One branch for both. Majors stay in the same branch too, since an Analog minor can be the one that needs the next @angular/build major.",
       "matchPackageNames": [
         "@analogjs/**",
         "@angular/build",
@@ -73,7 +73,8 @@
         "@angular-devkit/**",
         "@schematics/angular"
       ],
-      "groupName": "Angular build and Analog"
+      "groupName": "Angular build and Analog",
+      "separateMajorMinor": false
     }
   ]
 }

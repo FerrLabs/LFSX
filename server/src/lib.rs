@@ -56,6 +56,7 @@ pub fn app(config: Config) -> Router {
     }
 
     announce_access(&config);
+    announce_storage(&config);
     let (store, locks) = backends(&config);
     let authorizer = Authorizer::new(&config.auth);
     let transfers = (config.max_concurrent_transfers > 0)
@@ -322,6 +323,55 @@ fn announce_access(config: &Config) {
     }
 }
 
+fn announce_storage(config: &Config) {
+    let crate::config::Storage::Bucket { presign, cache, .. } = &config.storage else {
+        return;
+    };
+
+    tracing::warn!(
+        "objects and locks are stored in a bucket: deduplication, rewriting and \
+     verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes \
+     gauges are not measured: read capacity from the bucket itself"
+    );
+
+    if *presign {
+        if config.encryption_key.is_some() || config.compression.is_some() {
+            tracing::warn!(
+                "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep \
+     streaming through this server: what sits in the bucket is a frame under \
+     the plaintext digest, and a client handed that directly would hash it \
+     and reject the object"
+            );
+        } else {
+            tracing::warn!(
+                "LFSX_S3_PRESIGN=true, downloads are redirected to the bucket, so \
+     lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
+            );
+        }
+
+        if config.encryption_key.is_some() {
+            tracing::warn!(
+                "an encryption key is configured, so uploads keep coming through this \
+     server rather than going straight to the bucket: an object a client \
+     writes itself would arrive unencrypted"
+            );
+        } else if config.compression.is_some() {
+            tracing::warn!(
+                "LFSX_COMPRESSION is set, and objects clients upload straight to the \
+     bucket arrive uncompressed: only what passes through this server is \
+     compressed"
+            );
+        }
+    }
+
+    if cache.is_some() && *presign {
+        tracing::warn!(
+            "LFSX_S3_CACHE_DIR is set with LFSX_S3_PRESIGN=true, so downloads go straight to the \
+     bucket and the cache never sees them: the two settings pull in opposite directions"
+        );
+    }
+}
+
 fn backends(config: &Config) -> (Store, LockStore) {
     // Refusing to start beats starting without it. A server that silently wrote
     // plaintext because a Secret failed to mount is the one failure this feature
@@ -360,42 +410,6 @@ fn backends(config: &Config) -> (Store, LockStore) {
             // reaches into the other to get at them.
             let keys = keyspace(config).expect("a bucket keyspace for a bucket store");
 
-            tracing::warn!(
-                "objects and locks are stored in a bucket: deduplication, rewriting and \
-             verification answer 501, and the lfsx_objects_stored and lfsx_store_bytes \
-             gauges are not measured: read capacity from the bucket itself"
-            );
-
-            if *presign {
-                if config.encryption_key.is_some() || config.compression.is_some() {
-                    tracing::warn!(
-                        "LFSX_S3_PRESIGN=true, but a codec is configured, so downloads keep \
-             streaming through this server: what sits in the bucket is a frame under \
-             the plaintext digest, and a client handed that directly would hash it \
-             and reject the object"
-                    );
-                } else {
-                    tracing::warn!(
-                        "LFSX_S3_PRESIGN=true, downloads are redirected to the bucket, so \
-             lfsx_downloaded_bytes stops counting them and the bucket serves the ranges"
-                    );
-                }
-
-                if config.encryption_key.is_some() {
-                    tracing::warn!(
-                        "an encryption key is configured, so uploads keep coming through this \
-             server rather than going straight to the bucket: an object a client \
-             writes itself would arrive unencrypted"
-                    );
-                } else if config.compression.is_some() {
-                    tracing::warn!(
-                        "LFSX_COMPRESSION is set, and objects clients upload straight to the \
-             bucket arrive uncompressed: only what passes through this server is \
-             compressed"
-                    );
-                }
-            }
-
             // The locks go with the objects. Left on the volume they would make
             // the bucket a half measure: capacity would be shared and the one
             // piece of state a second replica must agree on would not be.
@@ -406,13 +420,6 @@ fn backends(config: &Config) -> (Store, LockStore) {
                 crate::storage::cache::Cache::new(disk.dir.clone(), disk.max_bytes)
                     .expect("the cache directory is not usable")
             });
-
-            if disk.is_some() && *presign {
-                tracing::warn!(
-                    "LFSX_S3_CACHE_DIR is set with LFSX_S3_PRESIGN=true, so downloads go straight to the \
-             bucket and the cache never sees them: the two settings pull in opposite directions"
-                );
-            }
 
             (
                 Store::bucket(S3Store::new(keys.clone(), *presign), local).with_cache(disk),

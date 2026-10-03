@@ -30,28 +30,21 @@ async fn a_boot_says_what_access_is_configured_once() {
     let (api_url, _forge) = forge().await;
     let config = config(&root, &api_url);
 
-    let mut logged = String::new();
-    for _ in 0..5 {
-        let captured = Captured::default();
-        {
-            let _guard = tracing::subscriber::set_default(
-                tracing_subscriber::fmt()
-                    .with_writer(captured.clone())
-                    .with_max_level(tracing::Level::INFO)
-                    .with_ansi(false)
-                    .finish(),
-            );
+    let captured = Captured::default();
+    {
+        let _guard = tracing::subscriber::set_default(
+            tracing_subscriber::fmt()
+                .with_writer(captured.clone())
+                .with_max_level(tracing::Level::INFO)
+                .with_ansi(false)
+                .finish(),
+        );
 
-            lfsx_server::reclaim(&config).await;
-            lfsx_server::store(&config);
-            let _app = lfsx_server::app(config.clone());
-        }
-
-        logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
-        if !logged.is_empty() {
-            break;
-        }
+        lfsx_server::reclaim(&config).await;
+        lfsx_server::store(&config);
+        let _app = lfsx_server::app(config.clone());
     }
+    let logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
 
     assert_eq!(
         logged.matches("LFSX_ALLOWED is unset").count(),
