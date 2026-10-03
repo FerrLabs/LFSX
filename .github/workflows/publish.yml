@@ -27,7 +27,7 @@ jobs:
           ref: ${{ inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
       # Mints a 30-minute crates.io token from this run's OIDC identity. Both
       # crates carry a Trusted Publishing config naming this repository and this
