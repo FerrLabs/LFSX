@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.3] - 2026-10-03
+
+### Bug Fixes
+
+- fix(cli): reach /health and /ready above a named forge's prefix in doctor (#519)
+
 ## [1.23.2] - 2026-10-03
 
 ### Bug Fixes
