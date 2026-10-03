@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.5] - 2026-10-03
+
+### Features
+
+- feat(auth): serve repositories from several forges under /-/{forge}/ (#513)
+
 ## [2026.10.4] - 2026-10-02
 
 ### Features
