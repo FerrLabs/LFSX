@@ -530,9 +530,7 @@ fn is_set(value: Option<&str>) -> bool {
 }
 
 fn allowed(value: Option<&str>) -> Option<Namespaces> {
-    value
-        .filter(|value| is_set(Some(value)))
-        .map(|value| Namespaces::parse("LFSX_ALLOWED", Some(value)))
+    is_set(value).then(|| Namespaces::parse("LFSX_ALLOWED", value))
 }
 
 // Both variables or neither. One without the other is a configuration that
