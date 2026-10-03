@@ -149,7 +149,7 @@ impl App {
 
         let installed = crate::telemetry::propagated(
             client
-                .get(format!("{api_url}/repos/{ns}/installation"))
+                .get(format!("{api_url}/repos/{}/installation", ns.upstream()))
                 .bearer_auth(&jwt)
                 .header("accept", "application/vnd.github+json"),
         )

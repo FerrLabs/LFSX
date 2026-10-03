@@ -56,9 +56,15 @@ pub fn app(config: Config) -> Router {
     }
 
     announce_access(&config);
+    announce_forges(&config);
     announce_storage(&config);
     let (store, locks) = backends(&config);
     let authorizer = Authorizer::new(&config.auth);
+    let forges = config
+        .forges
+        .iter()
+        .map(|forge| (forge.name.clone(), Authorizer::new(&forge.auth)))
+        .collect();
     let transfers = (config.max_concurrent_transfers > 0)
         .then(|| Arc::new(tokio::sync::Semaphore::new(config.max_concurrent_transfers)));
 
@@ -67,6 +73,7 @@ pub fn app(config: Config) -> Router {
         locks,
         config,
         authorizer,
+        forges,
         metrics: Metrics::new(),
         transfers,
         started: std::time::Instant::now(),
@@ -319,6 +326,33 @@ fn announce_access(config: &Config) {
                 "an allow-list is configured: a repository outside LFSX_ALLOWED is answered 404 \
                  without asking the forge"
             ),
+        }
+    }
+}
+
+fn announce_forges(config: &Config) {
+    for forge in &config.forges {
+        let crate::config::Auth::Forge {
+            provider,
+            api_url,
+            allowed,
+            ..
+        } = &forge.auth
+        else {
+            continue;
+        };
+        tracing::info!(
+            forge = %forge.name,
+            ?provider,
+            %api_url,
+            "repositories on this forge are served under /-/{}/", forge.name
+        );
+        if allowed.is_none() {
+            tracing::warn!(
+                forge = %forge.name,
+                "this forge has no allow-list, so it stores objects for any repository on it whose \
+                 caller can push to it. List the organisations or repositories it is for"
+            );
         }
     }
 }

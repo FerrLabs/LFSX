@@ -153,6 +153,7 @@ Full documentation lives at **[lfsx.dev](https://lfsx.dev)**. The same pages are
 |---|---|
 | [Configuration](docs/configuration.md) | Every environment variable, with defaults |
 | [Authentication](docs/authentication.md) | How access mirrors the upstream repository |
+| [Several forges](docs/forges.md) | GitHub and a self-hosted GitLab on one server, kept apart |
 | [Anonymous read](docs/anonymous-read.md) | Public repositories, and turning it off |
 | [Allowed namespaces](docs/allowed-namespaces.md) | The repositories this server is for, and nobody else's |
 | [Restricted namespaces](docs/restricted-namespaces.md) | Public code, assets kept to whoever can push |

@@ -75,18 +75,18 @@ impl S3Store {
         let (first, second) = oid.fanout();
         format!(
             ".incoming/{}/{}/{first}/{second}/{oid}",
-            ns.org(),
+            ns.stored_org(),
             ns.repo()
         )
     }
 
     fn marker_key(ns: &Namespace, oid: &Oid) -> String {
         let (first, second) = oid.fanout();
-        format!("{}/{}/{first}/{second}/{oid}", ns.org(), ns.repo())
+        format!("{}/{}/{first}/{second}/{oid}", ns.stored_org(), ns.repo())
     }
 
     fn own_prefix(ns: &Namespace) -> String {
-        format!("{}/{}/", ns.org(), ns.repo())
+        format!("{}/{}/", ns.stored_org(), ns.repo())
     }
 
     pub(crate) async fn read_meta(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {

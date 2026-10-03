@@ -24,7 +24,7 @@ use crate::oid::Oid;
 const PREFIX: &str = ".sizes/";
 
 pub(crate) fn key(ns: &Namespace, oid: &Oid, size: u64) -> String {
-    format!("{}/{}/{PREFIX}{oid}.{size}", ns.org(), ns.repo())
+    format!("{}/{}/{PREFIX}{oid}.{size}", ns.stored_org(), ns.repo())
 }
 
 // A key of this index rather than a marker. Both live under the repository's

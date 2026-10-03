@@ -26,7 +26,7 @@ const COMPLETE: &str = ".refs/.complete";
 const CONCURRENCY: usize = 16;
 
 pub(crate) fn key(ns: &Namespace, oid: &Oid) -> String {
-    format!(".refs/{oid}/{}/{}", ns.org(), ns.repo())
+    format!(".refs/{oid}/{}/{}", ns.stored_org(), ns.repo())
 }
 
 fn prefix(oid: &Oid) -> String {

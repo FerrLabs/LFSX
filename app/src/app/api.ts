@@ -42,6 +42,14 @@ export interface Settings {
   readonly locking: boolean;
   readonly gc_grace_seconds: number;
   readonly lock_max_age_seconds: number | null;
+  readonly forges: readonly NamedForge[];
+}
+
+export interface NamedForge {
+  readonly name: string;
+  readonly auth: 'github' | 'gitlab' | 'gitea';
+  readonly api_url: string;
+  readonly allowed: readonly string[] | null;
 }
 
 export interface Access {

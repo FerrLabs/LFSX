@@ -197,6 +197,7 @@ fn bucket_config(
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: root.path().to_path_buf(),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,

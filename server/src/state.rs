@@ -13,6 +13,7 @@ pub struct AppState {
     pub locks: LockStore,
     pub config: Config,
     pub authorizer: Authorizer,
+    pub forges: std::collections::HashMap<String, Authorizer>,
     pub metrics: Metrics,
     // None when the cap is configured off. A permit is held for as long as a
     // transfer keeps bytes moving, which for a download means as long as the
@@ -23,6 +24,16 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub fn authorizer_for(
+        &self,
+        ns: &crate::namespace::Namespace,
+    ) -> Result<&Authorizer, crate::error::Error> {
+        match ns.forge() {
+            None => Ok(&self.authorizer),
+            Some(forge) => self.forges.get(forge).ok_or(crate::error::Error::NotServed),
+        }
+    }
+
     // A permit, or the refusal that tells the client when to come back. Taken
     // without waiting: a saturated server queueing acceptances would hold the
     // connection open for the privilege of being slow later, and an immediate

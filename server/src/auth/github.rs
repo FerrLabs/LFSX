@@ -38,7 +38,7 @@ pub async fn permission(
     token: &str,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/repos/{ns}");
+    let url = format!("{api_url}/repos/{}", ns.upstream());
 
     // Said out loud because the refusal the client sees is the same one a
     // readable repository with an unreadable permissions block produces, and an
@@ -102,7 +102,7 @@ pub async fn public(
     app: Option<&app::App>,
     ns: &Namespace,
 ) -> Result<Permission, Error> {
-    let url = format!("{api_url}/repos/{ns}");
+    let url = format!("{api_url}/repos/{}", ns.upstream());
 
     let grant = match app {
         Some(app) => app.token(client, api_url, ns).await?,

@@ -115,6 +115,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         dashboard: None,
+        forges: Vec::new(),
         storage_root: root.path().to_path_buf(),
         public_url: Some("https://lfs.example".into()),
         action_lifetime: 1800,
@@ -273,6 +274,10 @@ pub async fn put(app: Router, token: Option<&str>, payload: &[u8]) -> Response {
 }
 
 pub async fn batch(app: Router, token: &str, operation: &str) -> StatusCode {
+    batch_at(app, "/FerrLabs/LFSX", token, operation).await
+}
+
+pub async fn batch_at(app: Router, repository: &str, token: &str, operation: &str) -> StatusCode {
     let body = json!({
         "operation": operation,
         "objects": [{ "oid": hex::encode(Sha256::digest(b"asset")), "size": 5 }],
@@ -280,7 +285,7 @@ pub async fn batch(app: Router, token: &str, operation: &str) -> StatusCode {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/FerrLabs/LFSX/objects/batch")
+        .uri(format!("{repository}/objects/batch"))
         .header("content-type", "application/vnd.git-lfs+json")
         .header("authorization", credentials(token))
         .body(Body::from(body.to_string()))
