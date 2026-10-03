@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.1] - 2026-10-03
+
+### Bug Fixes
+
+- fix(server): announce the access settings once at boot (#505)
+
 ## [1.22.0] - 2026-10-02
 
 ### Features
