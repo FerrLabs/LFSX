@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.2] - 2026-10-03
+
+### Bug Fixes
+
+- fix(server): title a named forge's repository page as acme/game (work) (#517)
+
 ## [1.23.1] - 2026-10-03
 
 ### Bug Fixes
