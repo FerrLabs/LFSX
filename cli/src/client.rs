@@ -30,8 +30,11 @@ impl Server {
         &self.base
     }
 
-    pub fn get(&self, path: &str) -> Result<Response> {
-        let url = format!("{}{path}", self.base);
+    pub fn get_from_root(&self, path: &str) -> Result<Response> {
+        self.fetch(format!("{}{path}", service_root(&self.base)))
+    }
+
+    fn fetch(&self, url: String) -> Result<Response> {
         self.authenticated(self.client.get(&url))
             .send()
             .with_context(|| format!("could not reach {url}"))
@@ -57,6 +60,13 @@ impl Server {
     }
 }
 
+pub fn service_root(base: &str) -> &str {
+    match base.rsplit_once("/-/") {
+        Some((root, forge)) if !forge.is_empty() && !forge.contains('/') => root,
+        _ => base,
+    }
+}
+
 pub fn resolve_token(explicit: Option<String>) -> Option<String> {
     explicit
         .or_else(|| std::env::var("LFSX_TOKEN").ok())
@@ -70,3 +80,6 @@ pub fn split_namespace(repository: &str) -> Result<(&str, &str)> {
         _ => bail!("expected a repository as org/repo, got {repository:?}"),
     }
 }
+
+#[cfg(test)]
+mod tests;

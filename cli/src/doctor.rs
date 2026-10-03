@@ -34,13 +34,13 @@ impl Report {
 pub fn run(server: &Server, repository: Option<&str>) -> Result<Report> {
     let mut report = Report::new();
 
-    match server.get("/health") {
+    match server.get_from_root("/health") {
         Ok(response) if response.status().is_success() => report.pass("the server is up"),
         Ok(response) => report.fail(format!("/health answered {}", response.status())),
         Err(error) => report.fail(format!("{error:#}")),
     }
 
-    match server.get("/ready") {
+    match server.get_from_root("/ready") {
         Ok(response) if response.status().is_success() => {
             report.pass("the storage root is writable")
         }
