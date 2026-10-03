@@ -488,18 +488,13 @@ impl Auth {
             tracing::warn!(
                 "LFSX_AUTH=disabled: every request is accepted, run this on a trusted network only"
             );
-            if allowed(std::env::var("LFSX_ALLOWED").ok().as_deref()).is_some() {
+            if is_set(std::env::var("LFSX_ALLOWED").ok().as_deref()) {
                 tracing::warn!(
                     "LFSX_ALLOWED is set and LFSX_AUTH=disabled, so it does nothing: with no forge \
                      to ask, every repository is served"
                 );
             }
-            if !Namespaces::parse(
-                "LFSX_RESTRICTED",
-                std::env::var("LFSX_RESTRICTED").ok().as_deref(),
-            )
-            .is_empty()
-            {
+            if is_set(std::env::var("LFSX_RESTRICTED").ok().as_deref()) {
                 tracing::warn!(
                     "LFSX_RESTRICTED is set and LFSX_AUTH=disabled, so it does nothing: every \
                      caller already holds every right"
@@ -530,9 +525,13 @@ impl Auth {
     }
 }
 
+fn is_set(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.trim().is_empty())
+}
+
 fn allowed(value: Option<&str>) -> Option<Namespaces> {
     value
-        .filter(|value| !value.trim().is_empty())
+        .filter(|value| is_set(Some(value)))
         .map(|value| Namespaces::parse("LFSX_ALLOWED", Some(value)))
 }
 

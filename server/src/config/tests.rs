@@ -316,3 +316,11 @@ fn without_authentication_the_dashboard_needs_no_repository() {
     assert!(dashboard.admins.is_none());
     assert_eq!(dashboard.dir, PathBuf::from("/srv/dashboard"));
 }
+
+#[test]
+fn a_variable_counts_as_set_whatever_its_entries_parse_to() {
+    assert!(is_set(Some("not a namespace")));
+    assert!(is_set(Some("acme/*")));
+    assert!(!is_set(Some(" ")));
+    assert!(!is_set(None));
+}
