@@ -123,7 +123,7 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
       # Pinned like every other dependency in this file: this job holds the
       # attestation credentials, so what it runs is part of what it attests.
       - name: Install cargo-cyclonedx
