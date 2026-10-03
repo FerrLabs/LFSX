@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.1] - 2026-10-03
+
+### Bug Fixes
+
+- fix(dashboard): say a named forge with an empty allow-list serves nothing (#514)
+
 ## [1.23.0] - 2026-10-03
 
 ### Features
