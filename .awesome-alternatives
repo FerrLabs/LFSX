@@ -1,1 +1,19 @@
-lfsx
+# yaml-language-server: $schema=https://raw.githubusercontent.com/awesome-alternatives/awesome-alternatives/main/schema/maintainer-file.schema.json
+tools:
+  lfsx:
+    category: git-lfs-server
+    replaces:
+      - tool: lfs-test-server
+        fit: full
+        note: Rust server with S3 and local storage, built for self-hosting.
+      - tool: rudolfs
+        fit: full
+        note: S3 with a local disk cache and encryption at rest like Rudolfs, plus access checked against the forge and file locking.
+      - tool: giftless
+        fit: partial
+        note: Local disk or S3-compatible storage only, no Azure Blob or Google Cloud Storage back end.
+      - tool: github-lfs
+        fit: full
+        note: The repository stays on GitHub; only LFS objects move to your own disk or bucket, with access checked against GitHub.
+    affiliation: Maintained by FerrLabs, whose founder also maintains this directory.
+    deploy: [container, helm, binary]
