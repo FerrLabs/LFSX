@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.3] - 2026-10-10
+
+### Refactoring
+
+- refactor(config): split config.rs into storage, auth and dashboard modules (#565)
+
 ## [1.26.2] - 2026-10-10
 
 ### Refactoring

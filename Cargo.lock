@@ -1269,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "lfsx"
-version = "1.26.2"
+version = "1.26.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1281,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "lfsx-server"
-version = "1.26.2"
+version = "1.26.3"
 dependencies = [
  "axum",
  "base64 0.23.1",
