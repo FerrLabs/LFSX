@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(dashboard): keep a save that lands while a refresh is reading the store (#569)
+
 ## [1.26.0] - 2026-10-10
 
 ### Features
