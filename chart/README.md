@@ -91,6 +91,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `auth.forges` | `[]` | more forges, each `{name, mode, apiUrl, allowed, restricted, anonymousRead, githubApp}` and served under `/-/<name>/`, see [Several forges](../docs/forges.md) |
 | `dashboard.enabled` | `false` | serve the web dashboard at `/-/dashboard/`, see [Dashboard](../docs/dashboard.md) |
 | `dashboard.repo` | `""` | `org/repo` whose admins may sign in with their forge token; required with `dashboard.enabled` unless `auth.mode` is `disabled`. Dashboard tokens: `kubectl exec deploy/<release> -- lfsx-server dashboard token create <name>` |
+| `dashboard.forge` | `""` | the named forge in `auth.forges` that `dashboard.repo` lives on; empty is the main forge |
 | `gc.grace` | `1209600` | seconds an object must be untouched before collection can take it |
 | `gc.stagingMaxAge` | `86400` | seconds before an interrupted upload's leftovers are reclaimed, on the volume and in the bucket; keep it above your longest transfer, `0` sweeps them all at boot and hourly, uploads in flight included |
 | `locks.maxAge` | `""` | seconds a lock may go untouched before anyone can take it over; empty means never |

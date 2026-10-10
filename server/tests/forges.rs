@@ -10,7 +10,8 @@ use axum::http::{Method, Request, StatusCode};
 use axum::response::Response;
 use common::{Forge, anonymous_forge_auth, config, credentials, forge, read_json};
 use lfsx_server::auth::Namespaces;
-use lfsx_server::config::{Auth, Config, Forge as NamedForge, Provider};
+use lfsx_server::config::{Auth, Config, Dashboard, Forge as NamedForge, Provider};
+use lfsx_server::namespace::Namespace;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
@@ -22,26 +23,30 @@ struct Served {
     work: Arc<Forge>,
 }
 
+fn work_forge(api_url: &str, allowed: Option<&str>) -> NamedForge {
+    NamedForge {
+        name: "work".into(),
+        auth: Auth::Forge {
+            provider: Provider::Github,
+            api_url: api_url.to_owned(),
+            cache_ttl: Duration::ZERO,
+            rejection_ttl: Duration::ZERO,
+            lookup_budget: None,
+            github_app: None,
+            anonymous_read: false,
+            restricted: Namespaces::parse("LFSX_FORGE_WORK_RESTRICTED", None),
+            allowed: allowed
+                .map(|entries| Namespaces::parse("LFSX_FORGE_WORK_ALLOWED", Some(entries))),
+        },
+    }
+}
+
 async fn served(work_allowed: Option<&str>) -> Served {
     let root = tempfile::tempdir().unwrap();
     let (primary_url, primary) = forge().await;
     let (work_url, work) = forge().await;
     let app = lfsx_server::app(Config {
-        forges: vec![NamedForge {
-            name: "work".into(),
-            auth: Auth::Forge {
-                provider: Provider::Github,
-                api_url: work_url.clone(),
-                cache_ttl: Duration::ZERO,
-                rejection_ttl: Duration::ZERO,
-                lookup_budget: None,
-                github_app: None,
-                anonymous_read: false,
-                restricted: Namespaces::parse("LFSX_FORGE_WORK_RESTRICTED", None),
-                allowed: work_allowed
-                    .map(|entries| Namespaces::parse("LFSX_FORGE_WORK_ALLOWED", Some(entries))),
-            },
-        }],
+        forges: vec![work_forge(&work_url, work_allowed)],
         auth: anonymous_forge_auth(&primary_url, Duration::ZERO, Duration::ZERO, false),
         ..config(&root, &primary_url)
     });
@@ -217,4 +222,46 @@ async fn locks_on_two_forges_do_not_meet() {
     assert_eq!(take("").await, StatusCode::CREATED);
     assert_eq!(take("/-/work").await, StatusCode::CREATED);
     assert_eq!(take("/-/work").await, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn dashboard_admins_can_come_from_a_named_forge() {
+    let root = tempfile::tempdir().unwrap();
+    let pages = tempfile::tempdir().unwrap();
+    std::fs::write(pages.path().join("index.html"), "<lfsx-root></lfsx-root>").unwrap();
+    let (primary_url, primary) = forge().await;
+    let (work_url, work) = forge().await;
+    let app = lfsx_server::app(Config {
+        dashboard: Some(Dashboard {
+            dir: pages.path().to_path_buf(),
+            admins: Some(Namespace::on("work", "FerrLabs", "Infra").unwrap()),
+        }),
+        forges: vec![work_forge(&work_url, None)],
+        auth: anonymous_forge_auth(&primary_url, Duration::ZERO, Duration::ZERO, false),
+        ..config(&root, &primary_url)
+    });
+    let overview = |token: &'static str| {
+        let app = app.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .uri("/-/api/overview")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+        }
+    };
+
+    assert_eq!(overview("admin").await, StatusCode::OK);
+    assert_eq!(overview("writer").await, StatusCode::FORBIDDEN);
+    assert!(work.calls.load(Ordering::SeqCst) > 0);
+    assert_eq!(
+        primary.calls.load(Ordering::SeqCst),
+        0,
+        "the admins named on the work forge must be checked there, not on the main forge"
+    );
 }
