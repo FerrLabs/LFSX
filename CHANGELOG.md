@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.4] - 2026-10-10
+
+### Refactoring
+
+- refactor(storage): sort the bucket's keys for collection in a tested Survey (#546)
+
 ## [1.23.3] - 2026-10-03
 
 ### Bug Fixes
