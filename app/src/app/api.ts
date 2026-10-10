@@ -66,6 +66,10 @@ export interface AccessChange {
   readonly allowed: readonly string[] | null;
 }
 
+function forgeParams(forge: string | null): Record<string, string> {
+  return forge === null ? {} : { forge };
+}
+
 @Injectable({ providedIn: 'root' })
 export class Api {
   private readonly http = inject(HttpClient);
@@ -74,15 +78,15 @@ export class Api {
     return this.http.get<Overview>('/-/api/overview');
   }
 
-  access(): Observable<Access> {
-    return this.http.get<Access>('/-/api/access');
+  access(forge: string | null): Observable<Access> {
+    return this.http.get<Access>('/-/api/access', { params: forgeParams(forge) });
   }
 
-  saveAccess(change: AccessChange): Observable<Access> {
-    return this.http.put<Access>('/-/api/access', change);
+  saveAccess(change: AccessChange, forge: string | null): Observable<Access> {
+    return this.http.put<Access>('/-/api/access', change, { params: forgeParams(forge) });
   }
 
-  resetAccess(): Observable<Access> {
-    return this.http.delete<Access>('/-/api/access');
+  resetAccess(forge: string | null): Observable<Access> {
+    return this.http.delete<Access>('/-/api/access', { params: forgeParams(forge) });
   }
 }

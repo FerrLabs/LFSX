@@ -13,6 +13,21 @@
     }
   </div>
 
+  @if (forges().length > 0) {
+    <flr-field
+      class="forge"
+      label="Forge"
+      hint="The main forge is the one LFSX_AUTH names; the others are served under /-/&lt;name&gt;/."
+    >
+      <flr-select name="forge" aria-label="Forge" [ngModel]="forge() ?? ''" (ngModelChange)="choose($event)">
+        <option value="">Main forge</option>
+        @for (name of forges(); track name) {
+          <option [value]="name">{{ name }}</option>
+        }
+      </flr-select>
+    </flr-field>
+  }
+
   @if (problem(); as problem) {
     <flr-banner variant="danger" title="Not saved">{{ problem }}</flr-banner>
   }

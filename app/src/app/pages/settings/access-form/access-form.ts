@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   BannerComponent,
@@ -8,6 +8,7 @@ import {
   FieldComponent,
   LoadingStateComponent,
   ModalComponent,
+  SelectComponent,
   SwitchComponent,
   TextareaComponent,
 } from '@ferrlabs/ui-ng';
@@ -32,6 +33,7 @@ function lines(text: string): string[] {
     FieldComponent,
     LoadingStateComponent,
     ModalComponent,
+    SelectComponent,
     SwitchComponent,
     TextareaComponent,
   ],
@@ -42,6 +44,9 @@ export class AccessForm implements OnInit {
   private readonly api = inject(Api);
   private readonly feed = inject(Feed);
 
+  readonly forges = input<readonly string[]>([]);
+
+  protected readonly forge = signal<string | null>(null);
   protected readonly current = signal<Access | null>(null);
   protected readonly limited = signal(false);
   protected readonly allowed = signal('');
@@ -74,7 +79,19 @@ export class AccessForm implements OnInit {
   });
 
   ngOnInit(): void {
-    this.api.access().subscribe({
+    this.fetch();
+  }
+
+  protected choose(forge: string): void {
+    this.forge.set(forge === '' ? null : forge);
+    this.current.set(null);
+    this.problem.set(null);
+    this.saved.set(false);
+    this.fetch();
+  }
+
+  private fetch(): void {
+    this.api.access(this.forge()).subscribe({
       next: (access) => this.load(access),
       error: (error: unknown) => this.fail(error),
     });
@@ -84,7 +101,7 @@ export class AccessForm implements OnInit {
     this.saving.set(true);
     this.problem.set(null);
     this.saved.set(false);
-    this.api.saveAccess(this.change()).subscribe({
+    this.api.saveAccess(this.change(), this.forge()).subscribe({
       next: (access) => {
         this.load(access);
         this.saved.set(true);
@@ -104,7 +121,7 @@ export class AccessForm implements OnInit {
     this.confirming.set(false);
     this.saving.set(true);
     this.problem.set(null);
-    this.api.resetAccess().subscribe({
+    this.api.resetAccess(this.forge()).subscribe({
       next: (access) => {
         this.load(access);
         this.saved.set(true);

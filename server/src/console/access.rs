@@ -1,18 +1,18 @@
 use std::time::Duration;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use super::{Refused, admit};
-use crate::auth::{Access, Namespaces};
-use crate::config::{Auth, Config};
+use crate::auth::{Access, Authorizer, Namespaces};
+use crate::config::Auth;
 use crate::error::Error;
 use crate::state::Shared;
 
-const FILE: &str = "access.json";
+const MAIN_FILE: &str = "access.json";
 const EVERY: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,8 +31,60 @@ pub struct Shown {
     pub allowed: Option<Vec<String>>,
 }
 
-pub(crate) fn from_environment(config: &Config) -> Option<Access> {
-    match &config.auth {
+#[derive(Debug, Default, Deserialize)]
+pub struct Which {
+    forge: Option<String>,
+}
+
+struct Target<'a> {
+    authorizer: &'a Authorizer,
+    auth: &'a Auth,
+    file: String,
+}
+
+fn targets(state: &Shared) -> Vec<Target<'_>> {
+    let mut all = vec![main_target(state)];
+    all.extend(
+        state
+            .config
+            .forges
+            .iter()
+            .filter_map(|forge| named_target(state, &forge.name)),
+    );
+    all
+}
+
+fn main_target(state: &Shared) -> Target<'_> {
+    Target {
+        authorizer: &state.authorizer,
+        auth: &state.config.auth,
+        file: MAIN_FILE.to_owned(),
+    }
+}
+
+fn named_target<'a>(state: &'a Shared, name: &str) -> Option<Target<'a>> {
+    let forge = state
+        .config
+        .forges
+        .iter()
+        .find(|forge| forge.name == name)?;
+
+    Some(Target {
+        authorizer: state.forges.get(name)?,
+        auth: &forge.auth,
+        file: format!("access-{name}.json"),
+    })
+}
+
+fn target<'a>(state: &'a Shared, which: &Which) -> Result<Target<'a>, Error> {
+    match which.forge.as_deref().filter(|forge| !forge.is_empty()) {
+        None => Ok(main_target(state)),
+        Some(name) => named_target(state, name).ok_or(Error::NotServed),
+    }
+}
+
+fn from_auth(auth: &Auth) -> Option<Access> {
+    match auth {
         Auth::Disabled => None,
         Auth::Forge {
             anonymous_read,
@@ -68,8 +120,8 @@ impl Saved {
     }
 }
 
-async fn saved(state: &Shared) -> Result<Option<Saved>, Error> {
-    let Some(bytes) = state.store.read_meta(FILE).await? else {
+async fn saved(state: &Shared, file: &str) -> Result<Option<Saved>, Error> {
+    let Some(bytes) = state.store.read_meta(file).await? else {
         return Ok(None);
     };
 
@@ -77,11 +129,17 @@ async fn saved(state: &Shared) -> Result<Option<Saved>, Error> {
 }
 
 pub(crate) async fn refresh(state: &Shared) {
-    let Some(environment) = from_environment(&state.config) else {
+    for target in targets(state) {
+        refresh_one(state, &target).await;
+    }
+}
+
+async fn refresh_one(state: &Shared, target: &Target<'_>) {
+    let Some(environment) = from_auth(target.auth) else {
         return;
     };
 
-    let access = match saved(state).await {
+    let access = match saved(state, &target.file).await {
         Ok(None) => environment,
         Ok(Some(saved)) => match saved.access() {
             Ok(access) => access,
@@ -104,8 +162,8 @@ pub(crate) async fn refresh(state: &Shared) {
         }
     };
 
-    if state.authorizer.access().as_ref() != Some(&access) {
-        state.authorizer.set_access(access);
+    if target.authorizer.access().as_ref() != Some(&access) {
+        target.authorizer.set_access(access);
     }
 }
 
@@ -119,14 +177,14 @@ pub(crate) fn keep_fresh(state: Shared) {
     });
 }
 
-async fn shown(state: &Shared) -> Result<Shown, Error> {
-    let source = if saved(state).await?.is_some() {
+async fn shown(state: &Shared, target: &Target<'_>) -> Result<Shown, Error> {
+    let source = if saved(state, &target.file).await?.is_some() {
         "dashboard"
     } else {
         "environment"
     };
 
-    Ok(match state.authorizer.access() {
+    Ok(match target.authorizer.access() {
         Some(access) => Shown {
             editable: true,
             source,
@@ -146,21 +204,25 @@ async fn shown(state: &Shared) -> Result<Shown, Error> {
 
 pub(crate) async fn read(
     State(state): State<Shared>,
+    Query(which): Query<Which>,
     headers: HeaderMap,
 ) -> Result<Json<Shown>, Refused> {
     admit(&state, &headers).await?;
+    let target = target(&state, &which)?;
 
-    Ok(Json(shown(&state).await?))
+    Ok(Json(shown(&state, &target).await?))
 }
 
 pub(crate) async fn write(
     State(state): State<Shared>,
+    Query(which): Query<Which>,
     headers: HeaderMap,
     Json(saved): Json<Saved>,
 ) -> Result<Response, Refused> {
     admit(&state, &headers).await?;
+    let target = target(&state, &which)?;
 
-    if state.authorizer.access().is_none() {
+    if target.authorizer.access().is_none() {
         return Ok(unchangeable());
     }
 
@@ -181,31 +243,36 @@ pub(crate) async fn write(
     state
         .store
         .write_meta(
-            FILE,
+            &target.file,
             serde_json::to_vec_pretty(&saved).map_err(Error::from)?,
         )
         .await?;
-    state.authorizer.set_access(access);
-    tracing::info!(?saved, "access settings changed from the dashboard");
+    target.authorizer.set_access(access);
+    tracing::info!(file = %target.file, ?saved, "access settings changed from the dashboard");
 
-    Ok(Json(shown(&state).await?).into_response())
+    Ok(Json(shown(&state, &target).await?).into_response())
 }
 
 pub(crate) async fn reset(
     State(state): State<Shared>,
+    Query(which): Query<Which>,
     headers: HeaderMap,
 ) -> Result<Response, Refused> {
     admit(&state, &headers).await?;
+    let target = target(&state, &which)?;
 
-    let Some(environment) = from_environment(&state.config) else {
+    let Some(environment) = from_auth(target.auth) else {
         return Ok(unchangeable());
     };
 
-    state.store.delete_meta(FILE).await?;
-    state.authorizer.set_access(environment);
-    tracing::info!("access settings reset to the environment from the dashboard");
+    state.store.delete_meta(&target.file).await?;
+    target.authorizer.set_access(environment);
+    tracing::info!(
+        file = %target.file,
+        "access settings reset to the environment from the dashboard"
+    );
 
-    Ok(Json(shown(&state).await?).into_response())
+    Ok(Json(shown(&state, &target).await?).into_response())
 }
 
 fn unchangeable() -> Response {
