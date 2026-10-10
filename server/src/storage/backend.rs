@@ -276,20 +276,22 @@ impl Store {
                     None => None,
                 };
 
-                let reader = match cached {
-                    Some(file) => super::codec::Reader::File(file),
+                let (reader, hit) = match cached {
+                    Some(file) => (super::codec::Reader::File(file), cache.as_ref()),
                     None => {
                         if let Some(cache) = cache {
                             fill_behind(cache.clone(), (**bucket).clone(), oid.to_owned(), size);
                         }
 
-                        super::codec::Reader::Bucket {
-                            bucket: (**bucket).clone(),
-                            oid: oid.to_owned(),
-                        }
+                        (
+                            super::codec::Reader::Bucket {
+                                bucket: (**bucket).clone(),
+                                oid: oid.to_owned(),
+                            },
+                            None,
+                        )
                     }
                 };
-                let from_cache = matches!(reader, super::codec::Reader::File(_));
 
                 match super::codec::Framed::open(
                     reader,
@@ -305,19 +307,21 @@ impl Store {
                     // A raw object that is cached is a plain local file, so
                     // it streams like one. `Framed::open` consumed the handle
                     // deciding it was not framed, hence the reopen.
-                    None if from_cache => match cache.as_ref().unwrap().reopen(oid).await {
-                        Some(file) => Ok(Object::Raw { file, size }),
-                        None => Ok(Object::Remote {
-                            bucket: (**bucket).clone(),
-                            oid: oid.to_owned(),
-                            size,
-                        }),
-                    },
-                    None => Ok(Object::Remote {
-                        bucket: (**bucket).clone(),
-                        oid: oid.to_owned(),
-                        size,
-                    }),
+                    None => {
+                        let reopened = match hit {
+                            Some(cache) => cache.reopen(oid).await,
+                            None => None,
+                        };
+
+                        match reopened {
+                            Some(file) => Ok(Object::Raw { file, size }),
+                            None => Ok(Object::Remote {
+                                bucket: (**bucket).clone(),
+                                oid: oid.to_owned(),
+                                size,
+                            }),
+                        }
+                    }
                 }
             }
         }
