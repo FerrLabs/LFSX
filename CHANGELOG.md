@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.0] - 2026-10-10
+
+### Features
+
+- feat(dashboard): edit each forge's access settings (#559)
+
 ## [1.25.1] - 2026-10-10
 
 ### Bug Fixes

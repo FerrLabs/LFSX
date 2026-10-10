@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.9] - 2026-10-10
+
+### Features
+
+- feat(dashboard): edit each forge's access settings (#559)
+
 ## [2026.10.8] - 2026-10-10
 
 ### Features
