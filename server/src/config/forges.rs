@@ -1,4 +1,4 @@
-use super::{Auth, Provider, allowed, anonymous_read, api_url_from, github_app_from};
+use super::auth::{Auth, Provider, allowed, anonymous_read, api_url_from, github_app_from};
 use crate::auth::Namespaces;
 use crate::namespace::is_forge_name;
 
