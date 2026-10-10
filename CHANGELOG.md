@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.5] - 2026-10-10
+
+### Refactoring
+
+- refactor(storage): reuse Survey in the indexed sweep and split the staging walk (#550)
+
 ## [1.23.4] - 2026-10-10
 
 ### Refactoring
