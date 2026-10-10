@@ -1,4 +1,4 @@
-use super::{Auth, Provider, allowed, anonymous_read, api_url_from};
+use super::{Auth, Provider, allowed, anonymous_read, api_url_from, github_app_from};
 use crate::auth::Namespaces;
 use crate::namespace::is_forge_name;
 
@@ -75,7 +75,7 @@ pub(super) fn parse(
                 cache_ttl: *cache_ttl,
                 rejection_ttl: *rejection_ttl,
                 lookup_budget: *lookup_budget,
-                github_app: None,
+                github_app: github_app_from(provider, &prefix, &variable("AUTH"), &read),
                 anonymous_read: anonymous_read(value("ANONYMOUS_READ").as_deref()),
                 restricted: Namespaces::parse(
                     &variable("RESTRICTED"),

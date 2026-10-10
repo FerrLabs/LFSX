@@ -554,19 +554,28 @@ fn allowed(variable: &str, value: Option<&str>) -> Option<Namespaces> {
 // says two things at once, and an operator who set up an App meant to have its
 // quota, so the mistake is refused at boot instead of quietly ignored.
 fn github_app(provider: Provider) -> Option<GithubApp> {
-    let id = std::env::var("LFSX_GITHUB_APP_ID")
-        .ok()
-        .filter(|id| !id.is_empty());
-    let key_file = std::env::var("LFSX_GITHUB_APP_KEY_FILE")
-        .ok()
-        .filter(|path| !path.is_empty());
+    github_app_from(provider, "LFSX_", "LFSX_AUTH", |variable| {
+        std::env::var(variable).ok()
+    })
+}
+
+fn github_app_from(
+    provider: Provider,
+    prefix: &str,
+    auth_variable: &str,
+    read: impl Fn(&str) -> Option<String>,
+) -> Option<GithubApp> {
+    let id_variable = format!("{prefix}GITHUB_APP_ID");
+    let key_variable = format!("{prefix}GITHUB_APP_KEY_FILE");
+    let id = read(&id_variable).filter(|id| !id.is_empty());
+    let key_file = read(&key_variable).filter(|path| !path.is_empty());
 
     match (id, key_file) {
         (None, None) => None,
         (Some(app_id), Some(key_file)) => {
             if provider != Provider::Github {
                 tracing::warn!(
-                    "LFSX_GITHUB_APP_ID is set but LFSX_AUTH is not github, so it does nothing"
+                    "{id_variable} is set but {auth_variable} is not github, so it does nothing"
                 );
                 return None;
             }
@@ -576,8 +585,8 @@ fn github_app(provider: Provider) -> Option<GithubApp> {
             })
         }
         _ => panic!(
-            "LFSX_GITHUB_APP_ID and LFSX_GITHUB_APP_KEY_FILE come together: one without the \
-             other is half an identity, and guessing which half was meant is worse than stopping"
+            "{id_variable} and {key_variable} come together: one without the other is half an \
+             identity, and guessing which half was meant is worse than stopping"
         ),
     }
 }

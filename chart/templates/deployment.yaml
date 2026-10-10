@@ -189,6 +189,12 @@ spec:
             {{- end }}
             - name: {{ printf "%sANONYMOUS_READ" $prefix }}
               value: {{ .anonymousRead | default false | quote }}
+            {{- if and .githubApp .githubApp.appId }}
+            - name: {{ printf "%sGITHUB_APP_ID" $prefix }}
+              value: {{ .githubApp.appId | quote }}
+            - name: {{ printf "%sGITHUB_APP_KEY_FILE" $prefix }}
+              value: {{ printf "/etc/lfsx/github-app-%s/%s" .name (.githubApp.key | default "private-key.pem") }}
+            {{- end }}
             {{- end }}
             {{- end }}
             - name: LFSX_AUTH_CACHE_TTL
@@ -275,6 +281,13 @@ spec:
               mountPath: /etc/lfsx/github-app
               readOnly: true
             {{- end }}
+            {{- range .Values.auth.forges }}
+            {{- if and .githubApp .githubApp.appId }}
+            - name: {{ printf "github-app-key-%s" .name }}
+              mountPath: {{ printf "/etc/lfsx/github-app-%s" .name }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
             {{- if and (eq .Values.storage.type "gcs") .Values.storage.gcs.existingSecret }}
             - name: gcs-key
               mountPath: /etc/lfsx/gcs
@@ -302,6 +315,14 @@ spec:
           secret:
             secretName: {{ .Values.auth.githubApp.existingSecret }}
             defaultMode: 0440
+        {{- end }}
+        {{- range .Values.auth.forges }}
+        {{- if and .githubApp .githubApp.appId }}
+        - name: {{ printf "github-app-key-%s" .name }}
+          secret:
+            secretName: {{ .githubApp.existingSecret }}
+            defaultMode: 0440
+        {{- end }}
         {{- end }}
         {{- if and (eq .Values.storage.type "gcs") .Values.storage.gcs.existingSecret }}
         - name: gcs-key
