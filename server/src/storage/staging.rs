@@ -31,31 +31,18 @@ impl LocalStore {
             };
 
             while let Ok(Some(entry)) = entries.next_entry().await {
-                let path = entry.path();
                 let Ok(metadata) = entry.metadata().await else {
                     continue;
                 };
+                let path = entry.path();
 
                 if metadata.is_dir() {
-                    // Staging files only ever appear under org/repo/xx/yy, so the
-                    // shared .content store and .locks hold none, walking them
-                    // every hour would cost I/O that grows with the whole store
-                    // instead of with the litter. Only the root carries those:
-                    // deeper down, a repository really can be named .github.
-                    if directory != self.root || !is_dotted(&path) {
+                    if self.walks_into(&directory, &path) {
                         directories.push(path);
                     }
-                    continue;
-                }
-
-                let is_staging = path
-                    .extension()
-                    .is_some_and(|extension| extension == "part");
-                if !is_staging || age(&metadata) < older_than {
-                    continue;
-                }
-
-                if fs::remove_file(&path).await.is_ok() {
+                } else if abandoned(&path, &metadata, older_than)
+                    && fs::remove_file(&path).await.is_ok()
+                {
                     reclaimed.files += 1;
                     reclaimed.bytes += metadata.len();
                 }
@@ -64,6 +51,20 @@ impl LocalStore {
 
         reclaimed
     }
+
+    // Staging files only ever appear under org/repo/xx/yy, so the shared
+    // .content store and .locks hold none, walking them every hour would cost
+    // I/O that grows with the whole store instead of with the litter. Only the
+    // root carries those: deeper down, a repository really can be named .github.
+    fn walks_into(&self, parent: &Path, directory: &Path) -> bool {
+        parent != self.root || !is_dotted(directory)
+    }
+}
+
+fn abandoned(path: &Path, metadata: &std::fs::Metadata, older_than: Duration) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension == "part")
+        && age(metadata) >= older_than
 }
 
 fn is_dotted(path: &Path) -> bool {

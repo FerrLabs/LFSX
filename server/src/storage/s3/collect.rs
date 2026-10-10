@@ -144,21 +144,7 @@ impl S3Store {
         // Kept rather than discarded, because dropping a marker should take its
         // entry with it and the key carries a number this sweep has no other way
         // of knowing.
-        let mut sized = HashMap::new();
-        let mut mine = Vec::new();
-
-        for entry in listing.entries {
-            if sizes::is_one(&entry.key) {
-                if let Some((oid, _)) = sizes::read(&entry.key) {
-                    sized.insert(oid, entry.key);
-                }
-                continue;
-            }
-
-            if let Some(oid) = marker_oid(&entry.key) {
-                mine.push((entry, oid));
-            }
-        }
+        let Survey { sized, mine, .. } = Survey::of(listing.entries, &Self::own_prefix(ns));
 
         for (entry, oid) in Self::droppable(mine, retained, grace, &mut report) {
             let frees = !refs::claimed_by_another(&self.keys, ns, &oid).await;
