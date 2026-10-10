@@ -163,7 +163,7 @@ pub(crate) async fn admit(state: &Shared, headers: &HeaderMap) -> Result<(), Err
 
     match (&state.config.auth, &dashboard.admins) {
         (Auth::Forge { .. }, Some(admins)) => state
-            .authorizer
+            .authorizer_for(admins)?
             .forge_permission(headers, admins)
             .await?
             .require_admin(),

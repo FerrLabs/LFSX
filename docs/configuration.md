@@ -20,6 +20,7 @@ All configuration is by environment variable.
 | `LFSX_AUTH_LOOKUP_BUDGET` | `600` | forge lookups a minute this server will spend, counting only what the caches could not answer; `0` removes the ceiling |
 | `LFSX_DASHBOARD` | `false` | `true` to serve the web dashboard at `/-/dashboard/`, see [Dashboard](dashboard.md) |
 | `LFSX_DASHBOARD_REPO` | none | `org/repo` whose admins may sign in to the dashboard with their forge token; required with it unless `LFSX_AUTH=disabled` |
+| `LFSX_DASHBOARD_FORGE` | the main forge | the named forge `LFSX_DASHBOARD_REPO` lives on, one of `LFSX_FORGES` |
 | `LFSX_DASHBOARD_DIR` | `/usr/share/lfsx/dashboard` | where the dashboard's built pages are |
 | `LFSX_GITHUB_APP_ID` | unset | a GitHub App id, giving the server its own identity (and quota) for the anonymous public-repository lookup |
 | `LFSX_GITHUB_APP_KEY_FILE` | unset | path to the App's RSA private key in PEM form; comes together with the id, one without the other refuses to start |

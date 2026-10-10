@@ -205,6 +205,10 @@ spec:
             - name: LFSX_DASHBOARD_REPO
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.dashboard.forge }}
+            - name: LFSX_DASHBOARD_FORGE
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             - name: LFSX_GC_GRACE
               value: {{ .Values.gc.grace | quote }}

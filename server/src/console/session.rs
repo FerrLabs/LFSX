@@ -163,16 +163,13 @@ async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| Error::Unauthenticated)?,
     );
-    state
-        .authorizer
+    let authorizer = state.authorizer_for(admins)?;
+    authorizer
         .forge_permission(&headers, admins)
         .await?
         .require_admin()?;
 
-    Ok((
-        Viewer::Forge(state.authorizer.actor(&headers).await?.0),
-        None,
-    ))
+    Ok((Viewer::Forge(authorizer.actor(&headers).await?.0), None))
 }
 
 pub(crate) async fn sign_in(

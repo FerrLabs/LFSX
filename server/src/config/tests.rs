@@ -286,13 +286,31 @@ fn github() -> Auth {
 
 #[test]
 fn the_dashboard_is_off_unless_it_is_asked_for() {
-    assert!(dashboard(None, None, Some("FerrLabs/Infra"), &github()).is_none());
-    assert!(dashboard(Some("yes"), None, Some("FerrLabs/Infra"), &github()).is_none());
+    assert!(dashboard(None, None, Some("FerrLabs/Infra"), None, &github(), &[]).is_none());
+    assert!(
+        dashboard(
+            Some("yes"),
+            None,
+            Some("FerrLabs/Infra"),
+            None,
+            &github(),
+            &[]
+        )
+        .is_none()
+    );
 }
 
 #[test]
 fn the_dashboard_is_shown_to_the_admins_of_the_named_repository() {
-    let dashboard = dashboard(Some("true"), Some(""), Some("FerrLabs/Infra"), &github()).unwrap();
+    let dashboard = dashboard(
+        Some("true"),
+        Some(""),
+        Some("FerrLabs/Infra"),
+        None,
+        &github(),
+        &[],
+    )
+    .unwrap();
 
     let admins = dashboard.admins.unwrap();
     assert_eq!((admins.org(), admins.repo()), ("FerrLabs", "Infra"));
@@ -302,18 +320,26 @@ fn the_dashboard_is_shown_to_the_admins_of_the_named_repository() {
 #[test]
 #[should_panic(expected = "needs LFSX_DASHBOARD_REPO")]
 fn a_dashboard_behind_a_forge_refuses_to_start_without_a_repository() {
-    dashboard(Some("true"), None, None, &github());
+    dashboard(Some("true"), None, None, None, &github(), &[]);
 }
 
 #[test]
 #[should_panic(expected = "LFSX_DASHBOARD_REPO is not org/repo")]
 fn a_dashboard_repository_that_is_not_org_repo_refuses_to_start() {
-    dashboard(Some("true"), None, Some("Infra"), &github());
+    dashboard(Some("true"), None, Some("Infra"), None, &github(), &[]);
 }
 
 #[test]
 fn without_authentication_the_dashboard_needs_no_repository() {
-    let dashboard = dashboard(Some("true"), Some("/srv/dashboard"), None, &Auth::Disabled).unwrap();
+    let dashboard = dashboard(
+        Some("true"),
+        Some("/srv/dashboard"),
+        None,
+        None,
+        &Auth::Disabled,
+        &[],
+    )
+    .unwrap();
 
     assert!(dashboard.admins.is_none());
     assert_eq!(dashboard.dir, PathBuf::from("/srv/dashboard"));
@@ -325,4 +351,41 @@ fn a_variable_counts_as_set_whatever_its_entries_parse_to() {
     assert!(is_set(Some("acme/*")));
     assert!(!is_set(Some(" ")));
     assert!(!is_set(None));
+}
+
+fn named(name: &str) -> Forge {
+    Forge {
+        name: name.to_owned(),
+        auth: github(),
+    }
+}
+
+#[test]
+fn the_dashboard_can_take_its_admins_from_a_named_forge() {
+    let dashboard = dashboard(
+        Some("true"),
+        None,
+        Some("FerrLabs/Infra"),
+        Some("work"),
+        &github(),
+        &[named("work")],
+    )
+    .unwrap();
+
+    let admins = dashboard.admins.unwrap();
+    assert_eq!(admins.forge(), Some("work"));
+    assert_eq!((admins.org(), admins.repo()), ("FerrLabs", "Infra"));
+}
+
+#[test]
+#[should_panic(expected = "LFSX_DASHBOARD_FORGE names elsewhere, which LFSX_FORGES does not list")]
+fn a_dashboard_forge_nobody_configured_refuses_to_start() {
+    dashboard(
+        Some("true"),
+        None,
+        Some("FerrLabs/Infra"),
+        Some("elsewhere"),
+        &github(),
+        &[named("work")],
+    );
 }

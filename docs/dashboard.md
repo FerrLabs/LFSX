@@ -15,6 +15,7 @@ forge can start with `-`, so the prefix never shadows a repository.
 |---|---|---|
 | `LFSX_DASHBOARD` | `false` | `true` to serve the dashboard and its API |
 | `LFSX_DASHBOARD_REPO` | none | `org/repo` whose admins may sign in with their forge token; required unless `LFSX_AUTH=disabled` |
+| `LFSX_DASHBOARD_FORGE` | the main forge | the [named forge](forges.md) `LFSX_DASHBOARD_REPO` lives on, when it is not the one `LFSX_AUTH` names |
 | `LFSX_DASHBOARD_DIR` | `/usr/share/lfsx/dashboard` | where the built pages are; the image ships them there |
 
 ## Who can open it

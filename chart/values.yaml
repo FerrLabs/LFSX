@@ -94,6 +94,9 @@ dashboard:
   # on the forge). Required unless auth.mode is disabled.
   enabled: false
   repo: ""
+  # The named forge (one of auth.forges) `repo` lives on. Empty is the main
+  # forge.
+  forge: ""
 
 gc:
   grace: 1209600
