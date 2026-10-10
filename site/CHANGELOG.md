@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.7] - 2026-10-10
+
+### Features
+
+- feat(auth): give a named GitHub forge its own App (#554)
+
 ## [2026.10.6] - 2026-10-08
 
 ### Bug Fixes
