@@ -68,7 +68,8 @@ The Settings page edits the three access settings:
 
 A change applies at once on the replica that saved it. It is written to the store as
 `.lfsx/access.json`, on the volume or in the bucket, and every replica reads it back within 30
-seconds. A saved value takes precedence over the environment until **Reset to the environment**
+seconds. With [several forges](forges.md), a selector picks the forge the settings apply to, and
+each named forge keeps its own file, `.lfsx/access-<name>.json`. A saved value takes precedence over the environment until **Reset to the environment**
 deletes it.
 
 Everything else on the page is read from the environment and takes a restart to change.
