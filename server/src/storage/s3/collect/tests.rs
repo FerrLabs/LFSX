@@ -27,8 +27,8 @@ fn ours() -> String {
     S3Store::own_prefix(&blastlands())
 }
 
-fn prefix_of(ns: &Namespace) -> String {
-    S3Store::own_prefix(ns)
+fn roguelite() -> Namespace {
+    Namespace::new("FerrLabs", "RogueLite").unwrap()
 }
 
 #[test]
@@ -36,13 +36,7 @@ fn a_marker_is_ours_or_a_claim_by_another_repository() {
     let survey = Survey::of(
         vec![
             entry(&marker(&ours(), OID), 0),
-            entry(
-                &marker(
-                    &prefix_of(&Namespace::new("FerrLabs", "RogueLite").unwrap()),
-                    OTHER,
-                ),
-                0,
-            ),
+            entry(&marker(&S3Store::own_prefix(&roguelite()), OTHER), 0),
         ],
         &ours(),
     );
@@ -60,7 +54,7 @@ fn a_repository_on_another_forge_claims_the_same_bytes() {
             entry(&marker(&ours(), OID), 0),
             entry(
                 &marker(
-                    &prefix_of(&Namespace::on("work", "FerrLabs", "Blastlands").unwrap()),
+                    &S3Store::own_prefix(&Namespace::on("work", "FerrLabs", "Blastlands").unwrap()),
                     OID,
                 ),
                 0,
@@ -107,7 +101,7 @@ fn bookkeeping_keys_are_never_read_as_claims() {
 #[test]
 fn only_our_size_index_is_kept_and_none_of_it_is_a_marker() {
     let ns = blastlands();
-    let theirs = Namespace::new("FerrLabs", "RogueLite").unwrap();
+    let theirs = roguelite();
     let ours_sized = sizes::key(&ns, &oid(OID), 42);
 
     let survey = Survey::of(
@@ -126,7 +120,7 @@ fn only_our_size_index_is_kept_and_none_of_it_is_a_marker() {
 
 #[test]
 fn a_key_that_does_not_end_in_an_oid_is_ignored() {
-    let survey = Survey::of(vec![entry("FerrLabs/Blastlands/README", 0)], &ours());
+    let survey = Survey::of(vec![entry(&format!("{}README", ours()), 0)], &ours());
 
     assert!(survey.markers.is_empty());
     assert!(survey.mine.is_empty());
