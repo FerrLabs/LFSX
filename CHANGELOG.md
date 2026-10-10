@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.25.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(chart): render GitHub App ids as integers (#561)
+
 ## [1.25.0] - 2026-10-10
 
 ### Features
