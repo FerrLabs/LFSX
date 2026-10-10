@@ -18,7 +18,7 @@ ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN pnpm --filter @lfsx/site build
 
 # Analog static output: prerendered HTML plus the client bundles.
-FROM docker.io/nginxinc/nginx-unprivileged:alpine@sha256:6a23acdfca2b9cfbcec61419e3f1426bcbedb91362f2f19306a8567423bb4612
+FROM docker.io/nginxinc/nginx-unprivileged:alpine@sha256:b9241c6e7b8e9a862f129d8d4199ab64b10390949a78bdd5603379b32c844083
 
 USER root
 RUN apk upgrade --no-cache
