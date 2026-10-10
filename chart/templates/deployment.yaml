@@ -191,7 +191,7 @@ spec:
               value: {{ .anonymousRead | default false | quote }}
             {{- if and .githubApp .githubApp.appId }}
             - name: {{ printf "%sGITHUB_APP_ID" $prefix }}
-              value: {{ .githubApp.appId | quote }}
+              value: {{ include "lfsx.appId" .githubApp.appId | quote }}
             - name: {{ printf "%sGITHUB_APP_KEY_FILE" $prefix }}
               value: {{ printf "/etc/lfsx/github-app-%s/%s" .name (.githubApp.key | default "private-key.pem") }}
             {{- end }}
@@ -250,7 +250,7 @@ spec:
             {{- end }}
             {{- if .Values.auth.githubApp.appId }}
             - name: LFSX_GITHUB_APP_ID
-              value: {{ .Values.auth.githubApp.appId | quote }}
+              value: {{ include "lfsx.appId" .Values.auth.githubApp.appId | quote }}
             - name: LFSX_GITHUB_APP_KEY_FILE
               value: /etc/lfsx/github-app/{{ .Values.auth.githubApp.key }}
             {{- end }}

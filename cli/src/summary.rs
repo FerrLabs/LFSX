@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use serde_json::Value;
 
 const GIB: f64 = 1_073_741_824.0;
@@ -88,9 +90,9 @@ pub fn verify(report: &Value) -> Audit {
             continue;
         }
 
-        text.push_str(&format!("{label}:\n"));
+        let _ = writeln!(text, "{label}:");
         for oid in oids {
-            text.push_str(&format!("  {}\n", oid.as_str().unwrap_or_default()));
+            let _ = writeln!(text, "  {}", oid.as_str().unwrap_or_default());
         }
     }
 
