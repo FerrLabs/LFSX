@@ -155,12 +155,7 @@ impl S3Store {
                 continue;
             }
 
-            if let Some(oid) = entry
-                .key
-                .rsplit('/')
-                .next()
-                .and_then(|raw| Oid::parse(raw).ok())
-            {
+            if let Some(oid) = marker_oid(&entry.key) {
                 mine.push((entry, oid));
             }
         }
@@ -218,71 +213,13 @@ impl S3Store {
             ..Default::default()
         };
 
-        let ours = Self::own_prefix(ns);
-        let mut markers = Vec::new();
-        let mut sized = HashMap::new();
-        let mut mine = Vec::new();
-        let mut claimed_elsewhere = HashSet::new();
-        let mut content_sizes = HashMap::new();
-
-        for entry in listing.entries {
-            if let Some(rest) = entry.key.strip_prefix(".content/") {
-                if let Some(oid) = rest.rsplit('/').next() {
-                    content_sizes.insert(oid.to_owned(), entry.size);
-                }
-                continue;
-            }
-
-            // Locks live at `.locks/{org}/{repo}/{id}`, so they never match the
-            // marker prefix and are never swept. Skipped explicitly all the same:
-            // falling through would file every lock id in the claimed set, and an
-            // object whose digest happened to equal a lock id would then never be
-            // collected. The odds are absurd today and the line costs nothing,
-            // but the code should not depend on ids and digests never colliding.
-            //
-            // The index is skipped for a sharper reason than caution:
-            // `.refs/{oid}/{org}/{repo}` ends in a repository name, so reading one
-            // as a marker would file that name as an oid somebody claims.
-            if entry.key.starts_with(".incoming/")
-                || entry.key.starts_with(".locks/")
-                || entry.key.starts_with(".refs/")
-                || entry.key.starts_with(".probe/")
-            {
-                continue;
-            }
-
-            // The size index shares a repository's prefix, so it arrives here
-            // among the markers. Read as one, an entry of it is a claim on an
-            // object whose name ends in a number. Kept rather than dropped,
-            // because a marker this sweep removes should take its size along and
-            // the key is the only place that number is written down.
-            if sizes::is_one(&entry.key) {
-                if entry.key.starts_with(&ours)
-                    && let Some((oid, _)) = sizes::read(&entry.key)
-                {
-                    sized.insert(oid, entry.key);
-                }
-
-                continue;
-            }
-
-            let Some(oid) = entry
-                .key
-                .rsplit('/')
-                .next()
-                .and_then(|raw| Oid::parse(raw).ok())
-            else {
-                continue;
-            };
-
-            markers.push(entry.key.clone());
-
-            if entry.key.starts_with(&ours) {
-                mine.push((entry, oid));
-            } else {
-                claimed_elsewhere.insert(oid);
-            }
-        }
+        let Survey {
+            markers,
+            sized,
+            mine,
+            claimed_elsewhere,
+            content_sizes,
+        } = Survey::of(listing.entries, &Self::own_prefix(ns));
 
         // Before anything is deleted, so the index never gains a ref for a marker
         // this sweep is about to drop. Built from the listing already paid for,
@@ -336,3 +273,83 @@ impl S3Store {
         Ok(report)
     }
 }
+
+#[derive(Default)]
+struct Survey {
+    markers: Vec<String>,
+    sized: HashMap<Oid, String>,
+    mine: Vec<(keyspace::Entry, Oid)>,
+    claimed_elsewhere: HashSet<Oid>,
+    content_sizes: HashMap<String, u64>,
+}
+
+const NOT_MARKERS: [&str; 4] = [".incoming/", ".locks/", ".refs/", ".probe/"];
+
+impl Survey {
+    fn of(entries: Vec<keyspace::Entry>, ours: &str) -> Self {
+        let mut survey = Self::default();
+        for entry in entries {
+            survey.file(entry, ours);
+        }
+        survey
+    }
+
+    fn file(&mut self, entry: keyspace::Entry, ours: &str) {
+        if let Some(rest) = entry.key.strip_prefix(".content/") {
+            if let Some(oid) = rest.rsplit('/').next() {
+                self.content_sizes.insert(oid.to_owned(), entry.size);
+            }
+            return;
+        }
+
+        // Locks live at `.locks/{org}/{repo}/{id}`, so they never match the
+        // marker prefix and are never swept. Skipped explicitly all the same:
+        // falling through would file every lock id in the claimed set, and an
+        // object whose digest happened to equal a lock id would then never be
+        // collected. The odds are absurd today and the line costs nothing,
+        // but the code should not depend on ids and digests never colliding.
+        //
+        // The index is skipped for a sharper reason than caution:
+        // `.refs/{oid}/{org}/{repo}` ends in a repository name, so reading one
+        // as a marker would file that name as an oid somebody claims.
+        if NOT_MARKERS
+            .iter()
+            .any(|prefix| entry.key.starts_with(prefix))
+        {
+            return;
+        }
+
+        // The size index shares a repository's prefix, so it arrives here
+        // among the markers. Read as one, an entry of it is a claim on an
+        // object whose name ends in a number. Kept rather than dropped,
+        // because a marker this sweep removes should take its size along and
+        // the key is the only place that number is written down.
+        if sizes::is_one(&entry.key) {
+            if entry.key.starts_with(ours)
+                && let Some((oid, _)) = sizes::read(&entry.key)
+            {
+                self.sized.insert(oid, entry.key);
+            }
+            return;
+        }
+
+        let Some(oid) = marker_oid(&entry.key) else {
+            return;
+        };
+
+        self.markers.push(entry.key.clone());
+
+        if entry.key.starts_with(ours) {
+            self.mine.push((entry, oid));
+        } else {
+            self.claimed_elsewhere.insert(oid);
+        }
+    }
+}
+
+fn marker_oid(key: &str) -> Option<Oid> {
+    key.rsplit('/').next().and_then(|raw| Oid::parse(raw).ok())
+}
+
+#[cfg(test)]
+mod tests;
