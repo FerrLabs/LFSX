@@ -19,16 +19,32 @@ fn oid(raw: &str) -> Oid {
     Oid::parse(raw).unwrap()
 }
 
-const OURS: &str = "FerrLabs/Blastlands/";
+fn blastlands() -> Namespace {
+    Namespace::new("FerrLabs", "Blastlands").unwrap()
+}
+
+fn ours() -> String {
+    S3Store::own_prefix(&blastlands())
+}
+
+fn prefix_of(ns: &Namespace) -> String {
+    S3Store::own_prefix(ns)
+}
 
 #[test]
 fn a_marker_is_ours_or_a_claim_by_another_repository() {
     let survey = Survey::of(
         vec![
-            entry(&marker(OURS, OID), 0),
-            entry(&marker("FerrLabs/RogueLite/", OTHER), 0),
+            entry(&marker(&ours(), OID), 0),
+            entry(
+                &marker(
+                    &prefix_of(&Namespace::new("FerrLabs", "RogueLite").unwrap()),
+                    OTHER,
+                ),
+                0,
+            ),
         ],
-        OURS,
+        &ours(),
     );
 
     assert_eq!(survey.markers.len(), 2);
@@ -41,10 +57,16 @@ fn a_marker_is_ours_or_a_claim_by_another_repository() {
 fn a_repository_on_another_forge_claims_the_same_bytes() {
     let survey = Survey::of(
         vec![
-            entry(&marker(OURS, OID), 0),
-            entry(&marker("work~FerrLabs/Blastlands/", OID), 0),
+            entry(&marker(&ours(), OID), 0),
+            entry(
+                &marker(
+                    &prefix_of(&Namespace::on("work", "FerrLabs", "Blastlands").unwrap()),
+                    OID,
+                ),
+                0,
+            ),
         ],
-        OURS,
+        &ours(),
     );
 
     assert_eq!(survey.mine.len(), 1);
@@ -56,7 +78,7 @@ fn a_repository_on_another_forge_claims_the_same_bytes() {
 
 #[test]
 fn content_keys_give_sizes_and_never_claim() {
-    let survey = Survey::of(vec![entry(&format!(".content/2c/f2/{OID}"), 1234)], OURS);
+    let survey = Survey::of(vec![entry(&format!(".content/2c/f2/{OID}"), 1234)], &ours());
 
     assert_eq!(survey.content_sizes.get(OID), Some(&1234));
     assert!(survey.markers.is_empty());
@@ -72,7 +94,7 @@ fn bookkeeping_keys_are_never_read_as_claims() {
             entry(&format!(".incoming/FerrLabs/RogueLite/2c/f2/{OTHER}"), 0),
             entry(&format!(".probe/{OTHER}"), 0),
         ],
-        OURS,
+        &ours(),
     );
 
     assert!(survey.markers.is_empty());
@@ -84,7 +106,7 @@ fn bookkeeping_keys_are_never_read_as_claims() {
 
 #[test]
 fn only_our_size_index_is_kept_and_none_of_it_is_a_marker() {
-    let ns = Namespace::new("FerrLabs", "Blastlands").unwrap();
+    let ns = blastlands();
     let theirs = Namespace::new("FerrLabs", "RogueLite").unwrap();
     let ours_sized = sizes::key(&ns, &oid(OID), 42);
 
@@ -93,7 +115,7 @@ fn only_our_size_index_is_kept_and_none_of_it_is_a_marker() {
             entry(&ours_sized, 0),
             entry(&sizes::key(&theirs, &oid(OTHER), 7), 0),
         ],
-        OURS,
+        &ours(),
     );
 
     assert_eq!(survey.sized.get(&oid(OID)), Some(&ours_sized));
@@ -104,7 +126,7 @@ fn only_our_size_index_is_kept_and_none_of_it_is_a_marker() {
 
 #[test]
 fn a_key_that_does_not_end_in_an_oid_is_ignored() {
-    let survey = Survey::of(vec![entry("FerrLabs/Blastlands/README", 0)], OURS);
+    let survey = Survey::of(vec![entry("FerrLabs/Blastlands/README", 0)], &ours());
 
     assert!(survey.markers.is_empty());
     assert!(survey.mine.is_empty());
