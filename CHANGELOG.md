@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.2] - 2026-10-10
+
+### Refactoring
+
+- refactor(storage): carry the cache hit through open instead of unwrapping it (#567)
+
 ## [1.26.1] - 2026-10-10
 
 ### Bug Fixes
