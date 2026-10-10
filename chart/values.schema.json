@@ -312,6 +312,32 @@
               },
               "anonymousRead": {
                 "type": "boolean"
+              },
+              "githubApp": {
+                "type": "object",
+                "required": ["appId", "existingSecret"],
+                "properties": {
+                  "appId": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    ]
+                  },
+                  "existingSecret": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "additionalProperties": false

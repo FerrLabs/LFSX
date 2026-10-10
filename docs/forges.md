@@ -44,11 +44,12 @@ variables, the name upper-cased with dashes as underscores (`self-hosted` reads
 | `LFSX_FORGE_<NAME>_ALLOWED` | none | repositories served on that forge, as [`LFSX_ALLOWED`](allowed-namespaces.md) |
 | `LFSX_FORGE_<NAME>_RESTRICTED` | none | as [`LFSX_RESTRICTED`](restricted-namespaces.md), for that forge |
 | `LFSX_FORGE_<NAME>_ANONYMOUS_READ` | `false` | as [`LFSX_ANONYMOUS_READ`](anonymous-read.md), for that forge |
+| `LFSX_FORGE_<NAME>_GITHUB_APP_ID` / `LFSX_FORGE_<NAME>_GITHUB_APP_KEY_FILE` | unset | a GitHub App for that forge's anonymous lookups, as [`LFSX_GITHUB_APP_ID`](anonymous-read.md); a GitHub forge only, and both or neither |
 
 The cache lifetimes and the lookup budget (`LFSX_AUTH_CACHE_TTL`, `LFSX_AUTH_REJECTION_TTL`,
-`LFSX_AUTH_LOOKUP_BUDGET`) apply to every forge, and each forge spends its own budget. A GitHub App
-identity is only available to the forge set by `LFSX_AUTH`. `LFSX_FORGES` needs authentication
-on: with `LFSX_AUTH=disabled` the server refuses to start.
+`LFSX_AUTH_LOOKUP_BUDGET`) apply to every forge, and each forge spends its own budget. A GitHub
+Enterprise forge takes its own App, since an App installed on github.com cannot speak for it.
+`LFSX_FORGES` needs authentication on: with `LFSX_AUTH=disabled` the server refuses to start.
 
 ## What stays apart
 

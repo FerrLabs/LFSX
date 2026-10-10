@@ -132,3 +132,66 @@ fn named_forges_need_authentication() {
         reading(&[("LFSX_FORGE_WORK_AUTH", "github")]),
     );
 }
+
+#[test]
+fn a_named_github_forge_can_have_its_own_app() {
+    let forges = parse(
+        "enterprise",
+        &primary(),
+        reading(&[
+            ("LFSX_FORGE_ENTERPRISE_AUTH", "github"),
+            (
+                "LFSX_FORGE_ENTERPRISE_API_URL",
+                "https://github.example.com/api/v3",
+            ),
+            ("LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID", "1234"),
+            (
+                "LFSX_FORGE_ENTERPRISE_GITHUB_APP_KEY_FILE",
+                "/secrets/enterprise.pem",
+            ),
+        ]),
+    );
+
+    let Auth::Forge { github_app, .. } = &forges[0].auth else {
+        panic!("a named forge is a forge");
+    };
+    assert_eq!(
+        github_app
+            .as_ref()
+            .map(|app| (app.app_id.as_str(), app.key_file.clone())),
+        Some(("1234", std::path::PathBuf::from("/secrets/enterprise.pem")))
+    );
+}
+
+#[test]
+fn an_app_on_a_forge_that_is_not_github_does_nothing() {
+    let forges = parse(
+        "work",
+        &primary(),
+        reading(&[
+            ("LFSX_FORGE_WORK_AUTH", "gitlab"),
+            ("LFSX_FORGE_WORK_GITHUB_APP_ID", "1234"),
+            ("LFSX_FORGE_WORK_GITHUB_APP_KEY_FILE", "/secrets/work.pem"),
+        ]),
+    );
+
+    let Auth::Forge { github_app, .. } = &forges[0].auth else {
+        panic!("a named forge is a forge");
+    };
+    assert!(github_app.is_none());
+}
+
+#[test]
+#[should_panic(
+    expected = "LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID and LFSX_FORGE_ENTERPRISE_GITHUB_APP_KEY_FILE come together"
+)]
+fn half_an_app_on_a_named_forge_refuses_to_start() {
+    parse(
+        "enterprise",
+        &primary(),
+        reading(&[
+            ("LFSX_FORGE_ENTERPRISE_AUTH", "github"),
+            ("LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID", "1234"),
+        ]),
+    );
+}
