@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.25.0] - 2026-10-10
+
+### Features
+
+- feat(dashboard): take the admins from a named forge with LFSX_DASHBOARD_FORGE (#556)
+
 ## [1.24.0] - 2026-10-10
 
 ### Features

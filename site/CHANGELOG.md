@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.8] - 2026-10-10
+
+### Features
+
+- feat(dashboard): take the admins from a named forge with LFSX_DASHBOARD_FORGE (#556)
+
 ## [2026.10.7] - 2026-10-10
 
 ### Features
