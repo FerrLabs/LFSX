@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.6] - 2026-10-10
+
+### Bug Fixes
+
+- fix(cli): report no saving instead of overflowing when compression grows the objects (#552)
+
 ## [1.23.5] - 2026-10-10
 
 ### Refactoring
