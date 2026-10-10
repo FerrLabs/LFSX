@@ -82,6 +82,7 @@ const REJECTION_TTL: Duration = Duration::from_secs(10);
 // request, and tight enough that a flood costs ten a second instead of whatever
 // the network will carry.
 pub(super) const LOOKUP_BUDGET: u32 = 600;
+
 // Opt in, not opt out. Serving objects to a caller with no credentials at all is
 // a decision an operator should make on purpose: it costs them the bandwidth of
 // anyone who finds the endpoint, on a server whose whole job is to move files
