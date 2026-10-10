@@ -148,7 +148,12 @@ async fn overview(
             misses: stats.misses,
             bytes: stats.bytes,
         }),
-        settings: settings(&state.config, state.authorizer.access()),
+        settings: settings(&state.config, state.authorizer.access(), |name| {
+            state
+                .forges
+                .get(name)
+                .and_then(|authorizer| authorizer.access())
+        }),
     }))
 }
 
@@ -246,7 +251,11 @@ pub fn start(state: Shared) {
     access::keep_fresh(state);
 }
 
-pub(crate) fn settings(config: &Config, live: Option<crate::auth::Access>) -> Settings {
+pub(crate) fn settings(
+    config: &Config,
+    live: Option<crate::auth::Access>,
+    forge_live: impl Fn(&str) -> Option<crate::auth::Access>,
+) -> Settings {
     let auth = match &config.auth {
         Auth::Disabled => "disabled",
         Auth::Forge { provider, .. } => provider_name(*provider),
@@ -293,7 +302,10 @@ pub(crate) fn settings(config: &Config, live: Option<crate::auth::Access>) -> Se
                     name: forge.name.clone(),
                     auth: provider_name(*provider),
                     api_url: api_url.clone(),
-                    allowed: allowed.as_ref().map(|allowed| allowed.entries()),
+                    allowed: match forge_live(&forge.name) {
+                        Some(access) => access.allowed.as_ref().map(|allowed| allowed.entries()),
+                        None => allowed.as_ref().map(|allowed| allowed.entries()),
+                    },
                 }),
                 Auth::Disabled => None,
             })

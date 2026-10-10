@@ -75,6 +75,11 @@ function rows(settings: Configured): readonly Row[] {
 export class Settings implements OnInit, OnDestroy {
   protected readonly feed = inject(Feed);
 
+  protected readonly forgeNames = computed(() => {
+    const state = this.feed.state();
+    return state.kind === 'ready' ? state.overview.settings.forges.map((forge) => forge.name) : [];
+  });
+
   protected readonly rows = computed(() => {
     const state = this.feed.state();
     return state.kind === 'ready' ? rows(state.overview.settings) : null;

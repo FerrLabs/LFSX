@@ -65,5 +65,6 @@ read as empty until the directories are renamed to match.
 ## Dashboard
 
 The [dashboard](dashboard.md) lists every forge under Settings. Its admins are those of
-`LFSX_DASHBOARD_REPO` on the main forge, or on a named one with `LFSX_DASHBOARD_FORGE=work`. The
-access settings it edits are the main forge's; the other forges take theirs from the environment.
+`LFSX_DASHBOARD_REPO` on the main forge, or on a named one with `LFSX_DASHBOARD_FORGE=work`. Its
+access settings have a forge selector: each forge's allow-list, restricted repositories and anonymous
+reads are saved and reset on their own, and a forge nobody changed keeps its environment.

@@ -23,6 +23,12 @@ h2 {
   color: var(--color-ink-3);
 }
 
+.forge {
+  display: block;
+  max-width: 32rem;
+  margin-bottom: 1.25rem;
+}
+
 flr-banner {
   display: block;
   margin-bottom: 1rem;
