@@ -133,7 +133,8 @@ impl S3Store {
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
-        let listing = self.keys.listing(&Self::own_prefix(ns)).await;
+        let ours = Self::own_prefix(ns);
+        let listing = self.keys.listing(&ours).await;
         let mut report = SweepReport {
             dry_run,
             incomplete: !listing.complete,
@@ -144,7 +145,7 @@ impl S3Store {
         // Kept rather than discarded, because dropping a marker should take its
         // entry with it and the key carries a number this sweep has no other way
         // of knowing.
-        let Survey { sized, mine, .. } = Survey::of(listing.entries, &Self::own_prefix(ns));
+        let Survey { sized, mine, .. } = Survey::of(listing.entries, &ours);
 
         for (entry, oid) in Self::droppable(mine, retained, grace, &mut report) {
             let frees = !refs::claimed_by_another(&self.keys, ns, &oid).await;

@@ -127,3 +127,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "lfsx.appId" -}}
+{{- if kindIs "float64" . -}}
+{{- . | int64 -}}
+{{- else -}}
+{{- . -}}
+{{- end -}}
+{{- end -}}
