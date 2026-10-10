@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import {
   BannerComponent,
@@ -13,8 +14,12 @@ import {
   TextareaComponent,
 } from '@ferrlabs/ui-ng';
 
+import { Subject, catchError, map, of, switchMap } from 'rxjs';
+
 import { Access, AccessChange, Api } from '../../../api';
 import { Feed } from '../../../feed';
+
+type Fetched = { readonly access: Access } | { readonly error: unknown };
 
 function lines(text: string): string[] {
   return text
@@ -45,6 +50,8 @@ export class AccessForm implements OnInit {
   private readonly feed = inject(Feed);
 
   readonly forges = input<readonly string[]>([]);
+
+  private readonly selected = new Subject<string | null>();
 
   protected readonly forge = signal<string | null>(null);
   protected readonly current = signal<Access | null>(null);
@@ -78,8 +85,28 @@ export class AccessForm implements OnInit {
     );
   });
 
+  constructor() {
+    this.selected
+      .pipe(
+        switchMap((forge) =>
+          this.api.access(forge).pipe(
+            map((access): Fetched => ({ access })),
+            catchError((error: unknown) => of<Fetched>({ error })),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((fetched) => {
+        if ('access' in fetched) {
+          this.load(fetched.access);
+        } else {
+          this.fail(fetched.error);
+        }
+      });
+  }
+
   ngOnInit(): void {
-    this.fetch();
+    this.selected.next(this.forge());
   }
 
   protected choose(forge: string): void {
@@ -87,22 +114,19 @@ export class AccessForm implements OnInit {
     this.current.set(null);
     this.problem.set(null);
     this.saved.set(false);
-    this.fetch();
-  }
-
-  private fetch(): void {
-    this.api.access(this.forge()).subscribe({
-      next: (access) => this.load(access),
-      error: (error: unknown) => this.fail(error),
-    });
+    this.selected.next(this.forge());
   }
 
   protected save(): void {
     this.saving.set(true);
     this.problem.set(null);
     this.saved.set(false);
-    this.api.saveAccess(this.change(), this.forge()).subscribe({
+    const forge = this.forge();
+    this.api.saveAccess(this.change(), forge).subscribe({
       next: (access) => {
+        if (this.forge() !== forge) {
+          return;
+        }
         this.load(access);
         this.saved.set(true);
       },
@@ -121,8 +145,12 @@ export class AccessForm implements OnInit {
     this.confirming.set(false);
     this.saving.set(true);
     this.problem.set(null);
-    this.api.resetAccess(this.forge()).subscribe({
+    const forge = this.forge();
+    this.api.resetAccess(forge).subscribe({
       next: (access) => {
+        if (this.forge() !== forge) {
+          return;
+        }
         this.load(access);
         this.saved.set(true);
       },
