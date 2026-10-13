@@ -22,6 +22,11 @@ struct Access {
 }
 
 #[derive(Deserialize)]
+struct TokenSelf {
+    scopes: Vec<String>,
+}
+
+#[derive(Deserialize)]
 struct User {
     username: String,
 }
@@ -63,7 +68,10 @@ pub async fn permission(
         })
         .unwrap_or_default();
 
+    let writable = level < DEVELOPER || may_write(client, api_url, token).await;
+
     match level {
+        level if level >= DEVELOPER && !writable => Ok(Permission::Read),
         level if level >= MAINTAINER => Ok(Permission::Admin),
         level if level >= DEVELOPER => Ok(Permission::Write),
         level if level >= REPORTER => Ok(Permission::Read),
@@ -76,6 +84,19 @@ pub async fn permission(
             Err(Error::Forbidden)
         }
     }
+}
+
+async fn may_write(client: &reqwest::Client, api_url: &str, token: &str) -> bool {
+    let url = format!("{api_url}/personal_access_tokens/self");
+    let Ok(response) = send(client, &url, token).await else {
+        return true;
+    };
+    let Ok(own) = response.json::<TokenSelf>().await else {
+        return true;
+    };
+    own.scopes
+        .iter()
+        .any(|scope| scope == "api" || scope == "write_repository")
 }
 
 // The same question as GitHub's, asked the same way: no credentials, and a

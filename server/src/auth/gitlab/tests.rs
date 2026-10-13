@@ -182,3 +182,36 @@ async fn a_user_answer_without_a_username_is_a_forge_failure() {
 
     assert!(matches!(identity, Err(Error::Forge)), "{identity:?}");
 }
+
+async fn owner_with_scopes(scopes: &'static str) -> Result<Permission, Error> {
+    crate::tls::install_crypto_provider();
+
+    let app = Router::new()
+        .route(
+            "/projects/{path}",
+            get(|| async {
+                r#"{"permissions":{"project_access":{"access_level":40},"group_access":null}}"#
+            }),
+        )
+        .route(
+            "/personal_access_tokens/self",
+            get(move || async move { scopes }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let api = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    permission(&reqwest::Client::new(), &api, "a-token", &namespace()).await
+}
+
+#[tokio::test]
+async fn a_read_only_token_of_a_maintainer_stays_at_read() {
+    let granted = owner_with_scopes(r#"{"scopes":["read_api"]}"#).await;
+    assert!(matches!(granted, Ok(Permission::Read)), "{granted:?}");
+
+    let granted = owner_with_scopes(r#"{"scopes":["write_repository"]}"#).await;
+    assert!(matches!(granted, Ok(Permission::Admin)), "{granted:?}");
+
+    let granted = owner_with_scopes(r#"{"scopes":["api"]}"#).await;
+    assert!(matches!(granted, Ok(Permission::Admin)), "{granted:?}");
+}

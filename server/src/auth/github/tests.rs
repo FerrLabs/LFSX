@@ -186,3 +186,41 @@ async fn a_refusal_says_why_in_the_message_and_not_only_in_a_field() {
              coming back: {logged}"
     );
 }
+
+async fn scoped(scopes: &'static str, body: &'static str) -> Permission {
+    crate::tls::install_crypto_provider();
+
+    let app = Router::new().route(
+        "/repos/{org}/{repo}",
+        get(move || async move { (StatusCode::OK, [("x-oauth-scopes", scopes)], body) }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let api = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let ns = Namespace::new("FerrLabs", "Blastlands").unwrap();
+    permission(&reqwest::Client::new(), &api, "a-token", &ns)
+        .await
+        .unwrap()
+}
+
+const MAINTAINER: &str = r#"{"private":true,"permissions":{"admin":true,"push":true,"pull":true}}"#;
+const MAINTAINER_PUBLIC: &str =
+    r#"{"private":false,"permissions":{"admin":true,"push":true,"pull":true}}"#;
+
+#[tokio::test]
+async fn a_token_without_the_repo_scope_stays_at_read_whatever_its_owner_may_do() {
+    assert_eq!(scoped("read:user", MAINTAINER).await, Permission::Read);
+    assert_eq!(scoped("", MAINTAINER).await, Permission::Read);
+    assert_eq!(scoped("repo", MAINTAINER).await, Permission::Admin);
+    assert_eq!(scoped("gist, repo", MAINTAINER).await, Permission::Admin);
+}
+
+#[tokio::test]
+async fn public_repo_is_enough_only_for_a_public_repository() {
+    assert_eq!(
+        scoped("public_repo", MAINTAINER_PUBLIC).await,
+        Permission::Admin
+    );
+    assert_eq!(scoped("public_repo", MAINTAINER).await, Permission::Read);
+}

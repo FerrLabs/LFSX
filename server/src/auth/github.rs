@@ -10,6 +10,8 @@ use crate::namespace::Namespace;
 #[derive(Deserialize)]
 struct Repository {
     permissions: Option<Permissions>,
+    #[serde(default)]
+    private: bool,
 }
 
 // No `pull`. Read is settled by the response arriving at all, so the only thing
@@ -43,19 +45,19 @@ pub async fn permission(
     // Said out loud because the refusal the client sees is the same one a
     // readable repository with an unreadable permissions block produces, and an
     // operator staring at a failing CI job has nothing else to tell them apart.
-    let repository = send(
+    let response = send(
         client,
         &url,
         token,
         "the forge will not admit this repository to this token",
     )
-    .await?
-    .json::<Repository>()
-    .await
-    .map_err(|error| {
+    .await?;
+    let scopes = granted_scopes(&response);
+    let repository = response.json::<Repository>().await.map_err(|error| {
         tracing::warn!(%error, %url, "forge response could not be parsed");
         Error::Forge
     })?;
+    let scoped_for_write = may_write(scopes.as_deref(), repository.private);
 
     // The answer arriving at all is the proof of read access: the forge returns
     // 404 to a token it will not admit the repository to, and a public
@@ -77,10 +79,30 @@ pub async fn permission(
     // infers it, because a job that uploads objects it was never granted is the
     // failure worth keeping impossible.
     match repository.permissions {
-        Some(Permissions { admin: true, .. }) => Ok(Permission::Admin),
-        Some(Permissions { push: true, .. }) => Ok(Permission::Write),
+        Some(Permissions { admin: true, .. }) if scoped_for_write => Ok(Permission::Admin),
+        Some(Permissions { push: true, .. }) if scoped_for_write => Ok(Permission::Write),
         _ => Ok(Permission::Read),
     }
+}
+
+fn granted_scopes(response: &reqwest::Response) -> Option<Vec<String>> {
+    let header = response.headers().get("x-oauth-scopes")?.to_str().ok()?;
+    Some(
+        header
+            .split(',')
+            .map(|scope| scope.trim().to_owned())
+            .filter(|scope| !scope.is_empty())
+            .collect(),
+    )
+}
+
+fn may_write(scopes: Option<&[String]>, private: bool) -> bool {
+    let Some(scopes) = scopes else {
+        return true;
+    };
+    scopes
+        .iter()
+        .any(|scope| scope == "repo" || (!private && scope == "public_repo"))
 }
 
 // Is this repository readable by anybody? Asked with no credentials at all, which
