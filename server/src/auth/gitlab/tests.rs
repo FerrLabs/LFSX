@@ -215,3 +215,44 @@ async fn a_read_only_token_of_a_maintainer_stays_at_read() {
     let granted = owner_with_scopes(r#"{"scopes":["api"]}"#).await;
     assert!(matches!(granted, Ok(Permission::Admin)), "{granted:?}");
 }
+
+async fn owner_whose_scope_lookup_answers(status: StatusCode) -> Result<Permission, Error> {
+    crate::tls::install_crypto_provider();
+
+    let app = Router::new()
+        .route(
+            "/projects/{path}",
+            get(|| async {
+                r#"{"permissions":{"project_access":{"access_level":40},"group_access":null}}"#
+            }),
+        )
+        .route(
+            "/personal_access_tokens/self",
+            get(move || async move { (status, "{}") }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let api = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    permission(&reqwest::Client::new(), &api, "a-token", &namespace()).await
+}
+
+#[tokio::test]
+async fn a_token_the_scope_endpoint_does_not_apply_to_keeps_the_role_and_a_flaky_lookup_does_not() {
+    for status in [StatusCode::NOT_FOUND, StatusCode::UNAUTHORIZED] {
+        let granted = owner_whose_scope_lookup_answers(status).await;
+        assert!(
+            matches!(granted, Ok(Permission::Admin)),
+            "{status}: {granted:?}"
+        );
+    }
+
+    let limited = owner_whose_scope_lookup_answers(StatusCode::TOO_MANY_REQUESTS).await;
+    assert!(
+        matches!(limited, Err(Error::RateLimited { .. })),
+        "{limited:?}"
+    );
+
+    let broken = owner_whose_scope_lookup_answers(StatusCode::INTERNAL_SERVER_ERROR).await;
+    assert!(matches!(broken, Err(Error::Forge)), "{broken:?}");
+}

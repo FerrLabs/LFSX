@@ -68,7 +68,7 @@ pub async fn permission(
         })
         .unwrap_or_default();
 
-    let writable = level < DEVELOPER || may_write(client, api_url, token).await;
+    let writable = level < DEVELOPER || may_write(client, api_url, token).await?;
 
     match level {
         level if level >= DEVELOPER && !writable => Ok(Permission::Read),
@@ -86,17 +86,22 @@ pub async fn permission(
     }
 }
 
-async fn may_write(client: &reqwest::Client, api_url: &str, token: &str) -> bool {
+async fn may_write(client: &reqwest::Client, api_url: &str, token: &str) -> Result<bool, Error> {
     let url = format!("{api_url}/personal_access_tokens/self");
-    let Ok(response) = send(client, &url, token).await else {
-        return true;
+    let response = match send(client, &url, token).await {
+        Ok(response) => response,
+        Err(Error::Unauthenticated | Error::Forbidden) => return Ok(true),
+        Err(error) => return Err(error),
     };
-    let Ok(own) = response.json::<TokenSelf>().await else {
-        return true;
-    };
-    own.scopes
+    let own = response.json::<TokenSelf>().await.map_err(|error| {
+        tracing::warn!(%error, %url, "forge response could not be parsed");
+        Error::Forge
+    })?;
+
+    Ok(own
+        .scopes
         .iter()
-        .any(|scope| scope == "api" || scope == "write_repository")
+        .any(|scope| scope == "api" || scope == "write_repository"))
 }
 
 // The same question as GitHub's, asked the same way: no credentials, and a
