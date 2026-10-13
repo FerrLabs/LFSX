@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.13] - 2026-10-13
+
+### Bug Fixes
+
+- fix(auth): cap write and admin at what the token's scopes allow (#623)
+
 ## [2026.10.12] - 2026-10-13
 
 ### Bug Fixes

@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.6] - 2026-10-13
+
+### Bug Fixes
+
+- fix(auth): cap write and admin at what the token's scopes allow (#623)
+
 ## [1.26.5] - 2026-10-13
 
 ### Bug Fixes
