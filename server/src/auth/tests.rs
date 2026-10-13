@@ -146,3 +146,80 @@ fn an_unreachable_forge_is_never_remembered() {
         "caching an outage would turn a transient failure into a lasting denial"
     );
 }
+
+fn authorizer() -> Authorizer {
+    crate::tls::install_crypto_provider();
+
+    Authorizer::new(&Auth::Forge {
+        provider: Provider::Github,
+        api_url: "https://api.github.example".into(),
+        cache_ttl: Duration::from_secs(60),
+        rejection_ttl: Duration::from_secs(10),
+        lookup_budget: None,
+        github_app: None,
+        anonymous_read: false,
+        restricted: Namespaces::parse("LFSX_RESTRICTED", None),
+        allowed: None,
+    })
+}
+
+fn only(entries: &str) -> Access {
+    Access {
+        anonymous_read: false,
+        restricted: Namespaces::parse("LFSX_RESTRICTED", None),
+        allowed: Some(Namespaces::parse("LFSX_ALLOWED", Some(entries))),
+    }
+}
+
+#[test]
+fn a_refresh_that_nobody_overtook_is_applied() {
+    let authorizer = authorizer();
+    let seen = authorizer.revision();
+
+    assert!(authorizer.refresh_access(seen, only("Partner/*")));
+    assert_eq!(authorizer.access(), Some(only("Partner/*")));
+}
+
+#[test]
+fn a_save_that_lands_while_a_refresh_is_reading_is_not_overwritten_by_it() {
+    let authorizer = authorizer();
+    let seen = authorizer.revision();
+
+    authorizer.set_access(only("Saved/*"));
+    let applied = authorizer.refresh_access(seen, only("Stale/*"));
+
+    assert!(!applied, "what the refresh read predates the save");
+    assert_eq!(authorizer.access(), Some(only("Saved/*")));
+}
+
+#[test]
+fn applying_a_refresh_is_not_a_change_somebody_asked_for() {
+    let authorizer = authorizer();
+    let seen = authorizer.revision();
+    authorizer.refresh_access(seen, only("Partner/*"));
+
+    assert_eq!(
+        authorizer.revision(),
+        seen,
+        "a refresh that moved the counter would make the next one give up for nothing"
+    );
+}
+
+#[test]
+fn every_explicit_change_moves_the_revision() {
+    let authorizer = authorizer();
+    let before = authorizer.revision();
+
+    authorizer.set_access(only("A/*"));
+    authorizer.set_access(only("A/*"));
+
+    assert_eq!(authorizer.revision(), before + 2);
+}
+
+#[test]
+fn with_authentication_disabled_there_is_nothing_to_refresh() {
+    let disabled = Authorizer::new(&Auth::Disabled);
+
+    assert!(!disabled.refresh_access(disabled.revision(), only("A/*")));
+    assert_eq!(disabled.access(), None);
+}

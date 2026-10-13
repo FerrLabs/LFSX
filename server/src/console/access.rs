@@ -139,6 +139,7 @@ async fn refresh_one(state: &Shared, target: &Target<'_>) {
         return;
     };
 
+    let seen = target.authorizer.revision();
     let access = match saved(state, &target.file).await {
         Ok(None) => environment,
         Ok(Some(saved)) => match saved.access() {
@@ -162,8 +163,13 @@ async fn refresh_one(state: &Shared, target: &Target<'_>) {
         }
     };
 
-    if target.authorizer.access().as_ref() != Some(&access) {
-        target.authorizer.set_access(access);
+    if target.authorizer.access().as_ref() != Some(&access)
+        && !target.authorizer.refresh_access(seen, access)
+    {
+        tracing::debug!(
+            file = %target.file,
+            "access changed while it was being read back, so the change in force is kept"
+        );
     }
 }
 

@@ -4,6 +4,30 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.4] - 2026-10-13
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#585)
+
+## [1.26.3] - 2026-10-10
+
+### Refactoring
+
+- refactor(config): split config.rs into storage, auth and dashboard modules (#565)
+
+## [1.26.2] - 2026-10-10
+
+### Refactoring
+
+- refactor(storage): carry the cache hit through open instead of unwrapping it (#567)
+
+## [1.26.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(dashboard): keep a save that lands while a refresh is reading the store (#569)
+
 ## [1.26.0] - 2026-10-10
 
 ### Features

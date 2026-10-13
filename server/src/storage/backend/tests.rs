@@ -259,3 +259,80 @@ async fn a_bucket_holding_the_object_itself_still_redirects() {
 
     assert!(store.redirect(&oid).is_some());
 }
+
+#[tokio::test]
+async fn a_raw_object_is_served_from_the_cache_once_it_has_been_copied_there() {
+    let root = tempfile::tempdir().unwrap();
+    let cache_dir = tempfile::tempdir().unwrap();
+    let (endpoint, _objects) = bucket().await;
+    let cache = crate::storage::cache::Cache::new(cache_dir.path().to_path_buf(), 1 << 20).unwrap();
+    let store = bucket_store(&root, &endpoint).with_cache(Some(cache));
+    let payload = b"a raw asset small enough for the cache ".repeat(16);
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
+
+    store
+        .write(
+            &namespace(),
+            &oid,
+            Some(payload.len() as u64),
+            None,
+            futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                payload.clone(),
+            ))]),
+        )
+        .await
+        .unwrap();
+
+    let cold = store.open(&namespace(), &oid).await.unwrap();
+    assert!(
+        matches!(cold, Object::Remote { .. }),
+        "nothing is cached yet, so the first read comes from the bucket"
+    );
+
+    let copied = cache_dir.path().join(oid.as_str());
+    for _ in 0..200 {
+        if copied.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert!(
+        copied.exists(),
+        "the copy is filled in behind the first read"
+    );
+
+    let warm = store.open(&namespace(), &oid).await.unwrap();
+    assert!(
+        matches!(warm, Object::Raw { .. }),
+        "a raw object that is cached streams like a plain local file"
+    );
+    assert_eq!(read_back(&store, &namespace(), &oid).await, payload);
+}
+
+#[tokio::test]
+async fn without_a_cache_a_raw_object_is_always_read_from_the_bucket() {
+    let root = tempfile::tempdir().unwrap();
+    let (endpoint, _objects) = bucket().await;
+    let store = bucket_store(&root, &endpoint);
+    let payload = b"a raw asset that nobody caches ".repeat(16);
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
+
+    store
+        .write(
+            &namespace(),
+            &oid,
+            Some(payload.len() as u64),
+            None,
+            futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                payload.clone(),
+            ))]),
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..2 {
+        let object = store.open(&namespace(), &oid).await.unwrap();
+        assert!(matches!(object, Object::Remote { .. }));
+    }
+    assert_eq!(read_back(&store, &namespace(), &oid).await, payload);
+}

@@ -8,6 +8,7 @@ mod gitlab;
 mod namespaces;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use axum::extract::{Path, Request, State};
@@ -72,6 +73,11 @@ pub enum Authorizer {
         // two hundred objects under one token costs one.
         budget: Budget,
         access: Arc<RwLock<Access>>,
+        // Counts the changes somebody asked for. A refresh reads the store, which
+        // is a round trip, and what it read can be stale by the time it lands: a
+        // save that arrived in between has to win, so a refresh applies only if
+        // this has not moved since it started.
+        revision: Arc<AtomicU64>,
         app: Option<Box<github::app::App>>,
     },
     Disabled,
@@ -109,6 +115,7 @@ impl Authorizer {
                     restricted: restricted.clone(),
                     allowed: allowed.clone(),
                 })),
+                revision: Arc::new(AtomicU64::new(0)),
                 app: github_app.as_ref().map(|configured| {
                     Box::new(github::app::App::load(
                         &configured.app_id,
@@ -127,10 +134,39 @@ impl Authorizer {
         }
     }
 
-    pub fn set_access(&self, replacement: Access) {
-        if let Self::Forge { access, .. } = self {
-            *access.write().unwrap() = replacement;
+    pub fn revision(&self) -> u64 {
+        match self {
+            Self::Forge { revision, .. } => revision.load(Ordering::SeqCst),
+            Self::Disabled => 0,
         }
+    }
+
+    pub fn set_access(&self, replacement: Access) {
+        if let Self::Forge {
+            access, revision, ..
+        } = self
+        {
+            let mut held = access.write().unwrap();
+            *held = replacement;
+            revision.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    pub fn refresh_access(&self, seen: u64, replacement: Access) -> bool {
+        let Self::Forge {
+            access, revision, ..
+        } = self
+        else {
+            return false;
+        };
+
+        let mut held = access.write().unwrap();
+        if revision.load(Ordering::SeqCst) != seen {
+            return false;
+        }
+
+        *held = replacement;
+        true
     }
 
     pub(crate) async fn permission(
