@@ -18,6 +18,13 @@ GitLab grants inherited from a group count the same as ones set on the project, 
 organisations there are arranged. Developer is the level that may push, matching what GitLab itself
 requires to write to the repository.
 
+The level is the user's role, capped by what the token itself may do when the forge says so. A
+GitHub token that carries scopes (classic personal access tokens and OAuth tokens) writes only with
+`repo`, or with `public_repo` on a public repository, so a maintainer's `read:user` token stays at
+read. A GitLab personal, project or group access token writes only with `api` or `write_repository`.
+Fine-grained GitHub tokens, GitHub App tokens, GitLab job tokens and every Gitea or Forgejo token
+publish no scopes this server can read, so for those the user's role is what counts.
+
 `LFSX_AUTH` picks the forge: `github`, which is the default, `gitlab`, or `gitea`. `forgejo` names
 the same provider as `gitea`, because Forgejo is a fork of Gitea and answers the same API. Each has
 an API root that can be pointed at a self-hosted instance, `LFSX_GITHUB_API_URL`,
