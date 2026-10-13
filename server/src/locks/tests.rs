@@ -484,3 +484,73 @@ async fn a_takeover_lands_on_the_audit_trail_naming_both_owners() {
         "the trail answers who took the lock and from whom: {logged}"
     );
 }
+
+#[tokio::test]
+async fn racing_takeovers_of_one_stale_lock_leave_exactly_one_holder() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = std::sync::Arc::new(
+        LockStore::local(root.path()).with_max_age(Some(Duration::from_secs(60))),
+    );
+    let ns = namespace();
+    abandoned(&locks, &ns, "Arena.unity", "marie", 400 * WEEK).await;
+
+    let attempts = (0..16).map(|attempt| {
+        let locks = locks.clone();
+        let ns = ns.clone();
+        tokio::spawn(async move {
+            locks
+                .create(&ns, "Arena.unity", &format!("user-{attempt}"))
+                .await
+        })
+    });
+    let mut won = 0;
+    for attempt in attempts {
+        match attempt.await.unwrap() {
+            Ok(_) => won += 1,
+            Err(Error::LockHeld(_)) => {}
+            Err(other) => panic!("{other:?}"),
+        }
+    }
+
+    assert_eq!(won, 1, "every caller was told the path was theirs, or none");
+    let held = locks.list(&ns).await.unwrap();
+    assert_eq!(held.len(), 1);
+}
+
+#[tokio::test]
+async fn a_lock_is_only_ever_written_whole_and_leaves_nothing_beside_it() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = LockStore::local(root.path());
+    let ns = namespace();
+
+    locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+    assert!(matches!(
+        locks.create(&ns, "Arena.unity", "marie").await,
+        Err(Error::LockHeld(_))
+    ));
+
+    let directory = LockStore::directory_in(root.path(), &ns);
+    let names: Vec<_> = std::fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names.len(), 1, "{names:?}");
+    assert!(names[0].ends_with(".json"), "{names:?}");
+}
+
+#[tokio::test]
+async fn a_staged_file_left_by_a_crash_is_not_listed_as_a_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = LockStore::local(root.path());
+    let ns = namespace();
+    let held = locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+
+    let directory = LockStore::directory_in(root.path(), &ns);
+    std::fs::write(
+        directory.join(".1-0.part"),
+        serde_json::to_vec(&held).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(locks.list(&ns).await.unwrap(), vec![held]);
+}

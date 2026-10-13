@@ -43,6 +43,8 @@ const MAX_PATH_BYTES: usize = 4096;
 // on it, bounded.
 const DEFAULT_CAPACITY: usize = 10_000;
 
+const GATES: usize = 64;
+
 pub struct LockStore {
     backend: Backend,
     max_age: Option<Duration>,
@@ -53,6 +55,7 @@ pub struct LockStore {
     // startup rather than assumed, because a store which accepts the header and
     // writes anyway tells both callers they took the lock.
     conditional_writes: bool,
+    gates: Vec<tokio::sync::Mutex<()>>,
 }
 
 enum Backend {
@@ -75,7 +78,22 @@ impl LockStore {
             max_age: None,
             capacity: DEFAULT_CAPACITY,
             conditional_writes: true,
+            gates: (0..GATES).map(|_| tokio::sync::Mutex::new(())).collect(),
         }
+    }
+
+    // Held across every read-then-act on a lock: a takeover reads a stale lock
+    // and discards it, an unlock reads the owner and removes. Without it a
+    // takeover landing between the read and the delete has its fresh lock
+    // removed by the caller who read the old one, and both are told the path is
+    // theirs. It orders callers within this process; replicas sharing a bucket
+    // are ordered by the bucket's conditional create alone.
+    pub async fn exclusive(&self, id: &str) -> tokio::sync::MutexGuard<'_, ()> {
+        let slot = id
+            .get(..2)
+            .and_then(|head| usize::from_str_radix(head, 16).ok())
+            .unwrap_or_default();
+        self.gates[slot % GATES].lock().await
     }
 
     #[cfg(test)]
@@ -132,8 +150,11 @@ impl LockStore {
             });
         }
 
+        let id = Self::id_of(path);
+        let _gate = self.exclusive(&id).await;
+
         let lock = Lock {
-            id: Self::id_of(path),
+            id,
             path: path.to_owned(),
             locked_at: OffsetDateTime::now_utc()
                 .format(&Rfc3339)
@@ -228,9 +249,32 @@ impl LockStore {
     }
 
     async fn write_new(path: &Path, encoded: &[u8]) -> Result<bool, Error> {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
         let parent = path.parent().expect("lock paths have a parent");
         fs::create_dir_all(parent).await?;
 
+        let staged = parent.join(format!(
+            ".{}-{}.part",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let mut file = fs::File::create(&staged).await?;
+        file.write_all(encoded).await?;
+        file.sync_all().await?;
+        drop(file);
+
+        let linked = fs::hard_link(&staged, path).await;
+        let _ = fs::remove_file(&staged).await;
+
+        match linked {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+            Err(_) => Self::create_in_place(path, encoded).await,
+        }
+    }
+
+    async fn create_in_place(path: &Path, encoded: &[u8]) -> Result<bool, Error> {
         match fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -277,8 +321,10 @@ impl LockStore {
                 };
 
                 let mut found = 0;
-                while entries.next_entry().await?.is_some() {
-                    found += 1;
+                while let Some(entry) = entries.next_entry().await? {
+                    if entry.file_name().to_string_lossy().ends_with(".json") {
+                        found += 1;
+                    }
                 }
                 Ok(found)
             }
@@ -303,7 +349,8 @@ impl LockStore {
 
         let mut locks = Vec::new();
         while let Some(entry) = entries.next_entry().await? {
-            if let Ok(bytes) = fs::read(entry.path()).await
+            if entry.file_name().to_string_lossy().ends_with(".json")
+                && let Ok(bytes) = fs::read(entry.path()).await
                 && let Ok(lock) = serde_json::from_slice(&bytes)
             {
                 locks.push(lock);
