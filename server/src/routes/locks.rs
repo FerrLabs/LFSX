@@ -94,12 +94,14 @@ pub(super) async fn unlock(
 ) -> Result<Json<LockResponse>, Error> {
     permission.require_write()?;
 
+    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
+
+    let _gate = state.locks.exclusive().await;
     let lock = state
         .locks
         .get(&ns, &id)
         .await?
         .ok_or(Error::LockNotFound)?;
-    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     let forced = lock.owner.name != caller;
     if forced {

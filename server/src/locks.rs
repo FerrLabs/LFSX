@@ -53,6 +53,7 @@ pub struct LockStore {
     // startup rather than assumed, because a store which accepts the header and
     // writes anyway tells both callers they took the lock.
     conditional_writes: bool,
+    gate: tokio::sync::Mutex<()>,
 }
 
 enum Backend {
@@ -75,7 +76,18 @@ impl LockStore {
             max_age: None,
             capacity: DEFAULT_CAPACITY,
             conditional_writes: true,
+            gate: tokio::sync::Mutex::new(()),
         }
+    }
+
+    // Held across every read-then-act on a lock: a takeover reads a stale lock
+    // and discards it, an unlock reads the owner and removes. Without it a
+    // takeover landing between the read and the delete has its fresh lock
+    // removed by the caller who read the old one, and both are told the path is
+    // theirs. It orders callers within this process; replicas sharing a bucket
+    // are ordered by the bucket's conditional create alone.
+    pub async fn exclusive(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.gate.lock().await
     }
 
     #[cfg(test)]
@@ -122,6 +134,8 @@ impl LockStore {
     }
 
     pub async fn create(&self, ns: &Namespace, path: &str, owner: &str) -> Result<Lock, Error> {
+        let _gate = self.exclusive().await;
+
         if path.is_empty() {
             return Err(Error::MalformedLockPath);
         }
@@ -228,20 +242,26 @@ impl LockStore {
     }
 
     async fn write_new(path: &Path, encoded: &[u8]) -> Result<bool, Error> {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
         let parent = path.parent().expect("lock paths have a parent");
         fs::create_dir_all(parent).await?;
 
-        match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
-            .await
-        {
-            Ok(mut file) => {
-                file.write_all(encoded).await?;
-                file.sync_all().await?;
-                Ok(true)
-            }
+        let staged = parent.join(format!(
+            ".{}-{}.part",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let mut file = fs::File::create(&staged).await?;
+        file.write_all(encoded).await?;
+        file.sync_all().await?;
+        drop(file);
+
+        let linked = fs::hard_link(&staged, path).await;
+        let _ = fs::remove_file(&staged).await;
+
+        match linked {
+            Ok(()) => Ok(true),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
             Err(error) => Err(error.into()),
         }
@@ -277,8 +297,10 @@ impl LockStore {
                 };
 
                 let mut found = 0;
-                while entries.next_entry().await?.is_some() {
-                    found += 1;
+                while let Some(entry) = entries.next_entry().await? {
+                    if entry.file_name().to_string_lossy().ends_with(".json") {
+                        found += 1;
+                    }
                 }
                 Ok(found)
             }
