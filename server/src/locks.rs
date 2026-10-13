@@ -43,6 +43,8 @@ const MAX_PATH_BYTES: usize = 4096;
 // on it, bounded.
 const DEFAULT_CAPACITY: usize = 10_000;
 
+const GATES: usize = 64;
+
 pub struct LockStore {
     backend: Backend,
     max_age: Option<Duration>,
@@ -53,7 +55,7 @@ pub struct LockStore {
     // startup rather than assumed, because a store which accepts the header and
     // writes anyway tells both callers they took the lock.
     conditional_writes: bool,
-    gate: tokio::sync::Mutex<()>,
+    gates: Vec<tokio::sync::Mutex<()>>,
 }
 
 enum Backend {
@@ -76,7 +78,7 @@ impl LockStore {
             max_age: None,
             capacity: DEFAULT_CAPACITY,
             conditional_writes: true,
-            gate: tokio::sync::Mutex::new(()),
+            gates: (0..GATES).map(|_| tokio::sync::Mutex::new(())).collect(),
         }
     }
 
@@ -86,8 +88,12 @@ impl LockStore {
     // removed by the caller who read the old one, and both are told the path is
     // theirs. It orders callers within this process; replicas sharing a bucket
     // are ordered by the bucket's conditional create alone.
-    pub async fn exclusive(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.gate.lock().await
+    pub async fn exclusive(&self, id: &str) -> tokio::sync::MutexGuard<'_, ()> {
+        let slot = id
+            .get(..2)
+            .and_then(|head| usize::from_str_radix(head, 16).ok())
+            .unwrap_or_default();
+        self.gates[slot % GATES].lock().await
     }
 
     #[cfg(test)]
@@ -134,8 +140,6 @@ impl LockStore {
     }
 
     pub async fn create(&self, ns: &Namespace, path: &str, owner: &str) -> Result<Lock, Error> {
-        let _gate = self.exclusive().await;
-
         if path.is_empty() {
             return Err(Error::MalformedLockPath);
         }
@@ -146,8 +150,11 @@ impl LockStore {
             });
         }
 
+        let id = Self::id_of(path);
+        let _gate = self.exclusive(&id).await;
+
         let lock = Lock {
-            id: Self::id_of(path),
+            id,
             path: path.to_owned(),
             locked_at: OffsetDateTime::now_utc()
                 .format(&Rfc3339)
@@ -263,6 +270,23 @@ impl LockStore {
         match linked {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+            Err(_) => Self::create_in_place(path, encoded).await,
+        }
+    }
+
+    async fn create_in_place(path: &Path, encoded: &[u8]) -> Result<bool, Error> {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .await
+        {
+            Ok(mut file) => {
+                file.write_all(encoded).await?;
+                file.sync_all().await?;
+                Ok(true)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
             Err(error) => Err(error.into()),
         }
     }
@@ -325,7 +349,8 @@ impl LockStore {
 
         let mut locks = Vec::new();
         while let Some(entry) = entries.next_entry().await? {
-            if let Ok(bytes) = fs::read(entry.path()).await
+            if entry.file_name().to_string_lossy().ends_with(".json")
+                && let Ok(bytes) = fs::read(entry.path()).await
                 && let Ok(lock) = serde_json::from_slice(&bytes)
             {
                 locks.push(lock);

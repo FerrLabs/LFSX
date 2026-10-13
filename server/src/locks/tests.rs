@@ -537,3 +537,20 @@ async fn a_lock_is_only_ever_written_whole_and_leaves_nothing_beside_it() {
     assert_eq!(names.len(), 1, "{names:?}");
     assert!(names[0].ends_with(".json"), "{names:?}");
 }
+
+#[tokio::test]
+async fn a_staged_file_left_by_a_crash_is_not_listed_as_a_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = LockStore::local(root.path());
+    let ns = namespace();
+    let held = locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+
+    let directory = LockStore::directory_in(root.path(), &ns);
+    std::fs::write(
+        directory.join(".1-0.part"),
+        serde_json::to_vec(&held).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(locks.list(&ns).await.unwrap(), vec![held]);
+}

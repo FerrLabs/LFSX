@@ -96,7 +96,7 @@ pub(super) async fn unlock(
 
     let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
-    let _gate = state.locks.exclusive().await;
+    let _gate = state.locks.exclusive(&id).await;
     let lock = state
         .locks
         .get(&ns, &id)
