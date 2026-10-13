@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.5] - 2026-10-13
+
+### Bug Fixes
+
+- fix(locks): serialise takeover and unlock, write a lock whole (#625)
+
 ## [1.26.4] - 2026-10-13
 
 ### Bug Fixes
