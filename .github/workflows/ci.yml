@@ -401,7 +401,11 @@ jobs:
 
           grep -A1 'name: LFSX_STORAGE$' bucket.yaml | grep -q 's3'             || { echo "::error::storage.type=s3 did not reach the server"; exit 1; }
           grep -q 'secretKeyRef' bucket.yaml             || { echo "::error::the bucket keys were not taken from a Secret"; exit 1; }
-          grep -q 'type: RollingUpdate' bucket.yaml             || { echo "::error::a bucket deployment cannot roll, so it has downtime it does not need"; exit 1; }
+          grep -q 'type: Recreate' bucket.yaml             || { echo "::error::a bucket deployment over a ReadWriteOnce claim must not roll"; exit 1; }
+          grep -q 'rollingUpdate: null' bucket.yaml             || { echo "::error::Recreate must clear rollingUpdate so an upgrade from a rolling release is accepted"; exit 1; }
+
+          helm template lfsx chart             --set config.publicUrl=https://lfs.example.com             --set storage.type=s3             --set storage.s3.endpoint=https://s3.example.com             --set storage.s3.bucket=assets             --set storage.s3.existingSecret=lfsx-s3             --set persistence.enabled=false > bucket-rolling.yaml
+          grep -q 'type: RollingUpdate' bucket-rolling.yaml             || { echo "::error::a bucket deployment without a claim should roll"; exit 1; }
 
           if grep -A1 'name: LFSX_S3_ACCESS_KEY' bucket.yaml | grep -q 'value:'; then
             echo "::error::a key was rendered as a literal value"; exit 1
