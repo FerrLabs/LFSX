@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.20] - 2026-10-16
+
+### Bug Fixes
+
+- fix(chart): serve /metrics on its own port and add an optional NetworkPolicy (#649)
+
 ## [1.26.19] - 2026-10-16
 
 ### Bug Fixes

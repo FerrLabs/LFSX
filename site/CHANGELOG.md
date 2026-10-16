@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.23] - 2026-10-16
+
+### Bug Fixes
+
+- fix(chart): serve /metrics on its own port and add an optional NetworkPolicy (#649)
+
 ## [2026.10.22] - 2026-10-16
 
 ### Bug Fixes
