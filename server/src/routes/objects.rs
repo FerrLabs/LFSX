@@ -13,6 +13,7 @@ use crate::oid::Oid;
 use crate::range::Range;
 use crate::state::Shared;
 use crate::storage::Budget;
+use crate::transfer;
 
 // The Git LFS transfer surface: what a client negotiates, what it sends and
 // what it gets back. Everything here is driven by a client running `git push`
@@ -266,7 +267,13 @@ pub(super) async fn upload(
 
     let written = state
         .store
-        .write(&ns, &oid, size, budget, body.into_data_stream())
+        .write(
+            &ns,
+            &oid,
+            size,
+            budget,
+            transfer::upload_chunks(body.into_data_stream(), state.transfer_idle),
+        )
         .await?;
 
     state.metrics.uploaded_bytes.inc_by(written);
@@ -307,14 +314,14 @@ pub(super) async fn download(
     let length = range.length(size);
     let counted = state.clone();
     let chunks = object.stream(start, length).await?;
-    // The permit rides in the closure: a download occupies its slot for as
-    // long as the client keeps reading, not for the handler's brief lifetime.
-    let body = Body::from_stream(chunks.inspect(move |chunk| {
-        let _held = &transfer;
-        if let Ok(bytes) = chunk {
-            counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
-        }
-    }));
+    let body = transfer::download_body(chunks, transfer, state.transfer_idle)
+        .into_data_stream()
+        .inspect(move |chunk| {
+            if let Ok(bytes) = chunk {
+                counted.metrics.downloaded_bytes.inc_by(bytes.len() as u64);
+            }
+        });
+    let body = Body::from_stream(body);
 
     let mut response = (
         [
