@@ -56,7 +56,7 @@ moves it to `metrics.port` (9090) and the Ingress, which targets the `http` port
 Scrapers that used the Service on port 80 or the pod's 8080 must point at 9090 instead. The
 `networkPolicy` is off by default; enabled, it admits the main port from `networkPolicy.ingressFrom`,
 the metrics port from `networkPolicy.metricsFrom`, and lets the pods out to DNS and port 443. A
-forge or bucket on any other port, or inside the cluster, needs a rule in `networkPolicy.egress`.
+forge or bucket on any other port, an OTLP collector, or anything inside the cluster needs a rule in `networkPolicy.egress`.
 
 **A rollout drains instead of cutting transfers.** On shutdown the pod waits `preStopSeconds` for the
 endpoint to leave the load balancers, then stops accepting and lets running transfers finish, for up
@@ -119,11 +119,11 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `persistence.storageClass` | `""` | cluster default when empty |
 | `persistence.size` | `100Gi` | claim size |
 | `service.type` / `service.port` | `ClusterIP` / `80` | service shape |
-| `metrics.port` | `9090` | port `/metrics` is served on, also exposed on the Service as `metrics`; the ingress only routes the main port, so metrics stay inside the cluster. `0` serves them on the main port again, and the `prometheus.io/port` annotation then has to be set back to `8080` |
+| `metrics.port` | `9090` | port `/metrics` is served on, also exposed on the Service as `metrics`; the ingress only routes the main port, so metrics stay inside the cluster. `0` serves them on the main port again, and the `prometheus.io/port` annotation then has to be set back to `8080`; the annotation is not derived from this value, so any port other than 9090 needs it changed too |
 | `networkPolicy.enabled` | `false` | create a NetworkPolicy for the pods |
 | `networkPolicy.ingressFrom` | `[]` | peers allowed to reach the main port, such as your ingress controller's namespace; empty allows any source |
 | `networkPolicy.metricsFrom` | `[]` | peers allowed to reach the metrics port, such as Prometheus; empty allows nobody |
-| `networkPolicy.egress` | `[]` | extra egress rules on top of DNS and HTTPS to anywhere: a forge or bucket on another port or inside the cluster |
+| `networkPolicy.egress` | `[]` | extra egress rules on top of DNS and HTTPS to anywhere: a forge or bucket on another port or inside the cluster, or an OTLP collector |
 | `ingress.enabled` | `false` | create an Ingress |
 | `ingress.className` | `""` | `nginx` also brings the large-upload annotations |
 | `ingress.host` | `""` | required when the ingress is enabled |

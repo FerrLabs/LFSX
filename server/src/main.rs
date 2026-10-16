@@ -144,7 +144,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let (Some(listener), Some(metrics)) = (metrics_listener, metrics) {
         tracing::info!(bind = ?metrics_bind, "lfsx serving metrics on a separate listener");
-        tokio::spawn(async move { axum::serve(listener, metrics).await });
+        tokio::spawn(async move {
+            if let Err(error) = axum::serve(listener, metrics).await {
+                tracing::error!(%error, "the metrics listener stopped");
+            }
+        });
     }
 
     let served = axum::serve(listener, app)
