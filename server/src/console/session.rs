@@ -15,6 +15,7 @@ use super::{Refused, tokens};
 use crate::config::Auth;
 use crate::error::Error;
 use crate::state::Shared;
+use crate::storage::Store;
 
 const KEY: &str = "session.key";
 const COOKIE_NAME: &str = "lfsx_session";
@@ -40,30 +41,42 @@ pub struct SignIn {
     token: String,
 }
 
+const KEY_LENGTH: usize = 32;
+
 async fn key(state: &Shared) -> Result<&[u8], Error> {
     state
         .session_key
-        .get_or_try_init(|| kept_key(state))
+        .get_or_try_init(|| kept_key(&state.store))
         .await
         .map(Vec::as_slice)
 }
 
-async fn kept_key(state: &Shared) -> Result<Vec<u8>, Error> {
-    if let Some(key) = state.store.read_meta(KEY).await? {
-        return Ok(key);
+fn valid(key: Vec<u8>) -> Result<Vec<u8>, Error> {
+    if key.len() == KEY_LENGTH {
+        Ok(key)
+    } else {
+        Err(Error::Misconfigured(
+            "the stored session key is not 32 bytes; delete .lfsx/session.key to have a new one made",
+        ))
+    }
+}
+
+async fn kept_key(store: &Store) -> Result<Vec<u8>, Error> {
+    if let Some(key) = store.read_meta(KEY).await? {
+        return valid(key);
     }
 
-    let mut key = vec![0u8; 32];
+    let mut key = vec![0u8; KEY_LENGTH];
     getrandom::fill(&mut key).expect("the operating system has a random number generator");
-    state.store.write_meta(KEY, key).await?;
+    store.create_meta(KEY, key).await?;
 
-    state
-        .store
+    store
         .read_meta(KEY)
         .await?
         .ok_or(Error::Misconfigured(
             "the session key could not be kept in the store",
         ))
+        .and_then(valid)
 }
 
 fn mac(key: &[u8]) -> Hmac<Sha256> {

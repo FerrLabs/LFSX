@@ -84,3 +84,45 @@ fn a_cookie_that_only_starts_like_the_session_one_is_not_taken_for_it() {
 
     assert_eq!(presented(&headers), None);
 }
+
+fn bucket_store(root: &tempfile::TempDir, endpoint: &str) -> Store {
+    Store::bucket(
+        crate::storage::s3::tests::store(endpoint),
+        crate::storage::LocalStore::new(root.path()),
+    )
+}
+
+#[tokio::test]
+async fn an_empty_key_file_is_refused_rather_than_used_as_the_key() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::local(crate::storage::LocalStore::new(root.path()));
+    store.write_meta(KEY, Vec::new()).await.unwrap();
+
+    assert!(matches!(
+        kept_key(&store).await,
+        Err(Error::Misconfigured(_))
+    ));
+}
+
+#[tokio::test]
+async fn a_new_key_is_32_bytes_and_is_the_one_kept() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::local(crate::storage::LocalStore::new(root.path()));
+
+    let key = kept_key(&store).await.unwrap();
+
+    assert_eq!(key.len(), KEY_LENGTH);
+    assert_eq!(kept_key(&store).await.unwrap(), key);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn replicas_creating_the_key_at_once_end_with_the_same_one() {
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket().await;
+    let root = tempfile::tempdir().unwrap();
+    let stores: Vec<_> = (0..8).map(|_| bucket_store(&root, &endpoint)).collect();
+
+    let keys = futures_util::future::join_all(stores.iter().map(kept_key)).await;
+    let keys: Vec<_> = keys.into_iter().map(Result::unwrap).collect();
+
+    assert!(keys.iter().all(|key| key == &keys[0]));
+}
