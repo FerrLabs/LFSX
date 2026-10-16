@@ -43,7 +43,8 @@ pub fn app_with_transfer_idle(config: Config, idle: std::time::Duration) -> Rout
 }
 
 pub fn serve(config: Config) -> (Router, Option<Router>) {
-    serve_with_transfer_idle(config, transfer::IDLE)
+    let idle = config.transfer_idle_timeout;
+    serve_with_transfer_idle(config, idle)
 }
 
 fn serve_with_transfer_idle(

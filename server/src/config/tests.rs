@@ -171,6 +171,20 @@ fn an_unset_or_unreadable_transfer_cap_keeps_the_default() {
     }
 }
 
+#[test]
+fn the_idle_limit_is_taken_as_written_and_zero_keeps_the_default() {
+    assert_eq!(
+        transfer_idle_timeout(Some(Duration::from_secs(15))),
+        Duration::from_secs(15)
+    );
+    assert_eq!(transfer_idle_timeout(None), TRANSFER_IDLE_TIMEOUT);
+    assert_eq!(
+        transfer_idle_timeout(Some(Duration::ZERO)),
+        TRANSFER_IDLE_TIMEOUT,
+        "zero would drop every transfer before its first byte"
+    );
+}
+
 fn asked_from(host: &str, scheme: Option<&str>) -> String {
     let mut headers = HeaderMap::new();
     headers.insert(header::HOST, host.parse().unwrap());
@@ -191,6 +205,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
         lock_max_age: None,
         max_object_size: None,
         max_concurrent_transfers: 128,
+        transfer_idle_timeout: std::time::Duration::from_secs(60),
         repo_quota: None,
         compression: None,
         encryption_key: None,
@@ -270,6 +285,7 @@ fn a_configured_public_url_wins() {
         lock_max_age: None,
         max_object_size: None,
         max_concurrent_transfers: 128,
+        transfer_idle_timeout: std::time::Duration::from_secs(60),
         repo_quota: None,
         compression: None,
         encryption_key: None,

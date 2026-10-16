@@ -42,6 +42,7 @@ pub struct Config {
     // the expensive thing here is a transfer held open, not a request counted,
     // and anything smarter belongs to the reverse proxy.
     pub max_concurrent_transfers: usize,
+    pub transfer_idle_timeout: Duration,
     pub repo_quota: Option<u64>,
     pub compression: Option<i32>,
     // Never the key itself: a key in the environment is in the pod spec, in
@@ -57,6 +58,7 @@ pub struct Config {
 }
 
 const TRANSFER_CAP: usize = 128;
+const TRANSFER_IDLE_TIMEOUT: Duration = crate::transfer::IDLE;
 const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const STAGING_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
@@ -99,6 +101,9 @@ impl Config {
                     .ok()
                     .as_deref(),
             ),
+            transfer_idle_timeout: transfer_idle_timeout(env_seconds(
+                "LFSX_TRANSFER_IDLE_TIMEOUT",
+            )?),
             repo_quota: env_bytes("LFSX_REPO_QUOTA")?,
             compression: compression(),
             encryption_key: encryption_key(
@@ -244,6 +249,20 @@ fn transfer_cap(value: Option<&str>) -> usize {
             );
             TRANSFER_CAP
         }
+    }
+}
+
+fn transfer_idle_timeout(configured: Option<Duration>) -> Duration {
+    match configured {
+        Some(limit) if limit.is_zero() => {
+            tracing::warn!(
+                "LFSX_TRANSFER_IDLE_TIMEOUT=0 would drop every transfer at once, keeping the default of {} seconds",
+                TRANSFER_IDLE_TIMEOUT.as_secs()
+            );
+            TRANSFER_IDLE_TIMEOUT
+        }
+        Some(limit) => limit,
+        None => TRANSFER_IDLE_TIMEOUT,
     }
 }
 

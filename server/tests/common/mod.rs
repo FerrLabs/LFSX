@@ -125,6 +125,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         lock_max_age: None,
         max_object_size: None,
         max_concurrent_transfers: 128,
+        transfer_idle_timeout: std::time::Duration::from_secs(60),
         repo_quota: None,
         compression: None,
         encryption_key: None,
@@ -215,6 +216,7 @@ pub fn app_capped(root: &tempfile::TempDir, api_url: &str, max_object_size: u64)
     lfsx_server::app(Config {
         max_object_size: Some(max_object_size),
         max_concurrent_transfers: 128,
+        transfer_idle_timeout: std::time::Duration::from_secs(60),
         ..config(root, api_url)
     })
 }

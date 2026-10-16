@@ -33,6 +33,7 @@ fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Ro
         lock_max_age: None,
         max_object_size: None,
         max_concurrent_transfers: 128,
+        transfer_idle_timeout: std::time::Duration::from_secs(60),
         repo_quota: None,
         compression,
         encryption_key: None,
