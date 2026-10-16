@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.16] - 2026-10-16
+
+### Bug Fixes
+
+- fix(storage): add connect and read timeouts to bucket HTTP clients (#642)
+
 ## [1.26.15] - 2026-10-16
 
 ### Bug Fixes
