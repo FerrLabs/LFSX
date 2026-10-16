@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.25] - 2026-10-16
+
+### Bug Fixes
+
+- fix(console): cache the issued dashboard tokens for the access refresh window (#657)
+
 ## [1.26.24] - 2026-10-16
 
 ### Bug Fixes
