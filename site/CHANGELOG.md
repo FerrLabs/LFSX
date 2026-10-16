@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.26] - 2026-10-16
+
+### Bug Fixes
+
+- fix(server): drop transfers that make no progress for 60 seconds (#658)
+
 ## [2026.10.24] - 2026-10-16
 
 ### Bug Fixes
