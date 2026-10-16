@@ -31,6 +31,7 @@ pub struct GcsKeys {
     bucket: String,
     credential: Arc<Credential>,
     client: reqwest::Client,
+    uploads: reqwest::Client,
     lifetime: Duration,
 }
 
@@ -78,6 +79,7 @@ impl GcsKeys {
             bucket: config.bucket.clone(),
             credential: Arc::new(credential),
             client: super::client::bucket_client()?,
+            uploads: super::client::upload_client()?,
             lifetime: config.lifetime,
         })
     }
@@ -104,7 +106,16 @@ impl GcsKeys {
         method: Method,
         url: reqwest::Url,
     ) -> Result<reqwest::RequestBuilder, Error> {
-        let request = self.client.request(method, url);
+        self.authorized_on(&self.client, method, url).await
+    }
+
+    async fn authorized_on(
+        &self,
+        client: &reqwest::Client,
+        method: Method,
+        url: reqwest::Url,
+    ) -> Result<reqwest::RequestBuilder, Error> {
+        let request = client.request(method, url);
 
         Ok(match self.credential.bearer(&self.client).await? {
             Some(token) => request.bearer_auth(token),
@@ -191,14 +202,18 @@ impl GcsKeys {
             query.push(("ifGenerationMatch", "0"));
         }
 
-        self.authorized(Method::POST, self.url(true, None, &query))
-            .await?
-            .header(reqwest::header::CONTENT_LENGTH, length)
-            .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
-            .body(body)
-            .send()
-            .await
-            .map_err(|_| unreachable_store())
+        self.authorized_on(
+            super::client::for_body(&body, &self.client, &self.uploads),
+            Method::POST,
+            self.url(true, None, &query),
+        )
+        .await?
+        .header(reqwest::header::CONTENT_LENGTH, length)
+        .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+        .body(body)
+        .send()
+        .await
+        .map_err(|_| unreachable_store())
     }
 
     pub(crate) async fn put(
@@ -271,7 +286,7 @@ impl GcsKeys {
                 .join(&session)
                 .map_err(|_| malformed("the object store named an unusable upload session"))?;
             let response = self
-                .authorized(Method::PUT, session)
+                .authorized_on(&self.uploads, Method::PUT, session)
                 .await?
                 .header(reqwest::header::CONTENT_LENGTH, this)
                 .header(

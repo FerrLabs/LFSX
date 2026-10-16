@@ -18,6 +18,7 @@ pub struct S3Keys {
     bucket: Bucket,
     credentials: Credentials,
     client: reqwest::Client,
+    uploads: reqwest::Client,
     lifetime: Duration,
 }
 
@@ -46,6 +47,7 @@ impl S3Keys {
             bucket,
             credentials: Credentials::new(config.access_key.clone(), config.secret_key.clone()),
             client: super::client::bucket_client()?,
+            uploads: super::client::upload_client()?,
             lifetime: config.lifetime,
         })
     }
@@ -85,6 +87,10 @@ impl S3Keys {
 
     pub(crate) fn client(&self) -> &reqwest::Client {
         &self.client
+    }
+
+    pub(crate) fn uploads(&self) -> &reqwest::Client {
+        &self.uploads
     }
 
     // Whether the caller is entitled to the bytes is settled before this is
@@ -172,8 +178,7 @@ impl S3Keys {
         let action = PutObject::new(&self.bucket, Some(&self.credentials), key);
         let url = action.sign(self.lifetime);
 
-        let response = self
-            .client
+        let response = super::client::for_body(&body, &self.client, &self.uploads)
             .put(url)
             // S3 has no use for a chunked body and answers 501 rather than
             // starting the upload. reqwest cannot infer a length from a stream,
