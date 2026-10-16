@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.23] - 2026-10-16
+
+### Bug Fixes
+
+- fix(storage): stop the read cache leaking temp files, rewriting digests and filling without bound (#656)
+
 ## [1.26.22] - 2026-10-16
 
 ### Bug Fixes
