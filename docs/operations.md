@@ -6,15 +6,42 @@ covers the restore as carefully as the backup.
 
 ## What to back up
 
-`$LFSX_STORAGE_ROOT`, and nothing else. There is no database, no cache to warm and no state
-anywhere but that directory. Configuration lives in the environment: back it up with whatever
-holds your Helm values or unit file, not from here.
+`$LFSX_STORAGE_ROOT`, and the encryption key if you use one. There is no database and no cache to
+warm. Configuration lives in the environment: back it up with whatever holds your Helm values or
+unit file, not from here. This is the layout of a volume deployment; with `LFSX_STORAGE=s3`, `azure`
+or `gcs` the state is in the bucket instead, see [Backing up a bucket](#backing-up-a-bucket).
 
 ```
 $LFSX_STORAGE_ROOT/.content/<oid[0:2]>/<oid[2:4]>/<oid>       the bytes, once
 $LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per repository
 $LFSX_STORAGE_ROOT/.locks/<org>/<repo>/<id>.json              who holds what
+$LFSX_STORAGE_ROOT/.lfsx/access.json                          allowed / restricted saved from the dashboard
+$LFSX_STORAGE_ROOT/.lfsx/access-<forge>.json                  the same, one per named forge
+$LFSX_STORAGE_ROOT/.lfsx/dashboard-tokens.json                dashboard tokens, stored as SHA-256 hashes
+$LFSX_STORAGE_ROOT/.lfsx/session.key                          the key dashboard sessions are signed with
 ```
+
+The `.lfsx/` files are small and easy to forget, and each one fails differently when it is missing
+from a restore:
+
+| Missing after a restore | What happens |
+|---|---|
+| `access.json`, `access-<forge>.json` | `LFSX_ALLOWED` and `LFSX_RESTRICTED` from the environment apply again, with no warning. If the dashboard had narrowed them, the restored server is more open than the one you lost. |
+| `dashboard-tokens.json` | No dashboard token exists any more and the sessions they opened end. Admins of `LFSX_DASHBOARD_REPO` can still sign in with a forge token; reissue the others with `lfsx-server dashboard token create`. With `LFSX_AUTH=disabled` nobody can sign in until you do. |
+| `session.key` | A new key is made on first use and every open dashboard session ends. Nothing else depends on it. |
+
+The reverse holds too: an `access.json` restored from last month brings last month's lists back, and
+what the dashboard saved takes precedence over the environment. The server rereads the file every 30
+seconds, so check the Access page after a restore instead of assuming the environment is in force.
+
+**The encryption key is not in the storage root, and it is not optional.** With
+`LFSX_ENCRYPTION_KEY_FILE` or `LFSX_ENCRYPTION_KEY_COMMAND` set, every object written since is
+ciphertext and the key is the only way back to it. Lose it and those objects cannot be read from the
+store, a snapshot or a bucket. Keep every key the file lists, not just the first: an object records
+which key it was written under, and one whose key is gone is reported unreadable by name. Keep the
+key somewhere other than the backup of the data, or the encryption protects nothing the backup did
+not already give away. On Kubernetes that is the Secret behind `encryption.existingSecret`. See
+[Encryption at rest](encryption.md).
 
 Locks are the one thing worth losing. They say which artist is currently editing which scene, they
 are re-taken in seconds, and a lock restored from last night's backup is a lie about the present.
@@ -111,6 +138,39 @@ once the store passes a few terabytes, where walking it costs more than copying 
 Delete whatever the check reports. A corrupt object is worse than a missing one: it fails the
 client's own hash verification after a full download, and it will do that on every retry. Once it
 is gone, recover it the way the next section describes.
+
+## Backing up a bucket
+
+With `LFSX_STORAGE=s3`, `azure` or `gcs` the objects, the locks and the `.lfsx/` files above are all
+keys in the bucket: `.content/`, `<org>/<repo>/` markers, `.locks/`, `.lfsx/`, plus the `.refs/`
+and `.sizes/` indexes. The volume is a write buffer and holds nothing worth keeping, so there is
+nothing to back up there and no `.part` file to care about. The encryption key is still yours to
+keep, exactly as above.
+
+`rsync -aH` does not apply, and the hard-link warning goes with it: a marker is an empty key, not a
+link, so any tool that copies keys is a faithful backup. Copy the whole bucket, indexes included,
+and keep `.lfsx/` in the copy, since the table above applies to it unchanged.
+
+What protects a bucket is configured on the bucket, not in this server. Two settings matter:
+
+- **Versioning** (S3 and GCS object versioning, Azure blob versioning or soft delete) is the answer
+  to a deletion. Collection and `retain` remove content objects and markers for real, and a
+  versioned bucket turns that into a delete marker you can undo. Objects are never rewritten, so
+  versioning adds nothing for them beyond that. It does keep every superseded `access.json` and
+  `dashboard-tokens.json`, which is useful, and every lock that was ever taken and released, which
+  is not: add a lifecycle rule that expires noncurrent versions under `.locks/`.
+- **Replication** to a second bucket or region survives losing the first, and replicates deletions
+  and mistakes along with everything else, so it is a second copy and not a backup. Keep it in another account if a leaked credential is part
+  of what you plan for. It is also
+  asynchronous and does not order keys: a replica can hold a marker whose content object has not
+  arrived. After promoting one, run `lfsx doctor` per repository and expect to re-push what it
+  reports missing.
+
+Restoring is copying the keys back to an empty bucket, or promoting a replica, and pointing
+`LFSX_S3_BUCKET` (or the Azure or GCS equivalent) at it. Start the server afterwards: `/ready`
+checks the bucket as well as the volume, and the locking probe runs at boot against the restored
+bucket. `lfsx verify` answers `501` against a bucket, so the byte-level check in the restore
+section is unavailable; `lfsx doctor` is the check that the restore is whole.
 
 ## When an object is missing
 
