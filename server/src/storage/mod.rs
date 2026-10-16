@@ -64,6 +64,7 @@ pub struct Staged {
     pub path: PathBuf,
     destination: PathBuf,
     pub written: u64,
+    pub stored: u64,
     fresh: bool,
 }
 
@@ -135,7 +136,7 @@ pub struct Budget {
 
 impl Budget {
     pub fn exceeded_by(&self, arriving: u64) -> bool {
-        self.used + arriving > self.limit
+        self.used.saturating_add(arriving) > self.limit
     }
 
     pub fn refusal(&self) -> Error {
@@ -152,6 +153,7 @@ impl Budget {
 #[derive(Debug)]
 pub struct Written {
     pub bytes: u64,
+    pub stored: u64,
     pub fresh: bool,
 }
 
@@ -310,10 +312,13 @@ impl LocalStore {
                     return Err(error);
                 }
 
+                let stored = fs::metadata(&staged).await?.len();
+
                 Ok(Staged {
                     path: staged,
                     destination: path,
                     written,
+                    stored,
                     fresh,
                 })
             }
@@ -366,6 +371,7 @@ impl LocalStore {
 
         Ok(Written {
             bytes: staged.written,
+            stored: staged.stored,
             fresh: staged.fresh,
         })
     }

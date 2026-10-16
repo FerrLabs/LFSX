@@ -364,6 +364,7 @@ impl Store {
 
                 super::Written {
                     bytes: staged.written,
+                    stored: staged.stored,
                     fresh,
                 }
             }
@@ -374,7 +375,7 @@ impl Store {
         // the repository again, which on a bucket is what this cache exists to
         // avoid.
         if written.fresh {
-            self.usage.stored(ns, written.bytes).await;
+            self.usage.stored(ns, written.stored).await;
         }
 
         Ok(written.bytes)

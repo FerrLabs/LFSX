@@ -191,3 +191,15 @@ async fn without_a_limit_a_large_object_still_goes_through() {
 
     assert_eq!(written.unwrap().bytes, 64 * CHUNK as u64);
 }
+
+#[test]
+fn a_declared_size_near_the_ceiling_is_refused_rather_than_wrapped() {
+    let budget = Budget {
+        used: 10,
+        limit: 100,
+    };
+
+    assert!(budget.exceeded_by(u64::MAX));
+    assert!(!budget.exceeded_by(90));
+    assert!(budget.exceeded_by(91));
+}
