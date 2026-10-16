@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile --filter @lfsx/app...
 COPY app ./app
 RUN pnpm --filter @lfsx/app build
 
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:49c3b42c1fcf46d3b1799ef18b43473382d04f7679bc15f30727043866d4ec12 AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29 AS builder
 
 ARG TARGETARCH
 
