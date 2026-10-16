@@ -127,11 +127,11 @@ impl Auth {
             api_url: api_url(
                 provider,
                 std::env::var(provider.api_url_variable()).ok().as_deref(),
-            ),
+            )?,
             cache_ttl: env_seconds("LFSX_AUTH_CACHE_TTL")?.unwrap_or(CACHE_TTL),
             rejection_ttl: env_seconds("LFSX_AUTH_REJECTION_TTL")?.unwrap_or(REJECTION_TTL),
             lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
-            github_app: github_app(provider),
+            github_app: github_app(provider)?,
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
             restricted: Namespaces::parse(
                 "LFSX_RESTRICTED",
@@ -156,7 +156,7 @@ pub(super) fn allowed(variable: &str, value: Option<&str>) -> Option<Namespaces>
 // Both variables or neither. One without the other is a configuration that
 // says two things at once, and an operator who set up an App meant to have its
 // quota, so the mistake is refused at boot instead of quietly ignored.
-pub(super) fn github_app(provider: Provider) -> Option<GithubApp> {
+pub(super) fn github_app(provider: Provider) -> Result<Option<GithubApp>, ConfigError> {
     github_app_from(provider, "LFSX_", "LFSX_AUTH", |variable| {
         std::env::var(variable).ok()
     })
@@ -167,30 +167,36 @@ pub(super) fn github_app_from(
     prefix: &str,
     auth_variable: &str,
     read: impl Fn(&str) -> Option<String>,
-) -> Option<GithubApp> {
+) -> Result<Option<GithubApp>, ConfigError> {
     let id_variable = format!("{prefix}GITHUB_APP_ID");
     let key_variable = format!("{prefix}GITHUB_APP_KEY_FILE");
     let id = read(&id_variable).filter(|id| !id.is_empty());
     let key_file = read(&key_variable).filter(|path| !path.is_empty());
 
     match (id, key_file) {
-        (None, None) => None,
+        (None, None) => Ok(None),
         (Some(app_id), Some(key_file)) => {
             if provider != Provider::Github {
                 tracing::warn!(
                     "{id_variable} is set but {auth_variable} is not github, so it does nothing"
                 );
-                return None;
+                return Ok(None);
             }
-            Some(GithubApp {
+            Ok(Some(GithubApp {
                 app_id,
                 key_file: PathBuf::from(key_file),
-            })
+            }))
         }
-        _ => panic!(
-            "{id_variable} and {key_variable} come together: one without the other is half an \
-             identity, and guessing which half was meant is worse than stopping"
-        ),
+        (Some(id), None) => Err(ConfigError::new(
+            id_variable,
+            &id,
+            "set without its key file: an App needs both an id and a key file",
+        )),
+        (None, Some(key_file)) => Err(ConfigError::new(
+            key_variable,
+            &key_file,
+            "set without its app id: an App needs both an id and a key file",
+        )),
     }
 }
 
@@ -223,20 +229,25 @@ pub(super) fn provider(value: Option<&str>) -> Result<Provider, ConfigError> {
 // The trailing slash matters: every route is built by appending to this, so one
 // left on the end produces `//repos/...`, which some forges answer and others do
 // not, and the ones that do not answer 404 for a repository that is right there.
-pub(super) fn api_url(provider: Provider, configured: Option<&str>) -> String {
+pub(super) fn api_url(provider: Provider, configured: Option<&str>) -> Result<String, ConfigError> {
     api_url_from(provider, provider.api_url_variable(), configured)
 }
 
-pub(super) fn api_url_from(provider: Provider, variable: &str, configured: Option<&str>) -> String {
-    configured
+pub(super) fn api_url_from(
+    provider: Provider,
+    variable: &str,
+    configured: Option<&str>,
+) -> Result<String, ConfigError> {
+    let url = configured
         .map(str::to_owned)
         .or_else(|| provider.default_api_url().map(str::to_owned))
-        .unwrap_or_else(|| {
-            panic!(
-                "{variable} must be set: a self-hosted forge has no default API root, and guessing \
-                 one would resolve your repositories against somebody else's"
+        .ok_or_else(|| {
+            ConfigError::new(
+                variable,
+                "",
+                "set: a self-hosted forge has no default API root to fall back on",
             )
-        })
-        .trim_end_matches('/')
-        .to_owned()
+        })?;
+
+    Ok(url.trim_end_matches('/').to_owned())
 }

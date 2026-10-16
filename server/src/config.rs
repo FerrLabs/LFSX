@@ -84,7 +84,7 @@ impl Config {
             .filter(|url| !url.is_empty())
             .map(|url| url.trim_end_matches('/').to_owned());
 
-        Ok(Self {
+        Self {
             bind,
             metrics_bind,
             storage_root,
@@ -104,25 +104,25 @@ impl Config {
             encryption_key: encryption_key(
                 std::env::var("LFSX_ENCRYPTION_KEY_FILE").ok().as_deref(),
                 std::env::var("LFSX_ENCRYPTION_KEY_COMMAND").ok().as_deref(),
-            ),
+            )?,
             storage: Storage::from_env(),
             dashboard: None,
             forges: Vec::new(),
             auth: Auth::from_env()?,
         }
-        .with_forges()
-        .with_dashboard())
+        .with_forges()?
+        .with_dashboard()
     }
 
-    fn with_forges(self) -> Self {
-        Self {
-            forges: forges::from_env(&self.auth),
+    fn with_forges(self) -> Result<Self, ConfigError> {
+        Ok(Self {
+            forges: forges::from_env(&self.auth)?,
             ..self
-        }
+        })
     }
 
-    fn with_dashboard(self) -> Self {
-        Self {
+    fn with_dashboard(self) -> Result<Self, ConfigError> {
+        Ok(Self {
             dashboard: dashboard(
                 std::env::var("LFSX_DASHBOARD").ok().as_deref(),
                 std::env::var("LFSX_DASHBOARD_DIR").ok().as_deref(),
@@ -130,9 +130,9 @@ impl Config {
                 std::env::var("LFSX_DASHBOARD_FORGE").ok().as_deref(),
                 &self.auth,
                 &self.forges,
-            ),
+            )?,
             ..self
-        }
+        })
     }
 
     pub fn base_url(&self, headers: &HeaderMap) -> String {

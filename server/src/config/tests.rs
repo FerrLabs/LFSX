@@ -105,11 +105,11 @@ fn an_unparseable_bind_address_is_refused() {
 #[test]
 fn an_api_root_keeps_no_trailing_slash() {
     assert_eq!(
-        api_url(Provider::Gitea, Some("https://git.example.com/api/v1/")),
+        api_url(Provider::Gitea, Some("https://git.example.com/api/v1/")).unwrap(),
         "https://git.example.com/api/v1"
     );
     assert_eq!(
-        api_url(Provider::Github, None),
+        api_url(Provider::Github, None).unwrap(),
         "https://api.github.com",
         "an unset variable still falls back to the default for a forge that has one"
     );
@@ -120,9 +120,13 @@ fn an_api_root_keeps_no_trailing_slash() {
 // sharing a name would hand out anonymous read on objects it has nothing to do
 // with. Not starting is the better failure.
 #[test]
-#[should_panic(expected = "LFSX_GITEA_API_URL must be set")]
 fn a_self_hosted_forge_refuses_to_start_without_its_api_root() {
-    api_url(Provider::Gitea, None);
+    let error = api_url(Provider::Gitea, None).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "LFSX_GITEA_API_URL=\"\" is not set: a self-hosted forge has no default API root to fall back on"
+    );
 }
 
 // Zero is the one value that cannot mean what it says: a ceiling of no lookups
@@ -278,22 +282,26 @@ fn a_configured_public_url_wins() {
 
 #[test]
 fn an_encryption_key_comes_from_one_source() {
-    assert_eq!(encryption_key(None, None), None);
-    assert_eq!(encryption_key(Some(""), Some("")), None);
+    assert_eq!(encryption_key(None, None).unwrap(), None);
+    assert_eq!(encryption_key(Some(""), Some("")).unwrap(), None);
     assert_eq!(
-        encryption_key(Some("/etc/lfsx/keys/key"), None),
+        encryption_key(Some("/etc/lfsx/keys/key"), None).unwrap(),
         Some(KeySource::File("/etc/lfsx/keys/key".into()))
     );
     assert_eq!(
-        encryption_key(None, Some("vault kv get -field=key lfsx")),
+        encryption_key(None, Some("vault kv get -field=key lfsx")).unwrap(),
         Some(KeySource::Command("vault kv get -field=key lfsx".into()))
     );
 }
 
 #[test]
-#[should_panic(expected = "both set")]
 fn two_key_sources_refuse_to_start() {
-    encryption_key(Some("/etc/keys"), Some("vault kv get"));
+    let error = encryption_key(Some("/etc/keys"), Some("vault kv get")).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "LFSX_ENCRYPTION_KEY_FILE=\"/etc/keys\" is not allowed alongside LFSX_ENCRYPTION_KEY_COMMAND: pick one source for the keys"
+    );
 }
 
 #[test]
@@ -356,7 +364,11 @@ fn github() -> Auth {
 
 #[test]
 fn the_dashboard_is_off_unless_it_is_asked_for() {
-    assert!(dashboard(None, None, Some("FerrLabs/Infra"), None, &github(), &[]).is_none());
+    assert!(
+        dashboard(None, None, Some("FerrLabs/Infra"), None, &github(), &[])
+            .unwrap()
+            .is_none()
+    );
     assert!(
         dashboard(
             Some("yes"),
@@ -366,6 +378,7 @@ fn the_dashboard_is_off_unless_it_is_asked_for() {
             &github(),
             &[]
         )
+        .unwrap()
         .is_none()
     );
 }
@@ -380,6 +393,7 @@ fn the_dashboard_is_shown_to_the_admins_of_the_named_repository() {
         &github(),
         &[],
     )
+    .unwrap()
     .unwrap();
 
     let admins = dashboard.admins.unwrap();
@@ -388,15 +402,23 @@ fn the_dashboard_is_shown_to_the_admins_of_the_named_repository() {
 }
 
 #[test]
-#[should_panic(expected = "needs LFSX_DASHBOARD_REPO")]
 fn a_dashboard_behind_a_forge_refuses_to_start_without_a_repository() {
-    dashboard(Some("true"), None, None, None, &github(), &[]);
+    let error = dashboard(Some("true"), None, None, None, &github(), &[]).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "LFSX_DASHBOARD_REPO=\"\" is not set: the dashboard is shown to the admins of that repository, and nobody else"
+    );
 }
 
 #[test]
-#[should_panic(expected = "LFSX_DASHBOARD_REPO is not org/repo")]
 fn a_dashboard_repository_that_is_not_org_repo_refuses_to_start() {
-    dashboard(Some("true"), None, Some("Infra"), None, &github(), &[]);
+    let error = dashboard(Some("true"), None, Some("Infra"), None, &github(), &[]).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "LFSX_DASHBOARD_REPO=\"Infra\" is not org/repo"
+    );
 }
 
 #[test]
@@ -409,6 +431,7 @@ fn without_authentication_the_dashboard_needs_no_repository() {
         &Auth::Disabled,
         &[],
     )
+    .unwrap()
     .unwrap();
 
     assert!(dashboard.admins.is_none());
@@ -440,6 +463,7 @@ fn the_dashboard_can_take_its_admins_from_a_named_forge() {
         &github(),
         &[named("work")],
     )
+    .unwrap()
     .unwrap();
 
     let admins = dashboard.admins.unwrap();
@@ -448,14 +472,19 @@ fn the_dashboard_can_take_its_admins_from_a_named_forge() {
 }
 
 #[test]
-#[should_panic(expected = "LFSX_DASHBOARD_FORGE names elsewhere, which LFSX_FORGES does not list")]
 fn a_dashboard_forge_nobody_configured_refuses_to_start() {
-    dashboard(
+    let error = dashboard(
         Some("true"),
         None,
         Some("FerrLabs/Infra"),
         Some("elsewhere"),
         &github(),
         &[named("work")],
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "LFSX_DASHBOARD_FORGE=\"elsewhere\" is not a forge listed in LFSX_FORGES"
     );
 }

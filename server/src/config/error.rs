@@ -3,15 +3,15 @@ use std::str::FromStr;
 #[derive(Debug, thiserror::Error)]
 #[error("{variable}={value:?} is not {expected}")]
 pub struct ConfigError {
-    variable: &'static str,
+    variable: String,
     value: String,
     expected: &'static str,
 }
 
 impl ConfigError {
-    pub(super) fn new(variable: &'static str, value: &str, expected: &'static str) -> Self {
+    pub(super) fn new(variable: impl Into<String>, value: &str, expected: &'static str) -> Self {
         Self {
-            variable,
+            variable: variable.into(),
             value: value.to_owned(),
             expected,
         }
