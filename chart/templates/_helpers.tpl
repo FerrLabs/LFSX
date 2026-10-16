@@ -135,3 +135,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- . -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "lfsx.integer" -}}
+{{- if kindIs "float64" . -}}
+{{- . | int64 -}}
+{{- else -}}
+{{- . -}}
+{{- end -}}
+{{- end -}}

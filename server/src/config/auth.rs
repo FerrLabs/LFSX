@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use super::seconds;
+use super::ConfigError;
+use super::env_seconds;
 use crate::auth::Namespaces;
 
 #[derive(Debug, Clone)]
@@ -99,7 +100,7 @@ pub(super) fn anonymous_read(value: Option<&str>) -> bool {
 }
 
 impl Auth {
-    pub(super) fn from_env() -> Self {
+    pub(super) fn from_env() -> Result<Self, ConfigError> {
         if std::env::var("LFSX_AUTH").as_deref() == Ok("disabled") {
             tracing::warn!(
                 "LFSX_AUTH=disabled: every request is accepted, run this on a trusted network only"
@@ -116,19 +117,19 @@ impl Auth {
                      caller already holds every right"
                 );
             }
-            return Self::Disabled;
+            return Ok(Self::Disabled);
         }
 
-        let provider = provider(std::env::var("LFSX_AUTH").ok().as_deref());
+        let provider = provider(std::env::var("LFSX_AUTH").ok().as_deref())?;
 
-        Self::Forge {
+        Ok(Self::Forge {
             provider,
             api_url: api_url(
                 provider,
                 std::env::var(provider.api_url_variable()).ok().as_deref(),
             ),
-            cache_ttl: seconds("LFSX_AUTH_CACHE_TTL").unwrap_or(CACHE_TTL),
-            rejection_ttl: seconds("LFSX_AUTH_REJECTION_TTL").unwrap_or(REJECTION_TTL),
+            cache_ttl: env_seconds("LFSX_AUTH_CACHE_TTL")?.unwrap_or(CACHE_TTL),
+            rejection_ttl: env_seconds("LFSX_AUTH_REJECTION_TTL")?.unwrap_or(REJECTION_TTL),
             lookup_budget: lookup_budget(std::env::var("LFSX_AUTH_LOOKUP_BUDGET").ok().as_deref()),
             github_app: github_app(provider),
             anonymous_read: anonymous_read(std::env::var("LFSX_ANONYMOUS_READ").ok().as_deref()),
@@ -140,7 +141,7 @@ impl Auth {
                 "LFSX_ALLOWED",
                 std::env::var("LFSX_ALLOWED").ok().as_deref(),
             ),
-        }
+        })
     }
 }
 
@@ -206,14 +207,16 @@ pub(super) fn lookup_budget(value: Option<&str>) -> Option<u32> {
     }
 }
 
-// Anything unrecognised is GitHub, which is what an operator who set nothing
-// almost certainly meant. Forgejo is named alongside Gitea because they are one
-// API, and somebody running Forgejo should not have to know it began as a fork.
-pub(super) fn provider(value: Option<&str>) -> Provider {
-    match value {
-        Some("gitlab") => Provider::Gitlab,
-        Some("gitea") | Some("forgejo") => Provider::Gitea,
-        _ => Provider::Github,
+pub(super) fn provider(value: Option<&str>) -> Result<Provider, ConfigError> {
+    match value.map(str::trim).filter(|raw| !raw.is_empty()) {
+        None | Some("github") => Ok(Provider::Github),
+        Some("gitlab") => Ok(Provider::Gitlab),
+        Some("gitea") | Some("forgejo") => Ok(Provider::Gitea),
+        Some(other) => Err(ConfigError::new(
+            "LFSX_AUTH",
+            other,
+            "one of github, gitlab, gitea, forgejo or disabled",
+        )),
     }
 }
 

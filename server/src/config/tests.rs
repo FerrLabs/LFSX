@@ -28,17 +28,76 @@ fn anonymous_read_is_closed_unless_it_is_asked_for() {
 
 #[test]
 fn forgejo_and_gitea_are_the_same_forge() {
-    assert_eq!(provider(Some("gitea")), Provider::Gitea);
+    assert_eq!(provider(Some("gitea")).unwrap(), Provider::Gitea);
     assert_eq!(
-        provider(Some("forgejo")),
+        provider(Some("forgejo")).unwrap(),
         Provider::Gitea,
         "Forgejo is a fork of Gitea and answers the same API, so naming either has to work"
     );
-    assert_eq!(provider(Some("gitlab")), Provider::Gitlab);
+    assert_eq!(provider(Some("gitlab")).unwrap(), Provider::Gitlab);
 
-    for github in [None, Some("github"), Some("Gitea"), Some("nonsense")] {
-        assert_eq!(provider(github), Provider::Github, "{github:?}");
+    for github in [None, Some(""), Some("github")] {
+        assert_eq!(provider(github).unwrap(), Provider::Github, "{github:?}");
     }
+}
+
+#[test]
+fn an_unknown_auth_provider_is_refused_by_name() {
+    for refused in ["GitLab", "none", "gitlb", "nonsense"] {
+        let message = provider(Some(refused)).unwrap_err().to_string();
+        assert!(message.contains("LFSX_AUTH"), "{message}");
+        assert!(message.contains(refused), "{message}");
+    }
+}
+
+#[test]
+fn an_unparseable_size_is_refused_instead_of_becoming_unlimited() {
+    for refused in ["5Gi", "5.36870912e+10", "-1", "lots"] {
+        let message = bytes("LFSX_REPO_QUOTA", Some(refused))
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("LFSX_REPO_QUOTA"), "{message}");
+        assert!(message.contains(refused), "{message}");
+    }
+
+    assert_eq!(bytes("LFSX_REPO_QUOTA", None).unwrap(), None);
+    assert_eq!(bytes("LFSX_REPO_QUOTA", Some("")).unwrap(), None);
+    assert_eq!(bytes("LFSX_REPO_QUOTA", Some("0")).unwrap(), None);
+    assert_eq!(
+        bytes("LFSX_REPO_QUOTA", Some(" 1024 ")).unwrap(),
+        Some(1024)
+    );
+}
+
+#[test]
+fn an_unparseable_duration_is_refused_instead_of_taking_the_default() {
+    for refused in ["7d", "1.5", "-3", "soon"] {
+        let message = seconds("LFSX_LOCK_MAX_AGE", Some(refused))
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("LFSX_LOCK_MAX_AGE"), "{message}");
+        assert!(message.contains(refused), "{message}");
+    }
+
+    assert_eq!(seconds("LFSX_LOCK_MAX_AGE", None).unwrap(), None);
+    assert_eq!(
+        seconds("LFSX_LOCK_MAX_AGE", Some("90")).unwrap(),
+        Some(Duration::from_secs(90))
+    );
+}
+
+#[test]
+fn an_unparseable_bind_address_is_refused() {
+    let message = error::parse::<SocketAddr>("LFSX_BIND", Some("localhost"), "an address")
+        .unwrap_err()
+        .to_string();
+    assert!(message.contains("LFSX_BIND"), "{message}");
+    assert!(message.contains("localhost"), "{message}");
+
+    assert_eq!(
+        error::parse::<SocketAddr>("LFSX_BIND", Some("127.0.0.1:9000"), "an address").unwrap(),
+        Some(SocketAddr::from(([127, 0, 0, 1], 9000)))
+    );
 }
 
 // One left on the end produces `//repos/...`, which is a 404 for a repository

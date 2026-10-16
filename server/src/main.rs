@@ -51,7 +51,7 @@ enum TokenCommand {
 }
 
 async fn run(command: TokenCommand) -> Result<(), Box<dyn std::error::Error>> {
-    let store = lfsx_server::store(&Config::from_env());
+    let store = lfsx_server::store(&Config::from_env()?);
 
     match command {
         TokenCommand::Create { name } => {
@@ -105,7 +105,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let telemetry = lfsx_server::telemetry::init();
 
-    let mut config = Config::from_env();
+    let mut config = Config::from_env().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1);
+    });
     tokio::fs::create_dir_all(&config.storage_root).await?;
 
     // Before anything is served, because it decides whether a client is ever
