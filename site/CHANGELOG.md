@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.22] - 2026-10-16
+
+### Bug Fixes
+
+- fix(cli): refuse tokens over non-loopback http and stop reading GITHUB_TOKEN (#648)
+
 ## [2026.10.21] - 2026-10-16
 
 ### Bug Fixes

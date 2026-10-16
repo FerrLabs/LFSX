@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.18] - 2026-10-16
+
+### Bug Fixes
+
+- fix(cli): refuse tokens over non-loopback http and stop reading GITHUB_TOKEN (#648)
+
 ## [1.26.17] - 2026-10-16
 
 ### Bug Fixes
