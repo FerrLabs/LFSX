@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.21] - 2026-10-16
+
+### Bug Fixes
+
+- fix(config): refuse to boot on unparseable bind, size, duration and auth values (#645)
+
 ## [2026.10.19] - 2026-10-16
 
 ### Bug Fixes

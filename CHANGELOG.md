@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.15] - 2026-10-16
+
+### Bug Fixes
+
+- fix(config): refuse to boot on unparseable bind, size, duration and auth values (#645)
+
 ## [1.26.14] - 2026-10-16
 
 ### Bug Fixes
