@@ -88,7 +88,7 @@ will preview collection and be refused the real thing.
 
 A scheduled job in the repository's CI keeps the disk from growing without anyone running `gc` by
 hand. It needs an admin token (see above), so it cannot use the job's own `GITHUB_TOKEN`: store one
-as a secret and pass it as `LFSX_TOKEN`, which `lfsx` reads before `GITHUB_TOKEN`.
+as a secret and pass it as `LFSX_TOKEN`, the only variable `lfsx` reads a token from.
 
 ```yaml
 name: lfsx gc
