@@ -75,8 +75,11 @@ Do this from a clone while the old endpoint still answers, and before you delete
 
    ```bash
    git config lfs.url https://lfs.example.com/my-org/my-project
-   git lfs push --all origin
+   git lfs push --all origin $(git for-each-ref --format='%(refname)' refs/heads refs/tags refs/remotes/origin)
    ```
+
+   The refs are listed because `git lfs push --all` alone walks only local branches and tags, while
+   the fetch above also covered the remote-tracking ones.
 
 3. Check a fresh clone with `git lfs install` already run: the files should arrive as real content,
    not pointer stubs.
