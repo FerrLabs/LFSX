@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.24] - 2026-10-16
+
+### Bug Fixes
+
+- fix(cli): make lfsx gc fetch every ref and refuse clones that cannot see them (#652)
+
 ## [2026.10.23] - 2026-10-16
 
 ### Bug Fixes

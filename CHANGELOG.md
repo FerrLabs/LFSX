@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.21] - 2026-10-16
+
+### Bug Fixes
+
+- fix(cli): make lfsx gc fetch every ref and refuse clones that cannot see them (#652)
+
 ## [1.26.20] - 2026-10-16
 
 ### Bug Fixes
