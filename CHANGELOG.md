@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.17] - 2026-10-16
+
+### Bug Fixes
+
+- fix(build): verify sccache and git-lfs downloads against a sha256 (#647)
+
 ## [1.26.16] - 2026-10-16
 
 ### Bug Fixes
