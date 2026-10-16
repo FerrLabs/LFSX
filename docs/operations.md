@@ -175,6 +175,10 @@ counted as `refused`, named in the log and left exactly where it is. The reposit
 removed before its replacement link exists, so an interrupted run leaves either the old file or the
 new link, never a gap.
 
+`gc`, `dedupe`, `compress` and `verify` walk the whole repository in one request and wait for the
+answer for as long as the server takes. Only the connection attempt has a limit, ten seconds;
+`doctor` also gives up on a server that stops answering after thirty.
+
 The saving shows up in `lfsx_store_bytes`, which counts what the disk holds, rather than in
 `stats`, which counts what each repository holds.
 
