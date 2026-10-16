@@ -81,6 +81,7 @@ pub fn serve(config: Config) -> (Router, Option<Router>) {
         metrics: Metrics::new(),
         transfers,
         started: std::time::Instant::now(),
+        tokens: console::tokens::Registry::default(),
         session_key: tokio::sync::OnceCell::new(),
     });
 
