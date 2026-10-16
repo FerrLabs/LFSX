@@ -76,7 +76,7 @@ impl AzureKeys {
             container_url,
             container: config.container.clone(),
             credential: Arc::new(credential),
-            client: reqwest::Client::new(),
+            client: super::client::bucket_client()?,
             lifetime: config.lifetime,
         })
     }

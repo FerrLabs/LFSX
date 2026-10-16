@@ -77,7 +77,7 @@ impl GcsKeys {
             endpoint,
             bucket: config.bucket.clone(),
             credential: Arc::new(credential),
-            client: reqwest::Client::new(),
+            client: super::client::bucket_client()?,
             lifetime: config.lifetime,
         })
     }

@@ -45,7 +45,7 @@ impl S3Keys {
         Ok(Self {
             bucket,
             credentials: Credentials::new(config.access_key.clone(), config.secret_key.clone()),
-            client: reqwest::Client::new(),
+            client: super::client::bucket_client()?,
             lifetime: config.lifetime,
         })
     }
