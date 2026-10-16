@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.10] - 2026-10-16
+
+### Bug Fixes
+
+- fix(gc): validate the keep list digests and count retain against transfer permits (#639)
+
 ## [1.26.9] - 2026-10-16
 
 ### Bug Fixes

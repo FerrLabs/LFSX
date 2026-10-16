@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.16] - 2026-10-16
+
+### Bug Fixes
+
+- fix(gc): validate the keep list digests and count retain against transfer permits (#639)
+
 ## [2026.10.15] - 2026-10-16
 
 ### Bug Fixes
