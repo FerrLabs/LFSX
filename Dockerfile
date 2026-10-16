@@ -32,10 +32,14 @@ COPY rust-toolchain.toml ./
 # every release re-downloaded 47 MB of zig and recompiled cargo-zigbuild from
 # source, once per platform, before compiling anything of ours.
 ARG SCCACHE_VERSION=v0.16.0
+ARG SCCACHE_SHA256=aec995a83ad3dff3d14b6314e08858b7b73d35ca85a5bcf3d3a9ec07dee35588
 ENV CARGO_INCREMENTAL=0
 RUN set -eux; \
     url="https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz"; \
     curl -fsSL "$url" -o /tmp/sccache.tar.gz; \
+    printf '%s  /tmp/sccache.tar.gz\n' "${SCCACHE_SHA256}" > /tmp/sccache.sha256; \
+    sha256sum -c /tmp/sccache.sha256; \
+    rm /tmp/sccache.sha256; \
     tar -xzf /tmp/sccache.tar.gz -C /tmp; \
     mv /tmp/sccache-*/sccache /usr/local/bin/sccache; \
     chmod +x /usr/local/bin/sccache; \

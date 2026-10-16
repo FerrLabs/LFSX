@@ -319,6 +319,7 @@ jobs:
           # rarely the newest.
           - os: ubuntu-latest
             lfs: v3.0.2
+            lfs_sha256: 796f5ea0259eabe57f94a8ad1bb0d46806168df30b135a65d88f8a7ee1409e0b
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -339,7 +340,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ matrix.lfs }}"
-          curl -fsSL "https://github.com/git-lfs/git-lfs/releases/download/${version}/git-lfs-linux-amd64-${version}.tar.gz"             | tar xz -C "$RUNNER_TEMP"
+          curl -fsSL "https://github.com/git-lfs/git-lfs/releases/download/${version}/git-lfs-linux-amd64-${version}.tar.gz" -o "$RUNNER_TEMP/git-lfs.tar.gz"
+          echo "${{ matrix.lfs_sha256 }}  $RUNNER_TEMP/git-lfs.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/git-lfs.tar.gz" -C "$RUNNER_TEMP"
           # 3.0 tarballs unpack flat; later ones nest under a directory. Take
           # whichever binary is there rather than guessing the shape.
           binary=$(find "$RUNNER_TEMP" -name git-lfs -type f | head -n1)
