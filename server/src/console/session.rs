@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use super::{Refused, tokens};
+use crate::audit::audit_log;
 use crate::config::Auth;
 use crate::error::Error;
 use crate::state::Shared;
@@ -182,7 +183,7 @@ pub(crate) async fn sign_in(
 
     let (viewer, issued) = admitted(&state, token.trim()).await?;
     let sealed = seal(key(&state).await?, viewer.clone(), issued)?;
-    tracing::info!(?viewer, "signed in to the dashboard");
+    audit_log!(actor = ?viewer, "signed in to the dashboard");
 
     Ok((
         [(SET_COOKIE, cookie(&state, &sealed, LIFETIME.as_secs()))],

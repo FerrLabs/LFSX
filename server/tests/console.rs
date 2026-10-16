@@ -6,7 +6,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use axum::response::Response;
-use common::{batch, config, forge, put, read_json};
+use common::{batch, config, forge, logged, put, read_json};
 use lfsx_server::config::{Auth, Config, Dashboard};
 use lfsx_server::console::tokens;
 use lfsx_server::namespace::Namespace;
@@ -376,4 +376,52 @@ async fn with_authentication_disabled_there_is_no_access_to_change() {
     assert_eq!(response.status(), StatusCode::CONFLICT);
     let response = with_cookie(app, Method::DELETE, &cookie, None).await;
     assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn changing_and_resetting_access_land_on_the_audit_trail_naming_the_admin() {
+    let served = served().await;
+
+    let (saved, trail) = logged(save(
+        served.app.clone(),
+        json!({ "anonymous_read": true, "restricted": [], "allowed": ["Elsewhere/*"] }),
+    ))
+    .await;
+
+    assert_eq!(saved.status(), StatusCode::OK);
+    assert!(trail.contains("lfsx::audit"), "{trail}");
+    assert!(trail.contains(r#"actor=Forge("admin")"#), "{trail}");
+    assert!(trail.contains("anonymous_read: true"), "{trail}");
+    assert!(trail.contains("elsewhere/*"), "{trail}");
+
+    let (reset, trail) = logged(call(
+        served.app,
+        Method::DELETE,
+        "/-/api/access",
+        Some("admin"),
+        None,
+    ))
+    .await;
+
+    assert_eq!(reset.status(), StatusCode::OK);
+    assert!(trail.contains("lfsx::audit"), "{trail}");
+    assert!(trail.contains(r#"actor=Forge("admin")"#), "{trail}");
+    assert!(trail.contains("elsewhere/*"), "{trail}");
+}
+
+#[tokio::test]
+async fn a_refused_access_change_leaves_nothing_on_the_audit_trail() {
+    let served = served().await;
+
+    let (response, trail) = logged(call(
+        served.app,
+        Method::PUT,
+        "/-/api/access",
+        Some("writer"),
+        Some(json!({ "anonymous_read": true, "restricted": [], "allowed": null })),
+    ))
+    .await;
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(!trail.contains("lfsx::audit"), "{trail}");
 }

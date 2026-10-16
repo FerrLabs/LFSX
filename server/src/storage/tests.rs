@@ -203,3 +203,27 @@ fn a_declared_size_near_the_ceiling_is_refused_rather_than_wrapped() {
     assert!(!budget.exceeded_by(90));
     assert!(budget.exceeded_by(91));
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_object_that_vanishes_during_a_sweep_counts_as_already_collected() {
+    let root = tempfile::tempdir().unwrap();
+    let store = LocalStore::new(root.path());
+    let ns = namespace();
+    let path = store.object_path(&ns, &OID);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(root.path().join("gone"), &path).unwrap();
+
+    let report = store
+        .sweep(
+            &ns,
+            &std::collections::HashSet::new(),
+            Duration::ZERO,
+            false,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(report.swept, 0);
+    assert!(!report.incomplete);
+}

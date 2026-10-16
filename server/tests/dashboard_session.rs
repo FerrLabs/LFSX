@@ -4,7 +4,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use axum::response::Response;
-use common::{config, forge, read_json};
+use common::{config, forge, logged, read_json};
 use lfsx_server::config::{Auth, Config, Dashboard};
 use lfsx_server::console::tokens::{self, Refusal};
 use lfsx_server::namespace::Namespace;
@@ -299,4 +299,37 @@ async fn the_store_keeps_no_token_in_the_clear() {
     assert!(!kept.contains(&token));
     assert!(!kept.contains(token.trim_start_matches("lfsx_")));
     let _: Value = serde_json::from_str(&kept).unwrap();
+}
+
+#[tokio::test]
+async fn signing_in_lands_on_the_audit_trail_naming_who_signed_in() {
+    let served = served(None).await;
+    let token = tokens::create(&served.store, "alice").await.unwrap();
+
+    let (response, trail) = logged(sign_in(served.app, &token)).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(trail.contains("lfsx::audit"), "{trail}");
+    assert!(trail.contains(r#"actor=Token("alice")"#), "{trail}");
+    assert!(!trail.contains(&token), "{trail}");
+}
+
+#[tokio::test]
+async fn creating_and_revoking_a_token_land_on_the_audit_trail_without_the_secret() {
+    let served = served(None).await;
+
+    let (token, created) =
+        logged(async { tokens::create(&served.store, "alice").await.unwrap() }).await;
+    let (_, revoked) =
+        logged(async { tokens::revoke(&served.store, "alice").await.unwrap() }).await;
+
+    assert!(
+        created.contains("lfsx::audit") && created.contains(r#"name="alice""#),
+        "{created}"
+    );
+    assert!(!created.contains(&token), "{created}");
+    assert!(
+        revoked.contains("lfsx::audit") && revoked.contains(r#"name="alice""#),
+        "{revoked}"
+    );
 }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime};
@@ -55,7 +56,11 @@ impl LocalStore {
                 continue;
             }
 
-            let metadata = fs::metadata(&found.path).await?;
+            let metadata = match fs::metadata(&found.path).await {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            };
             if age(&metadata) < grace {
                 report.within_grace += 1;
                 continue;
@@ -102,7 +107,11 @@ impl LocalStore {
             return Ok(());
         }
 
-        fs::remove_file(path).await?;
+        if let Err(error) = fs::remove_file(path).await
+            && error.kind() != ErrorKind::NotFound
+        {
+            return Err(error.into());
+        }
 
         if self.referenced_elsewhere(oid, elsewhere, 0).await {
             return Ok(());
