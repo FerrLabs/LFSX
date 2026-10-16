@@ -227,3 +227,33 @@ async fn an_object_that_vanishes_during_a_sweep_counts_as_already_collected() {
     assert_eq!(report.swept, 0);
     assert!(!report.incomplete);
 }
+
+#[tokio::test]
+async fn content_collected_right_after_it_was_published_is_restored_from_the_staged_copy() {
+    let root = tempfile::tempdir().unwrap();
+    let store = LocalStore::new(root.path());
+    let payload = b"an asset a sweep collects mid-push".repeat(8);
+    let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(&payload))).unwrap();
+    let staged = store
+        .stage(
+            &namespace(),
+            &oid,
+            None,
+            None,
+            stream::iter([Ok::<_, std::io::Error>(Bytes::from(payload.clone()))]),
+        )
+        .await
+        .unwrap();
+    let content = store.content_path(&oid);
+
+    store
+        .link_or_move_after(&staged.path, &staged.destination, &oid, async {
+            std::fs::remove_file(&content).unwrap();
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(std::fs::read(&staged.destination).unwrap(), payload);
+    assert!(content.exists());
+    assert!(!staged.path.exists());
+}
