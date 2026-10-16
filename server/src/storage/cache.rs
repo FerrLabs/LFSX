@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use tokio::io::AsyncWriteExt;
 
@@ -18,6 +20,8 @@ use crate::oid::Oid;
 // volume backend does, so compression, encryption and ranges need to know
 // nothing about this, and a cache directory is no more sensitive than the
 // bucket it mirrors.
+const FILL_LIMIT: usize = 4;
+
 pub struct Cache {
     dir: PathBuf,
     ceiling: u64,
@@ -35,6 +39,7 @@ pub struct Cache {
     // What the directory holds, kept as fills and evictions move it. The
     // alternative is a walk per scrape, thousands of syscalls spent on the disk
     // this exists to spare.
+    fills: Arc<Semaphore>,
     bytes: AtomicU64,
     hits: AtomicU64,
     misses: AtomicU64,
@@ -55,6 +60,8 @@ impl Cache {
             )))
         })?;
 
+        sweep_incoming(&dir);
+
         let held = std::fs::read_dir(&dir)
             .map(|listing| {
                 listing
@@ -72,6 +79,7 @@ impl Cache {
             filling: Mutex::new(HashSet::new()),
             verified: Mutex::new(HashSet::new()),
             verifying: Mutex::new(HashSet::new()),
+            fills: Arc::new(Semaphore::new(FILL_LIMIT)),
             bytes: AtomicU64::new(held),
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
@@ -175,9 +183,17 @@ impl Cache {
     }
 
     async fn touch(&self, oid: &Oid) {
-        if let Ok(recorded) = tokio::fs::read_to_string(self.digest(oid)).await {
-            let _ = tokio::fs::write(self.digest(oid), recorded).await;
-        }
+        let Ok(digest) = tokio::fs::OpenOptions::new()
+            .write(true)
+            .open(self.digest(oid))
+            .await
+        else {
+            return;
+        };
+        let _ = digest
+            .into_std()
+            .await
+            .set_modified(std::time::SystemTime::now());
     }
 
     async fn discard(&self, oid: &Oid) {
@@ -192,22 +208,31 @@ impl Cache {
     where
         S: futures_util::Stream<Item = Result<axum::body::Bytes, Error>>,
     {
+        let incoming = self.dir.join(format!(".incoming-{oid}"));
+        let staged = self.stage(oid, size, &incoming, chunks).await;
+        if staged.is_err() {
+            let _ = tokio::fs::remove_file(&incoming).await;
+        }
+        staged?;
+
+        self.evict().await;
+
+        Ok(())
+    }
+
+    async fn stage<S>(&self, oid: &Oid, size: u64, incoming: &Path, chunks: S) -> Result<(), Error>
+    where
+        S: futures_util::Stream<Item = Result<axum::body::Bytes, Error>>,
+    {
         use futures_util::StreamExt;
 
-        let incoming = self.dir.join(format!(".incoming-{oid}"));
-        let mut file = tokio::fs::File::create(&incoming).await?;
+        let mut file = tokio::fs::File::create(incoming).await?;
         let mut hasher = blake3::Hasher::new();
         let mut written = 0;
         let mut chunks = std::pin::pin!(chunks);
 
         while let Some(chunk) = chunks.next().await {
-            let chunk = match chunk {
-                Ok(chunk) => chunk,
-                Err(error) => {
-                    let _ = tokio::fs::remove_file(&incoming).await;
-                    return Err(error);
-                }
-            };
+            let chunk = chunk?;
             hasher.update(&chunk);
             written += chunk.len() as u64;
             file.write_all(&chunk).await?;
@@ -220,7 +245,6 @@ impl Cache {
         // against the length the bucket reports. The digest cannot catch that;
         // only the count can.
         if written != size {
-            let _ = tokio::fs::remove_file(&incoming).await;
             tracing::warn!(
                 %oid,
                 written,
@@ -233,10 +257,8 @@ impl Cache {
         }
 
         tokio::fs::write(self.digest(oid), hasher.finalize().to_hex().as_str()).await?;
-        tokio::fs::rename(&incoming, self.object(oid)).await?;
+        tokio::fs::rename(incoming, self.object(oid)).await?;
         self.bytes.fetch_add(size, Ordering::Relaxed);
-
-        self.evict().await;
 
         Ok(())
     }
@@ -245,6 +267,10 @@ impl Cache {
     // when somebody else already has it in hand.
     pub fn claim(&self, oid: &Oid) -> bool {
         self.filling.lock().unwrap().insert(oid.to_string())
+    }
+
+    pub fn fill_slot(&self) -> Option<OwnedSemaphorePermit> {
+        self.fills.clone().try_acquire_owned().ok()
     }
 
     pub fn release(&self, oid: &Oid) {
@@ -312,6 +338,21 @@ impl Cache {
 // cached object and neither counts against the ceiling.
 fn skip(name: &str) -> bool {
     name.ends_with(".b3") || name.starts_with(".incoming-")
+}
+
+fn sweep_incoming(dir: &Path) {
+    let Ok(listing) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in listing.flatten() {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".incoming-")
+        {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }
 
 #[cfg(test)]
