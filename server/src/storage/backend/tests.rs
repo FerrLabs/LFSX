@@ -336,3 +336,32 @@ async fn without_a_cache_a_raw_object_is_always_read_from_the_bucket() {
     }
     assert_eq!(read_back(&store, &namespace(), &oid).await, payload);
 }
+
+#[tokio::test]
+async fn a_compressed_write_leaves_the_cached_usage_equal_to_the_measured_one() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::local(LocalStore::new(root.path()).with_compression(Some(3)));
+    let payload = b"a mesh that gives up most of its ground to zstd ".repeat(4096);
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
+
+    store.usage_of(&namespace()).await;
+    store
+        .write(
+            &namespace(),
+            &oid,
+            Some(payload.len() as u64),
+            None,
+            futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+                payload.clone(),
+            ))]),
+        )
+        .await
+        .unwrap();
+
+    let cached = store.usage_of(&namespace()).await;
+    store.usage.forget(&namespace()).await;
+    let measured = store.usage_of(&namespace()).await;
+
+    assert_eq!(cached, measured);
+    assert!(measured.1 < payload.len() as u64);
+}
