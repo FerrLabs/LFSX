@@ -54,3 +54,11 @@ limit that fills the node's disk gets pods evicted, and not necessarily this one
 is generous for logs and a floor for the other case: **a bucket deployment on an `emptyDir` has to
 raise it past the largest object it expects to carry at once**, or that push is the thing that gets
 evicted.
+
+The read cache spends the same budget. `storage.s3.cacheDir` (and the `azure` and `gcs` equivalents)
+is a plain directory, and one under `/var/lib/lfsx` with `persistence.enabled=false` shares the
+`emptyDir` with the staging files; any other path that is not its own volume lands in the
+container's writable layer, which is ephemeral storage as well. `cacheMaxBytes` is only a ceiling on
+the cache, so what has to fit under the limit is `cacheMaxBytes` plus the uploads in flight plus
+logs. The 2Gi default is already used up by a 2 GiB cache. Raise
+`resources.limits.ephemeral-storage` to cover both, or give the cache a volume of its own.
