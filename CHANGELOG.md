@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.26] - 2026-10-16
+
+### Bug Fixes
+
+- fix(config): refuse bad forge, dashboard, api url and key values with a named error (#660)
+
 ## [1.26.25] - 2026-10-16
 
 ### Bug Fixes
