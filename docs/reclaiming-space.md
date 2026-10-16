@@ -34,7 +34,7 @@ large repository passes long before it runs out of disk.
 
 Every id must be a lowercase hex sha256 digest. One that is not, an uppercase digest included, is
 refused with `422` and nothing is swept, since an id the server cannot match would let its object
-be collected. The request also takes one of the server's transfer slots while it is read, so on a
+be collected. The request also takes one of the server's transfer slots until it answers, so on a
 saturated server it answers `503` with `Retry-After` like an upload does.
 
 It answers with what it would free, and frees nothing until you drop `dry_run`:
