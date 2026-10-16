@@ -437,13 +437,26 @@ impl LocalStore {
     // migration: objects already sitting at their repository path keep working as
     // ordinary files with one link.
     async fn link_or_move(&self, staged: &Path, final_path: &Path, oid: &Oid) -> Result<(), Error> {
+        self.link_or_move_after(staged, final_path, oid, async {})
+            .await
+    }
+
+    async fn link_or_move_after(
+        &self,
+        staged: &Path,
+        final_path: &Path,
+        oid: &Oid,
+        published: impl Future<Output = ()>,
+    ) -> Result<(), Error> {
         let content = self.content_path(oid);
         let parent = content.parent().expect("content paths have a parent");
         fs::create_dir_all(parent).await?;
 
         if fs::metadata(&content).await.is_err() {
-            fs::rename(staged, &content).await?;
+            self.link(staged, &content).await?;
         }
+
+        published.await;
 
         match self.link(&content, final_path).await {
             // The content was collected between finding it and linking to it:
@@ -452,7 +465,7 @@ impl LocalStore {
             // put it back and link again rather than failing a push that did
             // nothing wrong.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                fs::rename(staged, &content).await?;
+                self.link(staged, &content).await?;
                 self.link(&content, final_path).await?;
             }
             outcome => outcome?,
