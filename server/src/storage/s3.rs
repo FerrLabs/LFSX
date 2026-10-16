@@ -97,6 +97,10 @@ impl S3Store {
         self.keys.put(key, bytes).await
     }
 
+    pub(crate) async fn create_meta(&self, key: &str, bytes: Vec<u8>) -> Result<bool, Error> {
+        self.keys.put_if_absent(key, bytes).await
+    }
+
     pub(crate) async fn delete_meta(&self, key: &str) -> Result<(), Error> {
         self.keys.delete(key).await.map(|_| ())
     }

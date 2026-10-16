@@ -365,3 +365,31 @@ async fn a_compressed_write_leaves_the_cached_usage_equal_to_the_measured_one() 
     assert_eq!(cached, measured);
     assert!(measured.1 < payload.len() as u64);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_saves_of_one_meta_file_leave_one_of_them_whole() {
+    let root = tempfile::tempdir().unwrap();
+    let store = std::sync::Arc::new(Store::local(LocalStore::new(root.path())));
+    let payloads: Vec<Vec<u8>> = (0..16u8).map(|n| vec![n; 256 * 1024]).collect();
+
+    let saves = payloads.iter().cloned().map(|payload| {
+        let store = store.clone();
+        tokio::spawn(async move { store.write_meta("access.json", payload).await })
+    });
+    for save in futures_util::future::join_all(saves).await {
+        save.unwrap().unwrap();
+    }
+
+    let kept = store.read_meta("access.json").await.unwrap().unwrap();
+    assert!(payloads.contains(&kept));
+}
+
+#[tokio::test]
+async fn a_meta_file_is_created_once_and_the_second_creation_loses() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::local(LocalStore::new(root.path()));
+
+    assert!(store.create_meta("session.key", vec![1]).await.unwrap());
+    assert!(!store.create_meta("session.key", vec![2]).await.unwrap());
+    assert_eq!(store.read_meta("session.key").await.unwrap(), Some(vec![1]));
+}
