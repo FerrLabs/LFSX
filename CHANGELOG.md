@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.11] - 2026-10-16
+
+### Bug Fixes
+
+- fix(console): require a 32-byte session key and create it atomically (#636)
+
 ## [1.26.10] - 2026-10-16
 
 ### Bug Fixes
