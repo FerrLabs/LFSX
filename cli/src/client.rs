@@ -1,6 +1,8 @@
+use std::net::IpAddr;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use reqwest::Url;
 use reqwest::blocking::{Client, Response};
 use serde::Serialize;
 
@@ -19,6 +21,11 @@ impl Server {
         // project's: ring, as 0.12 used, rather than the aws-lc that 0.13 made
         // the default. It sits next to the client it is for.
         let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let token = token.filter(|token| !token.is_empty());
+        if token.is_some() {
+            ensure_credential_is_safe_to_send(url)?;
+        }
 
         Ok(Self {
             client: Client::builder()
@@ -73,11 +80,20 @@ pub fn service_root(base: &str) -> &str {
     }
 }
 
-pub fn resolve_token(explicit: Option<String>) -> Option<String> {
-    explicit
-        .or_else(|| std::env::var("LFSX_TOKEN").ok())
-        .or_else(|| std::env::var("GITHUB_TOKEN").ok())
-        .filter(|token| !token.is_empty())
+fn ensure_credential_is_safe_to_send(url: &str) -> Result<()> {
+    let parsed = Url::parse(url).with_context(|| format!("{url:?} is not a valid URL"))?;
+    let loopback = parsed.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .trim_matches(['[', ']'])
+                .parse::<IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    });
+    if parsed.scheme() == "https" || (parsed.scheme() == "http" && loopback) {
+        Ok(())
+    } else {
+        bail!("refusing to send a token to {url}: use an https URL, or drop the token")
+    }
 }
 
 pub fn split_namespace(repository: &str) -> Result<(&str, &str)> {

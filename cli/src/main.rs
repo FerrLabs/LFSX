@@ -9,7 +9,7 @@ use std::time::Duration;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use client::{Server, resolve_token};
+use client::Server;
 
 #[derive(Parser)]
 #[command(
@@ -21,7 +21,7 @@ struct Cli {
     #[arg(long, env = "LFSX_URL")]
     url: String,
 
-    #[arg(long, env = "LFSX_TOKEN")]
+    #[arg(long, env = "LFSX_TOKEN", hide_env_values = true)]
     token: Option<String>,
 
     #[command(subcommand)]
@@ -76,11 +76,7 @@ impl Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let server = Server::new(
-        &cli.url,
-        resolve_token(cli.token),
-        cli.command.request_timeout(),
-    )?;
+    let server = Server::new(&cli.url, cli.token, cli.command.request_timeout())?;
 
     match cli.command {
         Command::Doctor { repo } => {

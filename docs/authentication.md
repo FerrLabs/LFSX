@@ -86,6 +86,19 @@ In CI, the token the workflow already holds is enough, with no secret to provisi
     git lfs pull
 ```
 
+### The `lfsx` CLI
+
+The CLI takes its token from `--token` or `LFSX_TOKEN` and does not fall back to `GITHUB_TOKEN`,
+so a job's token is never sent to a server by accident. It refuses to attach a token to an `http`
+URL unless the host is `localhost`, `127.0.0.1` or `[::1]`. A workflow that relied on the old
+fallback sets it explicitly:
+
+```yaml
+- run: lfsx --url https://lfs.example.com doctor --repo my-org/my-project
+  env:
+    LFSX_TOKEN: ${{ github.token }}
+```
+
 ### In CI
 
 `actions/checkout` with `lfs: true` runs its LFS fetch against the endpoint the remote implies,
