@@ -37,8 +37,9 @@ fn the_default_forge_keeps_the_layout_it_always_had() {
     let ns = Namespace::new("FerrLabs", "LFSX").unwrap();
 
     assert_eq!(ns.forge(), None);
-    assert_eq!(ns.stored_org(), "FerrLabs");
-    assert_eq!(ns.to_string(), "FerrLabs/LFSX");
+    assert_eq!(ns.stored_org(), "ferrlabs");
+    assert_eq!(ns.stored_repo(), "lfsx");
+    assert_eq!(ns.to_string(), "ferrlabs/lfsx");
     assert_eq!(ns.upstream(), "FerrLabs/LFSX");
     assert_eq!(ns.url_path(), "FerrLabs/LFSX");
 }
@@ -49,8 +50,8 @@ fn a_named_forge_is_stored_apart_and_asked_about_as_itself() {
 
     assert_eq!(ns.forge(), Some("work"));
     assert_eq!(ns.org(), "FerrLabs");
-    assert_eq!(ns.stored_org(), "work~FerrLabs");
-    assert_eq!(ns.to_string(), "work~FerrLabs/LFSX");
+    assert_eq!(ns.stored_org(), "work~ferrlabs");
+    assert_eq!(ns.to_string(), "work~ferrlabs/lfsx");
     assert_eq!(ns.upstream(), "FerrLabs/LFSX");
     assert_eq!(ns.url_path(), "-/work/FerrLabs/LFSX");
     assert_ne!(ns, Namespace::new("FerrLabs", "LFSX").unwrap());
@@ -82,4 +83,35 @@ fn forge_names_cannot_shadow_the_dashboard_or_escape_a_path() {
     for forge in ["work", "gitea-2", "1"] {
         assert!(Namespace::on(forge, "FerrLabs", "LFSX").is_ok(), "{forge}");
     }
+}
+
+#[test]
+fn case_variants_are_one_namespace() {
+    let canonical = Namespace::new("acme", "repo").unwrap();
+
+    for (org, repo) in [("Acme", "repo"), ("aCME", "REPO"), ("ACME", "Repo")] {
+        let variant = Namespace::new(org, repo).unwrap();
+
+        assert_eq!(variant, canonical);
+        assert_eq!(variant.to_string(), canonical.to_string());
+        assert_eq!(variant.stored_org(), canonical.stored_org());
+        assert_eq!(variant.stored_repo(), canonical.stored_repo());
+    }
+}
+
+#[test]
+fn the_name_the_caller_used_is_still_what_the_forge_is_asked_about() {
+    let ns = Namespace::new("Acme", "Repo").unwrap();
+
+    assert_eq!(ns.upstream(), "Acme/Repo");
+    assert_eq!(ns.url_path(), "Acme/Repo");
+}
+
+#[test]
+fn different_repositories_stay_different() {
+    let ns = Namespace::new("acme", "repo").unwrap();
+
+    assert_ne!(ns, Namespace::new("acme", "repo2").unwrap());
+    assert_ne!(ns, Namespace::new("acme2", "repo").unwrap());
+    assert_ne!(ns, Namespace::on("work", "acme", "repo").unwrap());
 }

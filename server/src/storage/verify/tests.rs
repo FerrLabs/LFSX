@@ -17,7 +17,7 @@ fn mesh(len: usize) -> Vec<u8> {
 
 fn fanout(root: &Path, oid: &str) -> PathBuf {
     let fanout = root
-        .join("FerrLabs/Blastlands")
+        .join("ferrlabs/blastlands")
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();
@@ -127,7 +127,7 @@ async fn a_repository_it_could_not_fully_read_is_not_reported_as_clean() {
     // A file where a fanout directory belongs: whatever put it there, the audit
     // cannot see what that prefix holds.
     std::fs::write(
-        root.path().join("FerrLabs/Blastlands/ff"),
+        root.path().join("ferrlabs/blastlands/ff"),
         b"not a directory",
     )
     .unwrap();
@@ -150,7 +150,7 @@ async fn collection_and_the_migrations_say_when_they_could_not_see_everything() 
     let root = tempfile::tempdir().unwrap();
     store_uncompressed(root.path(), &mesh(1024 * 1024));
     std::fs::write(
-        root.path().join("FerrLabs/Blastlands/ff"),
+        root.path().join("ferrlabs/blastlands/ff"),
         b"a file where a fanout directory belongs",
     )
     .unwrap();

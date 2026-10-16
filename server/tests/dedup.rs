@@ -240,8 +240,8 @@ fn store_the_old_way(root: &tempfile::TempDir, repo: &str, payload: &[u8]) {
     let oid = hex::encode(Sha256::digest(payload));
     let fanout = root
         .path()
-        .join("FerrLabs")
-        .join(repo)
+        .join("ferrlabs")
+        .join(repo.to_ascii_lowercase())
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();

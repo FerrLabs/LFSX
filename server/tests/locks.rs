@@ -354,7 +354,7 @@ async fn without_a_maximum_age_an_abandoned_scene_stays_locked() {
 }
 
 fn age_the_lock(root: &tempfile::TempDir, by: Duration) {
-    let directory = root.path().join(".locks/FerrLabs/Blastlands");
+    let directory = root.path().join(".locks/ferrlabs/blastlands");
     for entry in std::fs::read_dir(&directory).unwrap() {
         let path = entry.unwrap().path();
         let mut lock: serde_json::Value =
@@ -371,4 +371,37 @@ fn age_the_lock(root: &tempfile::TempDir, by: Duration) {
         );
         std::fs::write(&path, serde_json::to_vec(&lock).unwrap()).unwrap();
     }
+}
+
+#[tokio::test]
+async fn a_lock_taken_through_one_spelling_of_the_namespace_holds_for_every_other() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    assert_eq!(
+        lock(app.clone(), "writer", SCENE).await.status(),
+        StatusCode::CREATED
+    );
+
+    for spelling in [
+        "FERRLABS/BLASTLANDS",
+        "ferrlabs/blastlands",
+        "fErRlAbS/bLaStLaNdS",
+    ] {
+        let refused = post(
+            app.clone(),
+            "admin",
+            &format!("/{spelling}/locks"),
+            json!({ "path": SCENE }),
+        )
+        .await;
+
+        assert_eq!(refused.status(), StatusCode::CONFLICT, "{spelling}");
+    }
+    assert_eq!(
+        std::fs::read_dir(root.path().join(".locks"))
+            .unwrap()
+            .count(),
+        1
+    );
 }

@@ -447,7 +447,7 @@ async fn a_transfer_in_flight_is_not_swept_from_under_the_client() {
     let oid = oid_of(b"whatever it will hash to");
     let staging = root
         .path()
-        .join("FerrLabs/Demo")
+        .join("ferrlabs/demo")
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&staging).unwrap();

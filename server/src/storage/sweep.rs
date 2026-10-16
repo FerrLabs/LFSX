@@ -179,7 +179,7 @@ impl LocalStore {
 
             while let Ok(Some(repo)) = repos.next_entry().await {
                 let repo_name = repo.file_name().to_string_lossy().into_owned();
-                if org_name == sweeping.stored_org() && repo_name == sweeping.repo() {
+                if org_name == sweeping.stored_org() && repo_name == sweeping.stored_repo() {
                     continue;
                 }
 
@@ -238,7 +238,7 @@ impl LocalStore {
     // the seam's job, because a bucket needs exactly the same policy and used
     // to go without.
     pub(super) async fn measure_of(&self, ns: &Namespace) -> (u64, u64) {
-        self.walk(self.root.join(ns.stored_org()).join(ns.repo()))
+        self.walk(self.root.join(ns.stored_org()).join(ns.stored_repo()))
             .await
     }
 

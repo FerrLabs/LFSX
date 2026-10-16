@@ -111,6 +111,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     tokio::fs::create_dir_all(&config.storage_root).await?;
 
+    if let Err(error) = lfsx_server::canonicalise_namespaces(&config).await {
+        eprintln!("could not merge case variants of a namespace: {error}");
+        std::process::exit(1);
+    }
+
     // Before anything is served, because it decides whether a client is ever
     // handed a write URL, and a store that will not prove it checks what comes
     // back through one cannot be given that job.

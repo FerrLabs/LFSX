@@ -145,7 +145,7 @@ async fn a_declared_size_over_the_limit_never_touches_the_disk() {
         0,
         "the size is known before the body is read, so nothing is read"
     );
-    assert!(!root.path().join("FerrLabs").exists());
+    assert!(!root.path().join("ferrlabs").exists());
 }
 
 #[tokio::test]
