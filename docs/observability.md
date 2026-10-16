@@ -72,7 +72,7 @@ auth disabled) and the namespace. Dashboard events name the viewer instead, as `
 | a stale lock was taken over | `path`, `previous_owner`, `untouched_for_seconds` |
 | a bucket upload was adopted (pre-signed verify) | `oid`, `bytes` |
 | a retain sweep failed part way | `error` (objects may already be unlinked) |
-| dashboard access settings were changed or reset | `file`, `before`, `after` |
+| dashboard access settings were changed or reset | `file`, `before`, `saved` (changes only) |
 | someone signed in to the dashboard | the actor only |
 | a dashboard token was created or revoked (`lfsx-server dashboard token`) | `name` (the CLI logs to stderr) |
 
