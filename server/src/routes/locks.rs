@@ -4,6 +4,7 @@ use axum::{Extension, Json};
 
 use crate::auth::{Actor, Permission};
 use crate::error::Error;
+use crate::lfs_json::LfsJson;
 use crate::model::{
     CreateLockRequest, ListLocksQuery, ListLocksResponse, LockResponse, UnlockRequest,
     VerifyLocksRequest, VerifyLocksResponse,
@@ -21,20 +22,20 @@ pub(super) async fn create_lock(
     Extension(permission): Extension<Permission>,
     headers: axum::http::HeaderMap,
     Json(request): Json<CreateLockRequest>,
-) -> Result<(StatusCode, Json<LockResponse>), Error> {
+) -> Result<(StatusCode, LfsJson<LockResponse>), Error> {
     permission.require_write()?;
 
     let Actor(owner) = state.authorizer_for(&ns)?.actor(&headers).await?;
     let lock = state.locks.create(&ns, &request.path, &owner).await?;
 
-    Ok((StatusCode::CREATED, Json(LockResponse { lock })))
+    Ok((StatusCode::CREATED, LfsJson(LockResponse { lock })))
 }
 
 pub(super) async fn list_locks(
     State(state): State<Shared>,
     Extension(ns): Extension<Namespace>,
     Query(query): Query<ListLocksQuery>,
-) -> Result<Json<ListLocksResponse>, Error> {
+) -> Result<LfsJson<ListLocksResponse>, Error> {
     let matching: Vec<_> = state
         .locks
         .list(&ns)
@@ -46,7 +47,7 @@ pub(super) async fn list_locks(
 
     let page = page::paginate(matching, query.cursor.as_deref(), query.limit);
 
-    Ok(Json(ListLocksResponse {
+    Ok(LfsJson(ListLocksResponse {
         locks: page.locks,
         next_cursor: page.next_cursor,
     }))
@@ -57,7 +58,7 @@ pub(super) async fn verify_locks(
     Extension(ns): Extension<Namespace>,
     headers: axum::http::HeaderMap,
     Json(request): Json<VerifyLocksRequest>,
-) -> Result<Json<VerifyLocksResponse>, Error> {
+) -> Result<LfsJson<VerifyLocksResponse>, Error> {
     let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     // Paginated over the whole list before it is split, so a cursor means the
@@ -72,7 +73,7 @@ pub(super) async fn verify_locks(
         .into_iter()
         .partition(|lock| lock.owner.name == caller);
 
-    Ok(Json(VerifyLocksResponse {
+    Ok(LfsJson(VerifyLocksResponse {
         ours,
         theirs,
         next_cursor: page.next_cursor,
@@ -91,7 +92,7 @@ pub(super) async fn unlock(
     Path(LockPath { id }): Path<LockPath>,
     headers: axum::http::HeaderMap,
     Json(request): Json<UnlockRequest>,
-) -> Result<Json<LockResponse>, Error> {
+) -> Result<LfsJson<LockResponse>, Error> {
     permission.require_write()?;
 
     let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
@@ -123,5 +124,5 @@ pub(super) async fn unlock(
         );
     }
 
-    Ok(Json(LockResponse { lock }))
+    Ok(LfsJson(LockResponse { lock }))
 }

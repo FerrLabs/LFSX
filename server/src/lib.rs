@@ -6,6 +6,7 @@ pub mod dashboard;
 pub mod error;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
+pub mod lfs_json;
 pub mod locks;
 pub mod metrics;
 pub mod model;

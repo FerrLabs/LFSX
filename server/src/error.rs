@@ -25,6 +25,9 @@ pub enum Error {
     )]
     BatchTooLarge { asked: usize, limit: usize },
 
+    #[error("this server hashes objects with sha256 only, not {0}")]
+    UnsupportedHashAlgo(String),
+
     #[error("this repository holds {used} bytes of its {limit} byte budget")]
     OverQuota { used: u64, limit: u64 },
 
@@ -117,7 +120,7 @@ impl Error {
             Self::OverQuota { .. } | Self::LockLimitReached { .. } => {
                 StatusCode::INSUFFICIENT_STORAGE
             }
-            Self::CompressionDisabled => StatusCode::CONFLICT,
+            Self::CompressionDisabled | Self::UnsupportedHashAlgo(_) => StatusCode::CONFLICT,
             // The object is there and the request was fine; this server cannot
             // serve it, which is a fact about the deployment.
             Self::NotDecryptable | Self::UnknownKey => StatusCode::INTERNAL_SERVER_ERROR,
@@ -151,6 +154,7 @@ impl Error {
             Self::SizeMismatch { .. } => "size_mismatch",
             Self::TooLarge { .. } => "too_large",
             Self::BatchTooLarge { .. } => "batch_too_large",
+            Self::UnsupportedHashAlgo(_) => "unsupported_hash_algo",
             Self::OverQuota { .. } => "over_quota",
             Self::CompressionDisabled => "compression_disabled",
             Self::NotDecryptable => "not_decryptable",
