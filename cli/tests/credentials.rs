@@ -2,12 +2,22 @@ use std::io::Read;
 use std::net::TcpListener;
 use std::process::Command;
 use std::thread;
+use std::time::{Duration, Instant};
 
 fn request_seen_by_doctor(env: &[(&str, &str)]) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
+    listener.set_nonblocking(true).unwrap();
     let reader = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut stream = loop {
+            match listener.accept() {
+                Ok((stream, _)) => break stream,
+                Err(_) if Instant::now() < deadline => thread::sleep(Duration::from_millis(20)),
+                Err(error) => panic!("lfsx never connected: {error}"),
+            }
+        };
+        stream.set_nonblocking(false).unwrap();
         let mut buffer = [0u8; 4096];
         let read = stream.read(&mut buffer).unwrap();
         String::from_utf8_lossy(&buffer[..read]).to_lowercase()
