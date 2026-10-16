@@ -4,6 +4,13 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.9] - 2026-10-16
+
+### Bug Fixes
+
+- fix(quota): saturate declared sizes and cache stored bytes (#635)
+- fix(cli): drop the request timeout on whole-repository commands (#637)
+
 ## [1.26.8] - 2026-10-15
 
 ### Bug Fixes

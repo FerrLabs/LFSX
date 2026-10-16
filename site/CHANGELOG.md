@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.15] - 2026-10-16
+
+### Bug Fixes
+
+- fix(cli): drop the request timeout on whole-repository commands (#637)
+
 ## [2026.10.13] - 2026-10-13
 
 ### Bug Fixes
