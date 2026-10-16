@@ -29,3 +29,15 @@ zzz1b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03 * Assets/Art/Vi
         "a malformed line must not be sent as a retained oid, since anything not retained is swept"
     );
 }
+
+#[test]
+fn an_uppercase_digest_is_sent_lowercase() {
+    let output =
+        "5891B5B522D5DF086D0FF0B110FBD9D21BB4FC7163AF34D08286A2E846F6BE03 * Assets/Art/Hero.psd\n";
+
+    assert_eq!(
+        parse_ls_files(output),
+        vec!["5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"],
+        "the server matches digests exactly, so an uppercase one would let its object be swept"
+    );
+}

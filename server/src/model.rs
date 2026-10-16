@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::locks::Lock;
+use crate::oid::Oid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -27,7 +28,7 @@ pub struct BatchRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct RetainRequest {
-    pub oids: Vec<String>,
+    pub oids: Vec<Oid>,
     #[serde(default)]
     pub dry_run: bool,
 }

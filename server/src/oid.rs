@@ -1,11 +1,22 @@
+use serde::Deserialize;
+
 use crate::error::Error;
 
 // The digest a client names an object by, validated once, where it enters.
 // Everything downstream takes the type and cannot be handed anything else,
 // the same shape `Namespace` already has: there is no unvalidated `Oid` to
 // pass, so there is nothing for the eighteenth call site to forget.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(try_from = "String")]
 pub struct Oid(String);
+
+impl TryFrom<String> for Oid {
+    type Error = Error;
+
+    fn try_from(raw: String) -> Result<Self, Error> {
+        Self::parse(&raw)
+    }
+}
 
 impl Oid {
     pub fn parse(raw: &str) -> Result<Self, Error> {

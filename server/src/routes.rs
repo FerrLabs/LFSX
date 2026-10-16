@@ -47,6 +47,10 @@ fn repositories(state: &Shared) -> Router<Shared> {
             "/{org}/{repo}/objects/retain",
             post(maintenance::retain)
                 .layer(DefaultBodyLimit::max(maintenance::KEEP_LIST_LIMIT))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    maintenance::transfer_slot,
+                ))
                 .layer(middleware::from_fn(maintenance::writers_only)),
         )
         .route("/{org}/{repo}/objects/dedupe", post(maintenance::dedupe))

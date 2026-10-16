@@ -61,7 +61,7 @@ fn parse_ls_files(output: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| line.split_whitespace().next())
         .filter(|oid| oid.len() == 64 && oid.bytes().all(|b| b.is_ascii_hexdigit()))
-        .map(str::to_owned)
+        .map(str::to_ascii_lowercase)
         .collect()
 }
 

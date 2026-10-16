@@ -18,6 +18,16 @@ use crate::storage::{CompressReport, DedupeReport, SweepReport, VerifyReport};
 
 pub(super) const KEEP_LIST_LIMIT: usize = 64 * 1024 * 1024;
 
+pub(super) async fn transfer_slot(
+    State(state): State<Shared>,
+    request: Request,
+    next: Next,
+) -> Result<Response, Error> {
+    let _transfer = state.transfer_permit()?;
+
+    Ok(next.run(request).await)
+}
+
 pub(super) async fn writers_only(request: Request, next: Next) -> Result<Response, Error> {
     request
         .extensions()

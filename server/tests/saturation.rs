@@ -156,3 +156,36 @@ async fn a_cap_of_zero_never_refuses() {
         .unwrap();
     assert_eq!(stored.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn a_keep_list_is_refused_before_its_body_is_read_when_the_cap_is_reached() {
+    let root = tempfile::tempdir().unwrap();
+    let app = app(&root, 1);
+
+    let (writer, receiver) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(1);
+    let slow = Body::from_stream(futures_util::stream::unfold(receiver, |mut chunks| async {
+        chunks.recv().await.map(|chunk| (chunk, chunks))
+    }));
+    let holder = tokio::spawn({
+        let app = app.clone();
+        async move {
+            app.oneshot(upload(&oid_of(b"held"), slow, 4))
+                .await
+                .unwrap()
+        }
+    });
+    writer.send(Ok(b"he".to_vec())).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let retain = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/retain")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"oids":[],"dry_run":true}"#))
+        .unwrap();
+    let refused = app.oneshot(retain).await.unwrap();
+
+    assert_eq!(refused.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(refused.headers().contains_key("retry-after"));
+    holder.abort();
+}
