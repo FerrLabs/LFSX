@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.28] - 2026-10-16
+
+### Bug Fixes
+
+- fix(server): drop transfers that stop making progress and free their slot (#659)
+
 ## [1.26.27] - 2026-10-16
 
 ### Bug Fixes
