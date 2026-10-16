@@ -14,7 +14,7 @@ use crate::error::Error;
 use crate::state::Shared;
 
 const MAIN_FILE: &str = "access.json";
-const EVERY: Duration = Duration::from_secs(30);
+pub(super) const EVERY: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Saved {

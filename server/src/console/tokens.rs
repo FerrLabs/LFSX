@@ -1,8 +1,12 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use super::access::EVERY;
+use super::cached::Cached;
 use crate::audit::audit_log;
 use crate::error::Error;
 use crate::storage::Store;
@@ -99,21 +103,57 @@ impl Issued {
     }
 }
 
-pub async fn holder(store: &Store, token: &str) -> Result<Option<Issued>, Error> {
-    if !token.starts_with(PREFIX) {
-        return Ok(None);
+pub struct Registry {
+    cached: Cached<Vec<Issued>>,
+}
+
+impl Default for Registry {
+    fn default() -> Self {
+        Self {
+            cached: Cached::new(EVERY),
+        }
     }
-    let hash = digest(token);
-
-    Ok(issued(store)
-        .await?
-        .into_iter()
-        .find(|issued| issued.hash == hash))
 }
 
-pub async fn still_issued(store: &Store, hash: &str) -> Result<bool, Error> {
-    Ok(issued(store)
-        .await?
-        .iter()
-        .any(|issued| issued.hash == hash))
+impl Registry {
+    async fn all(&self, store: &Store) -> Result<Arc<Vec<Issued>>, Error> {
+        self.cached.get(|| issued(store)).await
+    }
+
+    pub async fn holder(&self, store: &Store, token: &str) -> Result<Option<Issued>, Error> {
+        if !token.starts_with(PREFIX) {
+            return Ok(None);
+        }
+        let hash = digest(token);
+
+        Ok(self
+            .all(store)
+            .await?
+            .iter()
+            .find(|issued| issued.hash == hash)
+            .cloned())
+    }
+
+    pub async fn still_issued(&self, store: &Store, hash: &str) -> Result<bool, Error> {
+        Ok(self
+            .all(store)
+            .await?
+            .iter()
+            .any(|issued| issued.hash == hash))
+    }
+
+    pub async fn create(&self, store: &Store, name: &str) -> Result<String, Refusal> {
+        let created = create(store, name).await;
+        self.cached.invalidate().await;
+        created
+    }
+
+    pub async fn revoke(&self, store: &Store, name: &str) -> Result<(), Refusal> {
+        let revoked = revoke(store, name).await;
+        self.cached.invalidate().await;
+        revoked
+    }
 }
+
+#[cfg(test)]
+mod tests;

@@ -21,6 +21,7 @@ pub struct AppState {
     pub transfers: Option<Arc<Semaphore>>,
     pub transfer_idle: std::time::Duration,
     pub started: std::time::Instant,
+    pub tokens: crate::console::tokens::Registry,
     pub session_key: tokio::sync::OnceCell<Vec<u8>>,
 }
 

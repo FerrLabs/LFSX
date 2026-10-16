@@ -94,6 +94,7 @@ fn serve_with_transfer_idle(
         transfers,
         transfer_idle,
         started: std::time::Instant::now(),
+        tokens: console::tokens::Registry::default(),
         session_key: tokio::sync::OnceCell::new(),
     });
 

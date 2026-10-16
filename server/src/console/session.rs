@@ -11,7 +11,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
-use super::{Refused, tokens};
+use super::Refused;
 use crate::audit::audit_log;
 use crate::config::Auth;
 use crate::error::Error;
@@ -134,7 +134,7 @@ pub(crate) async fn viewer(state: &Shared, headers: &HeaderMap) -> Result<Option
 
     match (&claims.viewer, &claims.issued) {
         (Viewer::Forge(_), _) => Ok(Some(claims.viewer)),
-        (Viewer::Token(_), Some(hash)) if tokens::still_issued(&state.store, hash).await? => {
+        (Viewer::Token(_), Some(hash)) if state.tokens.still_issued(&state.store, hash).await? => {
             Ok(Some(claims.viewer))
         }
         (Viewer::Token(_), _) => Ok(None),
@@ -156,7 +156,7 @@ fn cookie(state: &Shared, value: &str, max_age: u64) -> HeaderValue {
 }
 
 async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>), Error> {
-    if let Some(issued) = tokens::holder(&state.store, token).await? {
+    if let Some(issued) = state.tokens.holder(&state.store, token).await? {
         let hash = issued.hash().to_owned();
         return Ok((Viewer::Token(issued.name), Some(hash)));
     }

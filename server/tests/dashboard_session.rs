@@ -136,13 +136,14 @@ async fn a_forge_user_who_is_not_an_admin_is_refused_a_session() {
     assert!(response.headers().get("set-cookie").is_none());
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn revoking_a_token_ends_the_sessions_it_opened() {
     let served = served(None).await;
     let token = tokens::create(&served.store, "alice").await.unwrap();
     let session = session_of(&sign_in(served.app.clone(), &token).await);
 
     tokens::revoke(&served.store, "alice").await.unwrap();
+    tokio::time::advance(std::time::Duration::from_secs(30)).await;
 
     assert_eq!(
         overview(served.app, Some(&session)).await,
@@ -150,7 +151,7 @@ async fn revoking_a_token_ends_the_sessions_it_opened() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_token_created_again_under_a_revoked_name_does_not_revive_old_sessions() {
     let served = served(None).await;
     let leaked = tokens::create(&served.store, "alice").await.unwrap();
@@ -158,6 +159,7 @@ async fn a_token_created_again_under_a_revoked_name_does_not_revive_old_sessions
 
     tokens::revoke(&served.store, "alice").await.unwrap();
     let fresh = tokens::create(&served.store, "alice").await.unwrap();
+    tokio::time::advance(std::time::Duration::from_secs(30)).await;
 
     assert_eq!(
         overview(served.app.clone(), Some(&session)).await,
