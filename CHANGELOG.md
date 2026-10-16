@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.12] - 2026-10-16
+
+### Bug Fixes
+
+- fix(audit): log dashboard access, sign-in, token and partial sweep events (#638)
+
 ## [1.26.11] - 2026-10-16
 
 ### Bug Fixes

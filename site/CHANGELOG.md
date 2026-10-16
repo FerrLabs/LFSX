@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.17] - 2026-10-16
+
+### Bug Fixes
+
+- fix(audit): log dashboard access, sign-in, token and partial sweep events (#638)
+
 ## [2026.10.16] - 2026-10-16
 
 ### Bug Fixes
