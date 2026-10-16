@@ -125,7 +125,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `serviceAccount.create` | `true` | token automount is off either way |
 | `podAnnotations` | Prometheus scrape hints | set to `{}` if your cluster discovers targets some other way |
 
-`limits.maxObjectSize`, `limits.repoQuota` and `locks.maxAge` take digits only: `5Gi` is refused at
+`limits.maxObjectSize`, `limits.repoQuota`, `locks.maxAge`, `gc.grace` and `gc.stagingMaxAge` take digits only: `5Gi` is refused at
 install time, and so is a value the server cannot parse. Large numbers are fine unquoted, the chart
 renders them as integers. Quote the other large values (`cacheMaxBytes`, `maxConcurrentTransfers`),
 because Helm reads an unquoted number in a values file as a float and `53687091200` would reach

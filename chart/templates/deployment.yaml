@@ -219,9 +219,9 @@ spec:
             {{- end }}
             {{- end }}
             - name: LFSX_GC_GRACE
-              value: {{ .Values.gc.grace | quote }}
+              value: {{ include "lfsx.integer" .Values.gc.grace | quote }}
             - name: LFSX_STAGING_MAX_AGE
-              value: {{ .Values.gc.stagingMaxAge | quote }}
+              value: {{ include "lfsx.integer" .Values.gc.stagingMaxAge | quote }}
             {{- with .Values.config.otlpEndpoint }}
             - name: LFSX_OTLP_ENDPOINT
               value: {{ . | quote }}
