@@ -12,28 +12,26 @@ fn app(root: &tempfile::TempDir, cap: usize) -> Router {
 }
 
 fn app_idling(root: &tempfile::TempDir, cap: usize, idle: Duration) -> Router {
-    lfsx_server::app_with_transfer_idle(
-        Config {
-            bind: "127.0.0.1:0".parse().unwrap(),
-            metrics_bind: None,
-            dashboard: None,
-            forges: Vec::new(),
-            storage_root: root.path().to_path_buf(),
-            public_url: Some("https://lfs.example".into()),
-            action_lifetime: 1800,
-            gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
-            staging_max_age: Duration::from_secs(86400),
-            lock_max_age: None,
-            max_object_size: None,
-            max_concurrent_transfers: cap,
-            repo_quota: None,
-            compression: None,
-            encryption_key: None,
-            storage: lfsx_server::config::Storage::Local,
-            auth: Auth::Disabled,
-        },
-        idle,
-    )
+    lfsx_server::app(Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
+        dashboard: None,
+        forges: Vec::new(),
+        storage_root: root.path().to_path_buf(),
+        public_url: Some("https://lfs.example".into()),
+        action_lifetime: 1800,
+        gc_grace: Duration::from_secs(14 * 24 * 60 * 60),
+        staging_max_age: Duration::from_secs(86400),
+        lock_max_age: None,
+        max_object_size: None,
+        max_concurrent_transfers: cap,
+        transfer_idle_timeout: idle,
+        repo_quota: None,
+        compression: None,
+        encryption_key: None,
+        storage: lfsx_server::config::Storage::Local,
+        auth: Auth::Disabled,
+    })
 }
 
 fn upload(oid: &str, body: Body, length: usize) -> Request<Body> {

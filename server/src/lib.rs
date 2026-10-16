@@ -38,18 +38,8 @@ pub fn app(config: Config) -> Router {
     serve(config).0
 }
 
-pub fn app_with_transfer_idle(config: Config, idle: std::time::Duration) -> Router {
-    serve_with_transfer_idle(config, idle).0
-}
-
 pub fn serve(config: Config) -> (Router, Option<Router>) {
-    serve_with_transfer_idle(config, transfer::IDLE)
-}
-
-fn serve_with_transfer_idle(
-    config: Config,
-    transfer_idle: std::time::Duration,
-) -> (Router, Option<Router>) {
+    let transfer_idle = config.transfer_idle_timeout;
     // Here rather than in `backends`, which `reclaim` also calls: a reclaim pass
     // hands nobody a URL, and saying this twice at every boot teaches an operator
     // to skim it.
