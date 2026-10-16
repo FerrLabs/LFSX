@@ -61,6 +61,33 @@ git push
 > `git lfs install` must be run **before cloning**. Without it, files arrive as 130-byte pointer
 > stubs and tools that read them (Unity, Unreal, image editors) fail in confusing ways.
 
+### Move an existing repository off GitHub or GitLab LFS
+
+Do this from a clone while the old endpoint still answers, and before you delete anything there.
+
+1. Fetch every object the old endpoint holds, not only the ones the current checkout needs:
+
+   ```bash
+   git lfs fetch --all origin
+   ```
+
+2. Commit the `.lfsconfig` from the previous section, then push every object to the new server:
+
+   ```bash
+   git config lfs.url https://lfs.example.com/my-org/my-project
+   git lfs push --all origin
+   ```
+
+3. Check a fresh clone with `git lfs install` already run: the files should arrive as real content,
+   not pointer stubs.
+
+Two things stay behind. Tags and branches created before the `.lfsconfig` commit do not contain it,
+so checking one out still resolves to the old endpoint. That matters when CI builds an old tag:
+keep the old objects reachable until nothing builds from them, or pass the new URL to CI with
+`git config lfs.url`. And contributors working from a fork usually have pull rights on the upstream
+repository only, so they cannot push LFS objects to it. Their objects need to be pushed by someone
+who can write there.
+
 ### Verify it works
 
 ```bash
