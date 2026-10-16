@@ -35,6 +35,7 @@ pub struct AzureKeys {
     container: String,
     credential: Arc<Credential>,
     client: reqwest::Client,
+    uploads: reqwest::Client,
     lifetime: Duration,
 }
 
@@ -76,7 +77,8 @@ impl AzureKeys {
             container_url,
             container: config.container.clone(),
             credential: Arc::new(credential),
-            client: reqwest::Client::new(),
+            client: super::client::bucket_client()?,
+            uploads: super::client::upload_client()?,
             lifetime: config.lifetime,
         })
     }
@@ -109,6 +111,16 @@ impl AzureKeys {
         blob: Option<&str>,
         query: &[(&str, &str)],
     ) -> Result<reqwest::RequestBuilder, Error> {
+        self.request_on(&self.client, method, blob, query).await
+    }
+
+    async fn request_on(
+        &self,
+        client: &reqwest::Client,
+        method: Method,
+        blob: Option<&str>,
+        query: &[(&str, &str)],
+    ) -> Result<reqwest::RequestBuilder, Error> {
         let url = self.url(blob, query);
 
         let request = match self.credential.as_ref() {
@@ -122,11 +134,10 @@ impl AzureKeys {
                         self.lifetime,
                     )
                     .ok_or(Error::Misconfigured("the Azure account key could not sign"))?;
-                self.client.request(method, Self::with_query(url, &sas))
+                client.request(method, Self::with_query(url, &sas))
             }
-            Credential::Sas(token) => self.client.request(method, Self::with_query(url, token)),
-            Credential::Identity(identity) => self
-                .client
+            Credential::Sas(token) => client.request(method, Self::with_query(url, token)),
+            Credential::Identity(identity) => client
                 .request(method, url)
                 .bearer_auth(identity.token(&self.client).await?),
         };
@@ -208,7 +219,12 @@ impl AzureKeys {
         only_if_absent: bool,
     ) -> Result<reqwest::Response, Error> {
         let mut request = self
-            .request(Method::PUT, Some(key), &[])
+            .request_on(
+                super::client::for_body(&body, &self.client, &self.uploads),
+                Method::PUT,
+                Some(key),
+                &[],
+            )
             .await?
             .header("x-ms-blob-type", "BlockBlob")
             .header(reqwest::header::CONTENT_LENGTH, length);
@@ -284,7 +300,8 @@ impl AzureKeys {
 
             let id = block_id(upload, index);
             let response = self
-                .request(
+                .request_on(
+                    &self.uploads,
                     Method::PUT,
                     Some(key),
                     &[("comp", "block"), ("blockid", &id)],

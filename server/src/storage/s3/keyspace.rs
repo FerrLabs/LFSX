@@ -1,4 +1,5 @@
 pub(crate) mod azure;
+mod client;
 pub(crate) mod gcs;
 mod s3;
 mod token;

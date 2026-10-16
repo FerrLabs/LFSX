@@ -138,7 +138,7 @@ async fn parts(
         );
 
         let response = keys
-            .client()
+            .uploads()
             .put(action.sign(keys.lifetime()))
             .header(reqwest::header::CONTENT_LENGTH, this)
             .body(reqwest::Body::wrap_stream(stream))
