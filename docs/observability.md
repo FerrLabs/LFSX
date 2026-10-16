@@ -4,6 +4,15 @@
 scraping it has no forge token, and refusing it would only mean the one moment you need numbers is
 the one moment you cannot get them.
 
+Because it takes no credentials, keep it off anything the internet can reach. By default it shares
+the main listener, so a reverse proxy or ingress that forwards `/` forwards `/metrics` too. Set
+`LFSX_METRICS_BIND` (for example `0.0.0.0:9090`) and it is served on that address only, and the main
+listener answers 404 for it. The Helm chart does this by default on port 9090, exposes the port on
+the Service as `metrics`, and points the `prometheus.io/port` pod annotation at it. A scrape that
+went through the Service port 80, or that targets the pod's 8080, has to move to 9090. Setting
+`metrics.port=0` puts it back on the main port. The chart's optional `networkPolicy` then limits who
+can reach the port at all.
+
 | Metric | Kind | Answers |
 |---|---|---|
 | `lfsx_requests_total{route,status}` | counter | what is being served, and what is failing |

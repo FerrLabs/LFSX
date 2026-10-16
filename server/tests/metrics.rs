@@ -175,3 +175,38 @@ async fn downloaded_bytes_count_what_was_actually_streamed() {
         payload.len() as f64
     );
 }
+
+#[tokio::test]
+async fn a_separate_listener_takes_metrics_off_the_public_router() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let mut config = common::config(&root, &api_url);
+    config.metrics_bind = Some("127.0.0.1:0".parse().unwrap());
+
+    let (public, metrics) = lfsx_server::serve(config);
+    let metrics = metrics.expect("a metrics listener was configured");
+
+    let request = || {
+        Request::builder()
+            .uri("/metrics")
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    assert_eq!(
+        public.oneshot(request()).await.unwrap().status(),
+        StatusCode::NOT_FOUND
+    );
+    assert!(scrape(metrics).await.contains("lfsx_store_bytes"));
+}
+
+#[tokio::test]
+async fn without_a_metrics_listener_the_main_one_keeps_serving_them() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+
+    let (public, metrics) = lfsx_server::serve(common::config(&root, &api_url));
+
+    assert!(metrics.is_none());
+    assert!(scrape(public).await.contains("lfsx_store_bytes"));
+}

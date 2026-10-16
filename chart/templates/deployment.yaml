@@ -55,6 +55,10 @@ spec:
           env:
             - name: LFSX_BIND
               value: "0.0.0.0:8080"
+            {{- with .Values.metrics.port }}
+            - name: LFSX_METRICS_BIND
+              value: {{ printf "0.0.0.0:%d" (int .) | quote }}
+            {{- end }}
             - name: LFSX_STORAGE_ROOT
               value: /var/lib/lfsx
             {{- if eq .Values.storage.type "s3" }}
@@ -262,6 +266,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            {{- with .Values.metrics.port }}
+            - name: metrics
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
           lifecycle:
             preStop:
               exec:

@@ -406,6 +406,33 @@ jobs:
             echo "::error::a large limit rendered in scientific notation"; exit 1
           fi
 
+      - name: Metrics stay off the port the ingress routes to
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com             --set ingress.enabled=true --set ingress.host=lfs.example.com > metrics.yaml
+          grep -q 'LFSX_METRICS_BIND' metrics.yaml             || { echo "::error::metrics are no longer served on their own listener"; exit 1; }
+          grep -q 'prometheus.io/port: "9090"' metrics.yaml             || { echo "::error::the scrape annotation does not point at the metrics port"; exit 1; }
+          grep -q 'name: metrics' metrics.yaml             || { echo "::error::the metrics port is not exposed"; exit 1; }
+          if grep -q 'kind: NetworkPolicy' metrics.yaml; then
+            echo "::error::the NetworkPolicy must be off by default"; exit 1
+          fi
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com --set metrics.port=0 > nometrics.yaml
+          if grep -q 'LFSX_METRICS_BIND' nometrics.yaml; then
+            echo "::error::metrics.port=0 still moved the listener"; exit 1
+          fi
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com             --set networkPolicy.enabled=true             --set 'networkPolicy.metricsFrom[0].namespaceSelector.matchLabels.name=monitoring' > policy.yaml
+          grep -q 'kind: NetworkPolicy' policy.yaml             || { echo "::error::networkPolicy.enabled did not render a NetworkPolicy"; exit 1; }
+          grep -q 'port: metrics' policy.yaml             || { echo "::error::the policy does not admit the metrics port"; exit 1; }
+          grep -q 'port: 53' policy.yaml             || { echo "::error::the policy lets DNS out of reach"; exit 1; }
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com             --set networkPolicy.enabled=true --set metrics.port=0 > policy-nometrics.yaml
+          if grep -q 'port: metrics' policy-nometrics.yaml; then
+            echo "::error::the policy names a metrics port the pod does not have"; exit 1
+          fi
+
       - name: The pod drains and survives a slow boot
         run: |
           set -euo pipefail
