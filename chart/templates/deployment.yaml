@@ -8,10 +8,11 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
-    {{- if ne .Values.storage.type "local" }}
-    type: RollingUpdate
-    {{- else }}
+    {{- if or (eq .Values.storage.type "local") .Values.persistence.enabled }}
     type: Recreate
+    rollingUpdate: null
+    {{- else }}
+    type: RollingUpdate
     {{- end }}
   selector:
     matchLabels:

@@ -16,9 +16,10 @@ undefined across two, and the locks the pods must agree on live in that same dir
 letting you find it in production.
 
 **More than one replica needs a bucket.** With `storage.type=s3` (or `azure`, or `gcs`) the objects and the locks move into
-the bucket, which is what lets two servers agree on who holds what, and the strategy becomes
-`RollingUpdate`. It also needs `persistence.enabled=false`: the claim is `ReadWriteOnce` so a second
-pod could not mount it, and each replica stages its own uploads anyway.
+the bucket, which is what lets two servers agree on who holds what. The strategy is `Recreate` while
+`persistence.enabled` is true, since a surge pod could not mount the `ReadWriteOnce` claim, and becomes
+`RollingUpdate` with `persistence.enabled=false`. More than one replica needs that too: a second
+pod could not mount the claim, and each replica stages its own uploads anyway.
 
 ```bash
 helm install lfsx oci://ghcr.io/ferrlabs/charts/lfsx   --set storage.type=s3   --set storage.s3.endpoint=https://s3.example.com   --set storage.s3.bucket=assets   --set storage.s3.existingSecret=lfsx-s3   --set persistence.enabled=false   --set replicaCount=2
