@@ -19,6 +19,8 @@ import { Subject, catchError, map, of, switchMap } from 'rxjs';
 import { Access, AccessChange, Api } from '../../../api';
 import { Feed } from '../../../feed';
 
+const SAVE_FAILED = 'The server did not save the change. Try again.';
+
 type Fetched = { readonly access: Access } | { readonly error: unknown };
 
 function lines(text: string): string[] {
@@ -100,7 +102,7 @@ export class AccessForm implements OnInit {
         if ('access' in fetched) {
           this.load(fetched.access);
         } else {
-          this.fail(fetched.error);
+          this.fail(fetched.error, 'The access settings could not be loaded. Try again.');
         }
       });
   }
@@ -130,7 +132,7 @@ export class AccessForm implements OnInit {
         this.load(access);
         this.saved.set(true);
       },
-      error: (error: unknown) => this.fail(error),
+      error: (error: unknown) => this.fail(error, SAVE_FAILED),
     });
   }
 
@@ -154,7 +156,7 @@ export class AccessForm implements OnInit {
         this.load(access);
         this.saved.set(true);
       },
-      error: (error: unknown) => this.fail(error),
+      error: (error: unknown) => this.fail(error, SAVE_FAILED),
     });
   }
 
@@ -167,7 +169,7 @@ export class AccessForm implements OnInit {
     this.saving.set(false);
   }
 
-  private fail(error: unknown): void {
+  private fail(error: unknown, fallback: string): void {
     this.saving.set(false);
     if (error instanceof HttpErrorResponse && error.status === 422) {
       const unreadable = (error.error?.unreadable ?? []) as string[];
@@ -179,6 +181,6 @@ export class AccessForm implements OnInit {
       this.problem.set('Your session no longer has admin rights. Sign in again.');
       return;
     }
-    this.problem.set('The server did not save the change. Try again.');
+    this.problem.set(fallback);
   }
 }
