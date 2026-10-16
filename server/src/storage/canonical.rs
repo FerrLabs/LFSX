@@ -8,6 +8,7 @@ use crate::error::Error;
 
 const CONCURRENCY: usize = 16;
 const DONE: &str = ".lfsx/namespace-case";
+const LOCKS: &str = ".locks/";
 
 pub(crate) fn canonical_key(key: &str) -> Option<String> {
     let parts: Vec<&str> = key.split('/').collect();
@@ -48,7 +49,9 @@ pub(crate) async fn fold_bucket(keys: &Keyspace) -> Result<u64, Error> {
         let keys = keys.clone();
         async move {
             let body = keys.get_bytes(&from).await?.unwrap_or_default();
-            keys.put_if_absent(&to, body).await?;
+            if !keys.put_if_absent(&to, body).await? && from.starts_with(LOCKS) {
+                tracing::warn!(dropped = %from, kept = %to, "two spellings held the same lock, one was dropped");
+            }
             keys.delete(&from).await.map(|_| ())
         }
     }))
@@ -162,6 +165,9 @@ fn merge(from: &Path, into: &Path) -> io::Result<()> {
         } else if entry.file_type()?.is_dir() {
             merge(&source, &destination)?;
         } else {
+            if source.components().any(|part| part.as_os_str() == ".locks") {
+                tracing::warn!(dropped = %source.display(), kept = %destination.display(), "two spellings held the same lock, one was dropped");
+            }
             std::fs::remove_file(&source)?;
         }
     }
