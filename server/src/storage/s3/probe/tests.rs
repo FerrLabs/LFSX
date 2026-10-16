@@ -55,6 +55,7 @@ async fn a_store_that_cannot_be_asked_is_not_trusted() {
 fn presigning(endpoint: &str) -> crate::config::Config {
     crate::config::Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
         dashboard: None,
         forges: Vec::new(),
         storage_root: std::path::PathBuf::from("."),

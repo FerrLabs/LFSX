@@ -176,6 +176,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
 
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
         dashboard: None,
         forges: Vec::new(),
         storage_root: PathBuf::from("."),
@@ -255,6 +256,7 @@ fn a_configured_public_url_wins() {
     let config = Config {
         public_url: Some("https://lfs.example.com".into()),
         bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
         dashboard: None,
         forges: Vec::new(),
         storage_root: PathBuf::from("."),

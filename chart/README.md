@@ -51,6 +51,13 @@ rejects anything over one megabyte, which for an LFS server means everything. Ot
 nothing extra: on Traefik the failure mode is attaching a buffering middleware, which the chart
 simply does not do.
 
+**`/metrics` is not served on the port the ingress routes to.** It takes no credentials, so the chart
+moves it to `metrics.port` (9090) and the Ingress, which targets the `http` port, cannot reach it.
+Scrapers that used the Service on port 80 or the pod's 8080 must point at 9090 instead. The
+`networkPolicy` is off by default; enabled, it admits the main port from `networkPolicy.ingressFrom`,
+the metrics port from `networkPolicy.metricsFrom`, and lets the pods out to DNS and port 443. A
+forge or bucket on any other port, or inside the cluster, needs a rule in `networkPolicy.egress`.
+
 **A rollout drains instead of cutting transfers.** On shutdown the pod waits `preStopSeconds` for the
 endpoint to leave the load balancers, then stops accepting and lets running transfers finish, for up
 to `terminationGracePeriodSeconds` (an hour by default, long enough for a multi-GB object over a slow
@@ -112,6 +119,11 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `persistence.storageClass` | `""` | cluster default when empty |
 | `persistence.size` | `100Gi` | claim size |
 | `service.type` / `service.port` | `ClusterIP` / `80` | service shape |
+| `metrics.port` | `9090` | port `/metrics` is served on, also exposed on the Service as `metrics`; the ingress only routes the main port, so metrics stay inside the cluster. `0` serves them on the main port again, and the `prometheus.io/port` annotation then has to be set back to `8080` |
+| `networkPolicy.enabled` | `false` | create a NetworkPolicy for the pods |
+| `networkPolicy.ingressFrom` | `[]` | peers allowed to reach the main port, such as your ingress controller's namespace; empty allows any source |
+| `networkPolicy.metricsFrom` | `[]` | peers allowed to reach the metrics port, such as Prometheus; empty allows nobody |
+| `networkPolicy.egress` | `[]` | extra egress rules on top of DNS and HTTPS to anywhere: a forge or bucket on another port or inside the cluster |
 | `ingress.enabled` | `false` | create an Ingress |
 | `ingress.className` | `""` | `nginx` also brings the large-upload annotations |
 | `ingress.host` | `""` | required when the ingress is enabled |

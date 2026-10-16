@@ -5,6 +5,7 @@ All configuration is by environment variable. A variable that is set but cannot 
 | Variable | Default | Purpose |
 |---|---|---|
 | `LFSX_BIND` | `0.0.0.0:8080` | listen address |
+| `LFSX_METRICS_BIND` | unset | listen address for `/metrics` alone, such as `0.0.0.0:9090`; when set, the main listener no longer serves `/metrics` at all, so an ingress or proxy in front of it cannot expose it; unset keeps `/metrics` on `LFSX_BIND` |
 | `LFSX_STORAGE_ROOT` | `/var/lib/lfsx` | root of the object store |
 | `LFSX_PUBLIC_URL` | the requested host | public URL used to build transfer links; set it behind a proxy, because the fallback trusts the caller's headers |
 | `LFSX_AUTH` | `github` | permission source: `github`, `gitlab`, `gitea` (or `forgejo`, the same provider), or `disabled` to accept every request |

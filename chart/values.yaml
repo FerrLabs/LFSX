@@ -137,6 +137,15 @@ service:
   type: ClusterIP
   port: 80
 
+metrics:
+  port: 9090
+
+networkPolicy:
+  enabled: false
+  ingressFrom: []
+  metricsFrom: []
+  egress: []
+
 ingress:
   enabled: false
   className: ""
@@ -169,7 +178,7 @@ serviceAccount:
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/path: /metrics
-  prometheus.io/port: "8080"
+  prometheus.io/port: "9090"
 nodeSelector: {}
 tolerations: []
 affinity: {}

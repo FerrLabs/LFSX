@@ -25,10 +25,17 @@ pub fn router(state: Shared) -> Router {
         .map(|dashboard| crate::console::router(&dashboard.dir))
         .unwrap_or_default();
 
-    Router::new()
+    let public = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/ready", get(ready))
-        .route("/metrics", get(scrape))
+        .route("/ready", get(ready));
+
+    let public = if state.config.metrics_bind.is_none() {
+        public.route("/metrics", get(scrape))
+    } else {
+        public
+    };
+
+    public
         .merge(repositories.clone())
         .nest("/-/{forge}", repositories)
         .merge(console)
@@ -36,6 +43,12 @@ pub fn router(state: Shared) -> Router {
             state.clone(),
             metrics::record,
         ))
+        .with_state(state)
+}
+
+pub fn metrics_router(state: Shared) -> Router {
+    Router::new()
+        .route("/metrics", get(scrape))
         .with_state(state)
 }
 

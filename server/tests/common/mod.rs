@@ -114,6 +114,7 @@ pub async fn repository(
 pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
     Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
         dashboard: None,
         forges: Vec::new(),
         storage_root: root.path().to_path_buf(),

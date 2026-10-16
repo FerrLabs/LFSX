@@ -135,7 +135,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "lfsx listening"
     );
 
-    let served = axum::serve(listener, lfsx_server::app(config))
+    let metrics_listener = match config.metrics_bind {
+        Some(address) => Some(TcpListener::bind(address).await?),
+        None => None,
+    };
+    let metrics_bind = config.metrics_bind;
+    let (app, metrics) = lfsx_server::serve(config);
+
+    if let (Some(listener), Some(metrics)) = (metrics_listener, metrics) {
+        tracing::info!(bind = ?metrics_bind, "lfsx serving metrics on a separate listener");
+        tokio::spawn(async move { axum::serve(listener, metrics).await });
+    }
+
+    let served = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown())
         .await;
 

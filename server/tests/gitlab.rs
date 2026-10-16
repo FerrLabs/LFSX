@@ -72,6 +72,7 @@ async fn user(headers: HeaderMap) -> Response {
 fn app(root: &tempfile::TempDir, api_url: &str) -> Router {
     lfsx_server::app(Config {
         bind: "127.0.0.1:0".parse().unwrap(),
+        metrics_bind: None,
         dashboard: None,
         forges: Vec::new(),
         storage_root: root.path().to_path_buf(),

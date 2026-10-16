@@ -34,6 +34,10 @@ use crate::storage::s3::{
 use crate::storage::{LocalStore, Store};
 
 pub fn app(config: Config) -> Router {
+    serve(config).0
+}
+
+pub fn serve(config: Config) -> (Router, Option<Router>) {
     // Here rather than in `backends`, which `reclaim` also calls: a reclaim pass
     // hands nobody a URL, and saying this twice at every boot teaches an operator
     // to skim it.
@@ -84,7 +88,12 @@ pub fn app(config: Config) -> Router {
         console::start(state.clone());
     }
 
-    routes::router(state)
+    let metrics = state
+        .config
+        .metrics_bind
+        .map(|_| routes::metrics_router(state.clone()));
+
+    (routes::router(state), metrics)
 }
 
 // Everything an interrupted upload left behind, wherever it left it: a staging

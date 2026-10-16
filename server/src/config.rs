@@ -26,6 +26,7 @@ use self::storage::encryption_key;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind: SocketAddr,
+    pub metrics_bind: Option<SocketAddr>,
     pub storage_root: PathBuf,
     pub public_url: Option<String>,
     pub action_lifetime: u32,
@@ -68,6 +69,12 @@ impl Config {
         )?
         .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 8080)));
 
+        let metrics_bind = parse(
+            "LFSX_METRICS_BIND",
+            std::env::var("LFSX_METRICS_BIND").ok().as_deref(),
+            "a socket address such as 0.0.0.0:9090",
+        )?;
+
         let storage_root = std::env::var("LFSX_STORAGE_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("/var/lib/lfsx"));
@@ -79,6 +86,7 @@ impl Config {
 
         Ok(Self {
             bind,
+            metrics_bind,
             storage_root,
             public_url,
             action_lifetime: 1800,
