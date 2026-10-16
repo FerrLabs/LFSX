@@ -39,11 +39,11 @@ jobs:
           IMAGE="ghcr.io/ferrlabs/lfsx:${VERSION}"
           docker login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
           for attempt in $(seq 100); do
-            if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            if OUT=$(docker manifest inspect "$IMAGE" 2>&1); then
               echo "Found ${IMAGE}"
               exit 0
             fi
-            echo "Attempt ${attempt}: ${IMAGE} is not published yet"
+            echo "Attempt ${attempt}: ${IMAGE} is not published yet (${OUT})"
             sleep 30
           done
           echo "::error::${IMAGE} never appeared, so the chart would point at a missing tag"
