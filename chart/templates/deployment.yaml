@@ -156,7 +156,7 @@ spec:
             {{- if eq .Values.auth.mode "gitlab" }}
             - name: LFSX_GITLAB_API_URL
               value: {{ .Values.auth.gitlabApiUrl | quote }}
-            {{- else if or (eq .Values.auth.mode "gitea") (eq .Values.auth.mode "forgejo") }}
+            {{- else if include "lfsx.giteaLike" . }}
             - name: LFSX_GITEA_API_URL
               value: {{ .Values.auth.giteaApiUrl | quote }}
             {{- else }}
