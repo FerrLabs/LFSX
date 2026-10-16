@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use super::ConfigError;
+
 #[derive(Debug, Clone)]
 pub enum Storage {
     Local,
@@ -185,17 +187,21 @@ pub enum KeySource {
 
 // One source or none. Both is a configuration that says two things, and which
 // of them the operator trusts with the store is not a guess this server makes.
-pub(super) fn encryption_key(file: Option<&str>, command: Option<&str>) -> Option<KeySource> {
+pub(super) fn encryption_key(
+    file: Option<&str>,
+    command: Option<&str>,
+) -> Result<Option<KeySource>, ConfigError> {
     let file = file.filter(|path| !path.is_empty());
     let command = command.filter(|hook| !hook.is_empty());
 
     match (file, command) {
-        (None, None) => None,
-        (Some(path), None) => Some(KeySource::File(PathBuf::from(path))),
-        (None, Some(hook)) => Some(KeySource::Command(hook.to_owned())),
-        (Some(_), Some(_)) => panic!(
-            "LFSX_ENCRYPTION_KEY_FILE and LFSX_ENCRYPTION_KEY_COMMAND are both set: they are two \
-             answers to where the keys live, and picking one for you is how the wrong keys get used"
-        ),
+        (None, None) => Ok(None),
+        (Some(path), None) => Ok(Some(KeySource::File(PathBuf::from(path)))),
+        (None, Some(hook)) => Ok(Some(KeySource::Command(hook.to_owned()))),
+        (Some(path), Some(_)) => Err(ConfigError::new(
+            "LFSX_ENCRYPTION_KEY_FILE",
+            path,
+            "allowed alongside LFSX_ENCRYPTION_KEY_COMMAND: pick one source for the keys",
+        )),
     }
 }

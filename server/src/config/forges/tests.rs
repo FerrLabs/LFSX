@@ -44,7 +44,8 @@ fn each_forge_reads_its_own_variables_and_shares_the_cache_settings() {
             ),
             ("LFSX_FORGE_SELF_HOSTED_ANONYMOUS_READ", "true"),
         ]),
-    );
+    )
+    .unwrap();
 
     assert_eq!(forges.len(), 2);
     let Auth::Forge {
@@ -87,49 +88,73 @@ fn each_forge_reads_its_own_variables_and_shares_the_cache_settings() {
     assert!(allowed.is_none());
 }
 
+fn refused(names: &str, primary: &Auth, pairs: &[(&str, &str)]) -> String {
+    parse(names, primary, reading(pairs))
+        .unwrap_err()
+        .to_string()
+}
+
 #[test]
-#[should_panic(expected = "LFSX_FORGE_WORK_AUTH must be github, gitlab, gitea or forgejo")]
 fn a_forge_without_a_provider_refuses_to_start() {
-    parse("work", &primary(), reading(&[]));
+    assert_eq!(
+        refused("work", &primary(), &[]),
+        "LFSX_FORGE_WORK_AUTH=\"\" is not one of github, gitlab, gitea or forgejo"
+    );
 }
 
 #[test]
-#[should_panic(expected = "LFSX_FORGE_WORK_API_URL must be set")]
+fn a_forge_with_an_unknown_provider_refuses_to_start() {
+    assert_eq!(
+        refused("work", &primary(), &[("LFSX_FORGE_WORK_AUTH", "bitbucket")]),
+        "LFSX_FORGE_WORK_AUTH=\"bitbucket\" is not one of github, gitlab, gitea or forgejo"
+    );
+}
+
+#[test]
 fn a_self_hosted_forge_without_its_api_root_refuses_to_start() {
-    parse(
-        "work",
-        &primary(),
-        reading(&[("LFSX_FORGE_WORK_AUTH", "gitea")]),
+    assert_eq!(
+        refused("work", &primary(), &[("LFSX_FORGE_WORK_AUTH", "gitea")]),
+        "LFSX_FORGE_WORK_API_URL=\"\" is not set: a self-hosted forge has no default API root to fall back on"
     );
 }
 
 #[test]
-#[should_panic(expected = "not api or dashboard")]
 fn a_forge_cannot_take_a_name_the_dashboard_uses() {
-    parse(
-        "api",
-        &primary(),
-        reading(&[("LFSX_FORGE_API_AUTH", "github")]),
+    assert_eq!(
+        refused("api", &primary(), &[("LFSX_FORGE_API_AUTH", "github")]),
+        "LFSX_FORGES=\"api\" is not a forge name: 1 to 32 lowercase letters, digits or dashes, and not api or dashboard"
     );
 }
 
 #[test]
-#[should_panic(expected = "names work twice")]
+fn a_forge_name_with_capitals_refuses_to_start() {
+    assert_eq!(
+        refused("Work", &primary(), &[("LFSX_FORGE_WORK_AUTH", "github")]),
+        "LFSX_FORGES=\"Work\" is not a forge name: 1 to 32 lowercase letters, digits or dashes, and not api or dashboard"
+    );
+}
+
+#[test]
 fn a_forge_named_twice_refuses_to_start() {
-    parse(
-        "work,work",
-        &primary(),
-        reading(&[("LFSX_FORGE_WORK_AUTH", "github")]),
+    assert_eq!(
+        refused(
+            "work,work",
+            &primary(),
+            &[("LFSX_FORGE_WORK_AUTH", "github")]
+        ),
+        "LFSX_FORGES=\"work\" is not named only once"
     );
 }
 
 #[test]
-#[should_panic(expected = "LFSX_AUTH=disabled")]
 fn named_forges_need_authentication() {
-    parse(
-        "work",
-        &Auth::Disabled,
-        reading(&[("LFSX_FORGE_WORK_AUTH", "github")]),
+    assert_eq!(
+        refused(
+            "work",
+            &Auth::Disabled,
+            &[("LFSX_FORGE_WORK_AUTH", "github")]
+        ),
+        "LFSX_FORGES=\"work\" is not usable with LFSX_AUTH=disabled: with authentication off there is nothing to ask the other forges about"
     );
 }
 
@@ -150,7 +175,8 @@ fn a_named_github_forge_can_have_its_own_app() {
                 "/secrets/enterprise.pem",
             ),
         ]),
-    );
+    )
+    .unwrap();
 
     let Auth::Forge { github_app, .. } = &forges[0].auth else {
         panic!("a named forge is a forge");
@@ -173,7 +199,8 @@ fn an_app_on_a_forge_that_is_not_github_does_nothing() {
             ("LFSX_FORGE_WORK_GITHUB_APP_ID", "1234"),
             ("LFSX_FORGE_WORK_GITHUB_APP_KEY_FILE", "/secrets/work.pem"),
         ]),
-    );
+    )
+    .unwrap();
 
     let Auth::Forge { github_app, .. } = &forges[0].auth else {
         panic!("a named forge is a forge");
@@ -182,16 +209,30 @@ fn an_app_on_a_forge_that_is_not_github_does_nothing() {
 }
 
 #[test]
-#[should_panic(
-    expected = "LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID and LFSX_FORGE_ENTERPRISE_GITHUB_APP_KEY_FILE come together"
-)]
 fn half_an_app_on_a_named_forge_refuses_to_start() {
-    parse(
-        "enterprise",
-        &primary(),
-        reading(&[
-            ("LFSX_FORGE_ENTERPRISE_AUTH", "github"),
-            ("LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID", "1234"),
-        ]),
+    assert_eq!(
+        refused(
+            "enterprise",
+            &primary(),
+            &[
+                ("LFSX_FORGE_ENTERPRISE_AUTH", "github"),
+                ("LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID", "1234"),
+            ]
+        ),
+        "LFSX_FORGE_ENTERPRISE_GITHUB_APP_ID=\"1234\" is not set without its key file: an App needs both an id and a key file"
+    );
+    assert_eq!(
+        refused(
+            "enterprise",
+            &primary(),
+            &[
+                ("LFSX_FORGE_ENTERPRISE_AUTH", "github"),
+                (
+                    "LFSX_FORGE_ENTERPRISE_GITHUB_APP_KEY_FILE",
+                    "/secrets/a.pem"
+                ),
+            ]
+        ),
+        "LFSX_FORGE_ENTERPRISE_GITHUB_APP_KEY_FILE=\"/secrets/a.pem\" is not set without its app id: an App needs both an id and a key file"
     );
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::{Auth, Forge};
+use super::{Auth, ConfigError, Forge};
 use crate::namespace::Namespace;
 
 #[derive(Debug, Clone)]
@@ -18,38 +18,46 @@ pub(super) fn dashboard(
     forge: Option<&str>,
     auth: &Auth,
     forges: &[Forge],
-) -> Option<Dashboard> {
+) -> Result<Option<Dashboard>, ConfigError> {
     if enabled != Some("true") {
-        return None;
+        return Ok(None);
     }
 
     let forge = forge.filter(|forge| !forge.is_empty());
     if let Some(forge) = forge
         && !forges.iter().any(|named| named.name == forge)
     {
-        panic!("LFSX_DASHBOARD_FORGE names {forge}, which LFSX_FORGES does not list");
+        return Err(ConfigError::new(
+            "LFSX_DASHBOARD_FORGE",
+            forge,
+            "a forge listed in LFSX_FORGES",
+        ));
     }
 
-    let admins = repo.filter(|repo| !repo.is_empty()).map(|repo| {
-        repo.split_once('/')
-            .and_then(|(org, name)| match forge {
-                Some(forge) => Namespace::on(forge, org, name).ok(),
-                None => Namespace::new(org, name).ok(),
-            })
-            .unwrap_or_else(|| panic!("LFSX_DASHBOARD_REPO is not org/repo: {repo}"))
-    });
+    let admins = repo
+        .filter(|repo| !repo.is_empty())
+        .map(|repo| {
+            repo.split_once('/')
+                .and_then(|(org, name)| match forge {
+                    Some(forge) => Namespace::on(forge, org, name).ok(),
+                    None => Namespace::new(org, name).ok(),
+                })
+                .ok_or_else(|| ConfigError::new("LFSX_DASHBOARD_REPO", repo, "org/repo"))
+        })
+        .transpose()?;
     if admins.is_none() && matches!(auth, Auth::Forge { .. }) {
-        panic!(
-            "LFSX_DASHBOARD=true needs LFSX_DASHBOARD_REPO: the dashboard is shown to the admins of \
-             that repository, and nobody else"
-        );
+        return Err(ConfigError::new(
+            "LFSX_DASHBOARD_REPO",
+            "",
+            "set: the dashboard is shown to the admins of that repository, and nobody else",
+        ));
     }
 
-    Some(Dashboard {
+    Ok(Some(Dashboard {
         dir: dir
             .filter(|dir| !dir.is_empty())
             .unwrap_or(DASHBOARD_DIR)
             .into(),
         admins,
-    })
+    }))
 }
