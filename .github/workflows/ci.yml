@@ -393,6 +393,16 @@ jobs:
             echo "::error::a gitea deployment fell into the GitHub branch"; exit 1
           fi
 
+      - name: Large limits render as integers
+        run: |
+          set -euo pipefail
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com --set-json 'limits.maxObjectSize=53687091200' --set-json 'limits.repoQuota=107374182400' --set-json 'gc.grace=1209600000' > limits.yaml
+          grep -q '"53687091200"' limits.yaml || { echo "::error::limits.maxObjectSize did not render as an integer"; exit 1; }
+          grep -q '"107374182400"' limits.yaml || { echo "::error::limits.repoQuota did not render as an integer"; exit 1; }
+          if grep -q 'e+' limits.yaml; then
+            echo "::error::a large limit rendered in scientific notation"; exit 1
+          fi
+
       - name: The pod drains and survives a slow boot
         run: |
           set -euo pipefail
