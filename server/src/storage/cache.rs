@@ -10,6 +10,9 @@ use tokio::io::AsyncWriteExt;
 use crate::error::Error;
 use crate::oid::Oid;
 
+const FILL_LIMIT: usize = 4;
+const INCOMING: &str = ".incoming-";
+
 // A local copy of what the bucket holds, so the second client to want an object
 // reads it from this disk instead of paying the round trip again. The workload
 // this exists for is a CI fleet pulling the same asset pack all day: without it
@@ -20,8 +23,6 @@ use crate::oid::Oid;
 // volume backend does, so compression, encryption and ranges need to know
 // nothing about this, and a cache directory is no more sensitive than the
 // bucket it mirrors.
-const FILL_LIMIT: usize = 4;
-
 pub struct Cache {
     dir: PathBuf,
     ceiling: u64,
@@ -39,10 +40,10 @@ pub struct Cache {
     // What the directory holds, kept as fills and evictions move it. The
     // alternative is a walk per scrape, thousands of syscalls spent on the disk
     // this exists to spare.
-    fills: Arc<Semaphore>,
     bytes: AtomicU64,
     hits: AtomicU64,
     misses: AtomicU64,
+    fills: Arc<Semaphore>,
 }
 
 pub struct Stats {
@@ -79,10 +80,10 @@ impl Cache {
             filling: Mutex::new(HashSet::new()),
             verified: Mutex::new(HashSet::new()),
             verifying: Mutex::new(HashSet::new()),
-            fills: Arc::new(Semaphore::new(FILL_LIMIT)),
             bytes: AtomicU64::new(held),
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
+            fills: Arc::new(Semaphore::new(FILL_LIMIT)),
         })
     }
 
@@ -100,7 +101,7 @@ impl Cache {
 
     // The digest of the cached bytes, beside them. It is what makes a truncated
     // or rotted entry detectable, and its modification time is the recency
-    // signal eviction sorts on: rewriting 32 bytes on a hit costs nothing and
+    // signal eviction sorts on: bumping it on a hit costs nothing and
     // survives a restart, where an in-memory clock would not.
     fn digest(&self, oid: &Oid) -> PathBuf {
         self.dir.join(format!("{oid}.b3"))
@@ -208,7 +209,7 @@ impl Cache {
     where
         S: futures_util::Stream<Item = Result<axum::body::Bytes, Error>>,
     {
-        let incoming = self.dir.join(format!(".incoming-{oid}"));
+        let incoming = self.dir.join(format!("{INCOMING}{oid}"));
         let staged = self.stage(oid, size, &incoming, chunks).await;
         if staged.is_err() {
             let _ = tokio::fs::remove_file(&incoming).await;
@@ -278,7 +279,7 @@ impl Cache {
     }
 
     // Oldest use first, until the ceiling is met. Recency is the digest file
-    // modification time, which a hit rewrites, so an asset pack pulled every
+    // modification time, which a hit bumps, so an asset pack pulled every
     // day outlives one fetched once a month whatever their ages.
     async fn evict(&self) {
         let mut entries = Vec::new();
@@ -337,7 +338,7 @@ impl Cache {
 // The bookkeeping beside an object, and a fill still in flight: neither is a
 // cached object and neither counts against the ceiling.
 fn skip(name: &str) -> bool {
-    name.ends_with(".b3") || name.starts_with(".incoming-")
+    name.ends_with(".b3") || name.starts_with(INCOMING)
 }
 
 fn sweep_incoming(dir: &Path) {
@@ -345,11 +346,7 @@ fn sweep_incoming(dir: &Path) {
         return;
     };
     for entry in listing.flatten() {
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .starts_with(".incoming-")
-        {
+        if entry.file_name().to_string_lossy().starts_with(INCOMING) {
             let _ = std::fs::remove_file(entry.path());
         }
     }
