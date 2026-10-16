@@ -50,6 +50,11 @@ rejects anything over one megabyte, which for an LFS server means everything. Ot
 nothing extra: on Traefik the failure mode is attaching a buffering middleware, which the chart
 simply does not do.
 
+**A rollout drains instead of cutting transfers.** On shutdown the pod waits `preStopSeconds` for the
+endpoint to leave the load balancers, then stops accepting and lets running transfers finish, for up
+to `terminationGracePeriodSeconds` (an hour by default, long enough for a multi-GB object over a slow
+link). Lower it if your objects are small and you want rollouts to finish sooner.
+
 **The container runs as uid 65532 with a read-only root filesystem**, and the volume is mounted
 with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writable.
 
@@ -112,6 +117,9 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `ingress.annotations` | `{}` | merged over the defaults for your class |
 | `ingress.tls.enabled` | `true` | TLS block on the ingress |
 | `ingress.tls.secretName` | `<release>-lfsx-tls` | certificate secret |
+| `terminationGracePeriodSeconds` | `3600` | how long a pod gets to finish in-flight transfers after SIGTERM before it is killed; a multi-GB push or clone outlasts Kubernetes' 30 s default |
+| `preStopSeconds` | `10` | seconds the pod keeps serving after it is marked terminating, so the endpoint is removed everywhere before the listener closes; runs as `lfsx-server sleep` since the image has no shell |
+| `startupProbe.periodSeconds` / `startupProbe.failureThreshold` | `10` / `180` | `/health` is polled for up to 30 minutes before the pod is restarted, so a slow boot over a large store is not a crash loop; liveness starts once it passes |
 | `resources` | 50m / 64Mi requested | streaming means memory stays flat whatever the object size |
 | `serviceAccount.create` | `true` | token automount is off either way |
 | `podAnnotations` | Prometheus scrape hints | set to `{}` if your cluster discovers targets some other way |

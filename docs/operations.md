@@ -200,6 +200,15 @@ The same conservatism as the deduplication migration, verified against its own d
 rewritten, never removed before its replacement exists, idempotent, refusals counted and named. An
 object that would not get smaller is left alone rather than wrapped.
 
+## Restarts and rollouts
+
+On SIGTERM the server stops accepting new connections and lets transfers already running finish, so
+a restart interrupts only what outlives the wait. Give the process as long as your largest transfer
+needs: on Kubernetes that is `terminationGracePeriodSeconds`, an hour in the chart, with a short
+`preStop` (`lfsx-server sleep <seconds>`) so the endpoint is removed before the listener closes.
+Under systemd or Docker, raise `TimeoutStopSec` or `--stop-timeout` the same way. A transfer cut
+anyway leaves a partial file in staging, which the next boot and the hourly sweep reclaim.
+
 ## Migrating to another server
 
 Two routes, and the choice is usually made for you by whether you can read the old server's disk.

@@ -27,6 +27,8 @@ enum Command {
         #[command(subcommand)]
         command: DashboardCommand,
     },
+    #[command(about = "Wait, then exit; a preStop hook for an image with no shell")]
+    Sleep { seconds: u64 },
 }
 
 #[derive(Subcommand)]
@@ -75,10 +77,18 @@ async fn run(command: TokenCommand) -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(Command::Dashboard {
-        command: DashboardCommand::Token { command },
-    }) = Cli::parse().command
-    {
+    let command = match Cli::parse().command {
+        Some(Command::Sleep { seconds }) => {
+            tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
+            return Ok(());
+        }
+        Some(Command::Dashboard {
+            command: DashboardCommand::Token { command },
+        }) => Some(command),
+        None => None,
+    };
+
+    if let Some(command) = command {
         tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -110,12 +120,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     lfsx_server::verify_locking(&mut config).await;
     let config = config;
 
+    let listener = TcpListener::bind(config.bind).await?;
+
     // Once at boot, since a crash mid-transfer is exactly what leaves these
     // behind, then hourly so a long-lived process reclaims them too.
-    lfsx_server::reclaim(&config).await;
     tokio::spawn(reclaim_periodically(config.clone()));
-
-    let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         bind = %config.bind,
@@ -140,7 +149,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn reclaim_periodically(config: Config) {
     let mut hourly = tokio::time::interval(std::time::Duration::from_secs(3600));
-    hourly.tick().await;
 
     loop {
         hourly.tick().await;
@@ -173,4 +181,22 @@ async fn shutdown() {
     }
 
     tracing::info!("shutting down");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sleep_takes_whole_seconds() {
+        let cli = Cli::try_parse_from(["lfsx-server", "sleep", "15"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Sleep { seconds: 15 })));
+    }
+
+    #[test]
+    fn sleep_refuses_a_missing_or_malformed_duration() {
+        assert!(Cli::try_parse_from(["lfsx-server", "sleep"]).is_err());
+        assert!(Cli::try_parse_from(["lfsx-server", "sleep", "5s"]).is_err());
+        assert!(Cli::try_parse_from(["lfsx-server", "sleep", "-1"]).is_err());
+    }
 }

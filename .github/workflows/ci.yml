@@ -393,6 +393,19 @@ jobs:
             echo "::error::a gitea deployment fell into the GitHub branch"; exit 1
           fi
 
+      - name: The pod drains and survives a slow boot
+        run: |
+          set -euo pipefail
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com > drain.yaml
+          grep -q 'terminationGracePeriodSeconds: 3600' drain.yaml             || { echo "::error::the default grace period is not an hour"; exit 1; }
+          grep -q 'startupProbe:' drain.yaml             || { echo "::error::no startupProbe, a slow boot would crash loop"; exit 1; }
+          grep -q -- '- sleep' drain.yaml             || { echo "::error::no preStop sleep"; exit 1; }
+
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com             --set terminationGracePeriodSeconds=120             --set startupProbe.failureThreshold=5 > tuned.yaml
+          grep -q 'terminationGracePeriodSeconds: 120' tuned.yaml             || { echo "::error::terminationGracePeriodSeconds was not overridable"; exit 1; }
+          grep -q 'failureThreshold: 5' tuned.yaml             || { echo "::error::startupProbe.failureThreshold was not overridable"; exit 1; }
+
       - name: A bucket deployment carries its credentials by reference
         run: |
           set -euo pipefail

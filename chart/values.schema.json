@@ -516,6 +516,28 @@
       },
       "additionalProperties": false
     },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "preStopSeconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "startupProbe": {
+      "type": "object",
+      "properties": {
+        "periodSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "resources": {
       "type": "object",
       "properties": {
