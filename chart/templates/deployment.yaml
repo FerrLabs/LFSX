@@ -219,20 +219,20 @@ spec:
             {{- end }}
             {{- end }}
             - name: LFSX_GC_GRACE
-              value: {{ .Values.gc.grace | quote }}
+              value: {{ include "lfsx.integer" .Values.gc.grace | quote }}
             - name: LFSX_STAGING_MAX_AGE
-              value: {{ .Values.gc.stagingMaxAge | quote }}
+              value: {{ include "lfsx.integer" .Values.gc.stagingMaxAge | quote }}
             {{- with .Values.config.otlpEndpoint }}
             - name: LFSX_OTLP_ENDPOINT
               value: {{ . | quote }}
             {{- end }}
             {{- with .Values.limits.maxObjectSize }}
             - name: LFSX_MAX_OBJECT_SIZE
-              value: {{ . | quote }}
+              value: {{ include "lfsx.integer" . | quote }}
             {{- end }}
             {{- with .Values.limits.repoQuota }}
             - name: LFSX_REPO_QUOTA
-              value: {{ . | quote }}
+              value: {{ include "lfsx.integer" . | quote }}
             {{- end }}
             {{- if ne (.Values.limits.maxConcurrentTransfers | toString) "" }}
             - name: LFSX_MAX_CONCURRENT_TRANSFERS
@@ -240,7 +240,7 @@ spec:
             {{- end }}
             {{- with .Values.locks.maxAge }}
             - name: LFSX_LOCK_MAX_AGE
-              value: {{ . | quote }}
+              value: {{ include "lfsx.integer" . | quote }}
             {{- end }}
             {{- with .Values.compression }}
             - name: LFSX_COMPRESSION

@@ -9,15 +9,18 @@ use crate::namespace::Namespace;
 
 mod auth;
 mod dashboard;
+mod error;
 mod forges;
 mod storage;
 
 pub use self::auth::{Auth, GithubApp, Provider};
 pub use self::dashboard::Dashboard;
+pub use self::error::ConfigError;
 pub use self::forges::Forge;
 pub use self::storage::{AzureCredential, Dialect, DiskCache, GcsCredential, KeySource, Storage};
 
 use self::dashboard::dashboard;
+use self::error::parse;
 use self::storage::encryption_key;
 
 #[derive(Debug, Clone)]
@@ -57,11 +60,13 @@ const GC_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const STAGING_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 impl Config {
-    pub fn from_env() -> Self {
-        let bind = std::env::var("LFSX_BIND")
-            .ok()
-            .and_then(|raw| raw.parse().ok())
-            .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 8080)));
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let bind = parse(
+            "LFSX_BIND",
+            std::env::var("LFSX_BIND").ok().as_deref(),
+            "a socket address such as 0.0.0.0:8080",
+        )?
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 8080)));
 
         let storage_root = std::env::var("LFSX_STORAGE_ROOT")
             .map(PathBuf::from)
@@ -72,21 +77,21 @@ impl Config {
             .filter(|url| !url.is_empty())
             .map(|url| url.trim_end_matches('/').to_owned());
 
-        Self {
+        Ok(Self {
             bind,
             storage_root,
             public_url,
             action_lifetime: 1800,
-            gc_grace: seconds("LFSX_GC_GRACE").unwrap_or(GC_GRACE),
-            staging_max_age: seconds("LFSX_STAGING_MAX_AGE").unwrap_or(STAGING_MAX_AGE),
-            lock_max_age: seconds("LFSX_LOCK_MAX_AGE"),
-            max_object_size: bytes("LFSX_MAX_OBJECT_SIZE"),
+            gc_grace: env_seconds("LFSX_GC_GRACE")?.unwrap_or(GC_GRACE),
+            staging_max_age: env_seconds("LFSX_STAGING_MAX_AGE")?.unwrap_or(STAGING_MAX_AGE),
+            lock_max_age: env_seconds("LFSX_LOCK_MAX_AGE")?,
+            max_object_size: env_bytes("LFSX_MAX_OBJECT_SIZE")?,
             max_concurrent_transfers: transfer_cap(
                 std::env::var("LFSX_MAX_CONCURRENT_TRANSFERS")
                     .ok()
                     .as_deref(),
             ),
-            repo_quota: bytes("LFSX_REPO_QUOTA"),
+            repo_quota: env_bytes("LFSX_REPO_QUOTA")?,
             compression: compression(),
             encryption_key: encryption_key(
                 std::env::var("LFSX_ENCRYPTION_KEY_FILE").ok().as_deref(),
@@ -95,10 +100,10 @@ impl Config {
             storage: Storage::from_env(),
             dashboard: None,
             forges: Vec::new(),
-            auth: Auth::from_env(),
+            auth: Auth::from_env()?,
         }
         .with_forges()
-        .with_dashboard()
+        .with_dashboard())
     }
 
     fn with_forges(self) -> Self {
@@ -234,22 +239,27 @@ fn transfer_cap(value: Option<&str>) -> usize {
     }
 }
 
-fn bytes(variable: &str) -> Option<u64> {
-    let configured = std::env::var(variable).ok()?.trim().parse().ok()?;
-
-    if configured == 0 {
-        tracing::warn!("{variable}=0 would refuse every upload, ignoring it");
-        return None;
-    }
-
-    Some(configured)
+fn env_bytes(variable: &'static str) -> Result<Option<u64>, ConfigError> {
+    bytes(variable, std::env::var(variable).ok().as_deref())
 }
 
-fn seconds(variable: &str) -> Option<Duration> {
-    std::env::var(variable)
-        .ok()
-        .and_then(|raw| raw.parse().ok())
-        .map(Duration::from_secs)
+fn bytes(variable: &'static str, value: Option<&str>) -> Result<Option<u64>, ConfigError> {
+    let configured = parse(variable, value, "a whole number of bytes")?;
+
+    if configured == Some(0) {
+        tracing::warn!("{variable}=0 would refuse every upload, ignoring it");
+        return Ok(None);
+    }
+
+    Ok(configured)
+}
+
+fn env_seconds(variable: &'static str) -> Result<Option<Duration>, ConfigError> {
+    seconds(variable, std::env::var(variable).ok().as_deref())
+}
+
+fn seconds(variable: &'static str, value: Option<&str>) -> Result<Option<Duration>, ConfigError> {
+    Ok(parse(variable, value, "a whole number of seconds")?.map(Duration::from_secs))
 }
 
 #[cfg(test)]

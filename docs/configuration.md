@@ -1,6 +1,6 @@
 # Configuration
 
-All configuration is by environment variable.
+All configuration is by environment variable. A variable that is set but cannot be read (`LFSX_BIND`, `LFSX_AUTH`, or a size or duration below) stops the server at boot with an error naming the variable and the value. An unset or empty variable keeps its default.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -26,9 +26,9 @@ All configuration is by environment variable.
 | `LFSX_GITHUB_APP_KEY_FILE` | unset | path to the App's RSA private key in PEM form; comes together with the id, one without the other refuses to start |
 | `LFSX_GC_GRACE` | `1209600` | seconds an object must have been untouched before collection can take it |
 | `LFSX_STAGING_MAX_AGE` | `86400` | seconds before an interrupted upload's leftovers are reclaimed, on the volume and in the bucket |
-| `LFSX_LOCK_MAX_AGE` | never | seconds a lock may go untouched before anyone can take it |
-| `LFSX_MAX_OBJECT_SIZE` | unlimited | bytes an object may reach before the server refuses it |
-| `LFSX_REPO_QUOTA` | unlimited | bytes a single repository may hold |
+| `LFSX_LOCK_MAX_AGE` | never | whole seconds a lock may go untouched before anyone can take it |
+| `LFSX_MAX_OBJECT_SIZE` | unlimited | whole bytes, digits only (`5Gi` is refused), an object may reach this before the server refuses it |
+| `LFSX_REPO_QUOTA` | unlimited | whole bytes, digits only, a single repository may hold this |
 | `LFSX_MAX_CONCURRENT_TRANSFERS` | `128` | uploads and downloads served at once; the transfer past the cap is answered `503` with `Retry-After` rather than queued; `0` removes the cap |
 | `LFSX_STORAGE` | `local` | `s3` to keep objects in a bucket instead of on the volume, `azure` for a Blob Storage container, `gcs` for Cloud Storage |
 | `LFSX_S3_ENDPOINT` / `LFSX_S3_BUCKET` / `LFSX_S3_REGION` | unset | where the bucket is; endpoint and bucket are required with `LFSX_STORAGE=s3` |
