@@ -19,6 +19,8 @@ and — the one that matters — that the URL it advertises for transfers is the
 on. A mismatch there lets negotiation succeed while every transfer fails.
 
 `gc` reads the objects the repository still references and asks the server to sweep the rest. It
-refuses to run from a shallow clone, which would retain a fraction of what it should.
+fetches every branch, tag and pull or merge request ref first (`--no-review-refs` skips the last),
+reads `--url` and `--repo` from `git config lfs.url` when not given, and refuses a shallow or
+`--single-branch` clone, or a `--url` or `--repo` that does not match `lfs.url`.
 
 The server itself is [`lfsx-server`](https://crates.io/crates/lfsx-server).

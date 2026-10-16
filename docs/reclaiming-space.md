@@ -10,8 +10,20 @@ The [`lfsx`](../cli/) command does it from a clone:
 lfsx --url https://lfs.example.com gc --repo my-org/my-project --dry-run
 ```
 
-It refuses to run from a shallow clone, which would retain a fraction of what it should and sweep
-the rest. Same command without `--dry-run` to actually free the space.
+Same command without `--dry-run` to actually free the space.
+
+Whatever the clone does not know about is swept once past the grace period, so `gc` makes the clone
+know everything before it builds the keep list:
+
+- It fetches every branch and tag from `origin`, pruning the ones that are gone.
+- It fetches the pull and merge request refs (`refs/pull/*`, `refs/merge-requests/*`) into
+  `refs/lfsx/`, since a review can stay open longer than the grace period. `--no-review-refs`
+  leaves them out, which sweeps objects only an open review still uses.
+- It refuses a shallow clone, and a clone whose `remote.origin.fetch` is not a wildcard over
+  `refs/heads/*` (a `--single-branch` clone), either of which would retain a fraction of what it
+  should.
+- `--url` and `--repo` are read from the clone's `lfs.url` (git config, then a committed `.lfsconfig`) when not given, and refused
+  when they name another server or repository than the clone does.
 
 Under it is one endpoint, if you would rather call it yourself. `retain` takes the set of object
 ids the repository still references and sweeps everything else:
@@ -71,3 +83,34 @@ of what collection would free, and any contributor may ask. Collecting for real 
 so it needs the level the forge treats as administrative, admin on GitHub and Gitea, Maintainer or
 Owner on GitLab, the same level that force-opens a lock. A `$GITHUB_TOKEN` from a routine CI job
 will preview collection and be refused the real thing.
+
+## On a schedule
+
+A scheduled job in the repository's CI keeps the disk from growing without anyone running `gc` by
+hand. It needs an admin token (see above), so it cannot use the job's own `GITHUB_TOKEN`: store one
+as a secret and pass it as `LFSX_TOKEN`, which `lfsx` reads before `GITHUB_TOKEN`.
+
+```yaml
+name: lfsx gc
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  gc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.LFSX_TOKEN }}
+      - run: git config lfs.url https://lfs.example.com/${{ github.repository }}
+      - run: npm install -g @ferrlabs/lfsx
+      - run: lfsx gc
+        env:
+          LFSX_TOKEN: ${{ secrets.LFSX_TOKEN }}
+```
+
+The `git config lfs.url` step is only needed when the repository has no committed `.lfsconfig`. `fetch-depth: 0` gives the full clone `gc` insists on, and the checkout keeps the wildcard fetch
+refspec. Run it with `--dry-run` for a few weeks first and read the report.
