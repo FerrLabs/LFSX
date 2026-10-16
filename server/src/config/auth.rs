@@ -212,9 +212,9 @@ pub(super) fn provider(value: Option<&str>) -> Result<Provider, ConfigError> {
         None | Some("github") => Ok(Provider::Github),
         Some("gitlab") => Ok(Provider::Gitlab),
         Some("gitea") | Some("forgejo") => Ok(Provider::Gitea),
-        Some(other) => Err(ConfigError::new(
+        Some(_) => Err(ConfigError::new(
             "LFSX_AUTH",
-            other,
+            value.unwrap_or_default(),
             "one of github, gitlab, gitea, forgejo or disabled",
         )),
     }
