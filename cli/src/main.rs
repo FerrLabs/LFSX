@@ -4,6 +4,8 @@ mod doctor;
 mod gc;
 mod summary;
 
+use std::time::Duration;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -59,9 +61,26 @@ enum Command {
     },
 }
 
+const DOCTOR_TIMEOUT: Duration = Duration::from_secs(30);
+
+impl Command {
+    fn request_timeout(&self) -> Option<Duration> {
+        match self {
+            Self::Doctor { .. } => Some(DOCTOR_TIMEOUT),
+            Self::Gc { .. } | Self::Dedupe { .. } | Self::Compress { .. } | Self::Verify { .. } => {
+                None
+            }
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let server = Server::new(&cli.url, resolve_token(cli.token))?;
+    let server = Server::new(
+        &cli.url,
+        resolve_token(cli.token),
+        cli.command.request_timeout(),
+    )?;
 
     match cli.command {
         Command::Doctor { repo } => {
@@ -98,3 +117,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

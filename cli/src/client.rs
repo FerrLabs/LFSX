@@ -1,6 +1,10 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::{Client, Response};
 use serde::Serialize;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct Server {
     client: Client,
@@ -9,7 +13,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(url: &str, token: Option<String>) -> Result<Self> {
+    pub fn new(url: &str, token: Option<String>, timeout: Option<Duration>) -> Result<Self> {
         // rustls needs a process-wide crypto provider before the first TLS
         // connection, and reqwest is built without one so the choice is this
         // project's: ring, as 0.12 used, rather than the aws-lc that 0.13 made
@@ -19,6 +23,8 @@ impl Server {
         Ok(Self {
             client: Client::builder()
                 .user_agent(concat!("lfsx/", env!("CARGO_PKG_VERSION")))
+                .connect_timeout(CONNECT_TIMEOUT)
+                .timeout(timeout)
                 .build()
                 .context("could not build an http client")?,
             base: url.trim_end_matches('/').to_owned(),
