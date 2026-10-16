@@ -13,8 +13,45 @@ permissions:
   contents: read
 
 jobs:
+  image:
+    name: Wait for the image
+    permissions:
+      contents: read
+      packages: read
+    if: startsWith(github.event.release.tag_name, 'v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Wait for the image manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${RELEASE_TAG#v}"
+          fi
+          IMAGE="ghcr.io/ferrlabs/lfsx:${VERSION}"
+          docker login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
+          for attempt in $(seq 100); do
+            if OUT=$(docker manifest inspect "$IMAGE" 2>&1); then
+              echo "Found ${IMAGE}"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: ${IMAGE} is not published yet (${OUT})"
+            sleep 30
+          done
+          echo "::error::${IMAGE} never appeared, so the chart would point at a missing tag"
+          exit 1
+
   publish:
     name: Package & Push
+    needs: image
     permissions:
       contents: read
       packages: write
