@@ -331,12 +331,20 @@ pub async fn read_json(response: Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-#[derive(Clone, Default)]
-struct Captured(Arc<Mutex<Vec<u8>>>);
+thread_local! {
+    static SINK: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) };
+}
 
-impl std::io::Write for Captured {
+#[derive(Clone, Copy)]
+struct Sink;
+
+impl std::io::Write for Sink {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
+        SINK.with(|sink| {
+            if let Some(held) = sink.borrow_mut().as_mut() {
+                held.extend_from_slice(buf);
+            }
+        });
         Ok(buf.len())
     }
 
@@ -345,25 +353,31 @@ impl std::io::Write for Captured {
     }
 }
 
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Sink {
     type Writer = Self;
 
     fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
+        *self
     }
 }
 
 pub async fn logged<F: std::future::Future>(work: F) -> (F::Output, String) {
-    let captured = Captured::default();
-    let _guard = tracing::subscriber::set_default(
-        tracing_subscriber::fmt()
-            .with_writer(captured.clone())
-            .with_max_level(tracing::Level::INFO)
-            .with_ansi(false)
-            .finish(),
-    );
-    let output = work.await;
-    let logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(|| {
+        let _ = tracing::subscriber::set_global_default(
+            tracing_subscriber::fmt()
+                .with_writer(Sink)
+                .with_max_level(tracing::Level::INFO)
+                .with_ansi(false)
+                .finish(),
+        );
+    });
 
-    (output, logged)
+    SINK.with(|sink| *sink.borrow_mut() = Some(Vec::new()));
+    let output = work.await;
+    let held = SINK
+        .with(|sink| sink.borrow_mut().take())
+        .unwrap_or_default();
+
+    (output, String::from_utf8(held).unwrap())
 }

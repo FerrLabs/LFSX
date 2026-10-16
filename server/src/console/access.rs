@@ -256,16 +256,15 @@ pub(crate) async fn write(
         )
         .await?;
     target.authorizer.set_access(access);
-    let after = shown(&state, &target).await?;
     audit_log!(
         actor = ?viewer,
         file = %target.file,
         ?before,
-        ?after,
+        ?saved,
         "access settings changed from the dashboard"
     );
 
-    Ok(Json(after).into_response())
+    Ok(Json(shown(&state, &target).await?).into_response())
 }
 
 pub(crate) async fn reset(
@@ -283,16 +282,14 @@ pub(crate) async fn reset(
     let before = shown(&state, &target).await?;
     state.store.delete_meta(&target.file).await?;
     target.authorizer.set_access(environment);
-    let after = shown(&state, &target).await?;
     audit_log!(
         actor = ?viewer,
         file = %target.file,
         ?before,
-        ?after,
         "access settings reset to the environment from the dashboard"
     );
 
-    Ok(Json(after).into_response())
+    Ok(Json(shown(&state, &target).await?).into_response())
 }
 
 fn unchangeable() -> Response {

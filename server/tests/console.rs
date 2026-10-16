@@ -392,7 +392,7 @@ async fn changing_and_resetting_access_land_on_the_audit_trail_naming_the_admin(
     assert!(trail.contains("lfsx::audit"), "{trail}");
     assert!(trail.contains(r#"actor=Forge("admin")"#), "{trail}");
     assert!(trail.contains("anonymous_read: true"), "{trail}");
-    assert!(trail.contains("elsewhere/*"), "{trail}");
+    assert!(trail.contains("Elsewhere/*"), "{trail}");
 
     let (reset, trail) = logged(call(
         served.app,
