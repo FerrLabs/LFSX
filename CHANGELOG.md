@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.22] - 2026-10-16
+
+### Bug Fixes
+
+- fix(chart): close schema and validation gaps, add a PodDisruptionBudget, make publish rerunnable (#654)
+
 ## [1.26.21] - 2026-10-16
 
 ### Bug Fixes
