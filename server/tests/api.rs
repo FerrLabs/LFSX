@@ -360,6 +360,39 @@ async fn a_keep_list_past_the_default_two_megabytes_is_read() {
 }
 
 #[tokio::test]
+async fn a_keep_list_entry_that_is_not_a_digest_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let payload = b"a live object".to_vec();
+    let oid = oid_of(&payload);
+    let app = app_with_grace(&root, Duration::ZERO);
+    assert_eq!(put(app.clone(), &oid, &payload).await, StatusCode::OK);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/retain")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "oids": [oid.to_uppercase()], "dry_run": false }).to_string(),
+        ))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("lowercase hex sha256"),
+        "the refusal has to say what a digest looks like"
+    );
+    assert!(
+        is_stored(app, &oid).await,
+        "a keep list that names nothing valid must not sweep the object"
+    );
+}
+
+#[tokio::test]
 async fn a_keep_list_over_the_ceiling_is_refused_unread() {
     let root = tempfile::tempdir().unwrap();
     let request = Request::builder()

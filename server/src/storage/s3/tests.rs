@@ -600,7 +600,7 @@ async fn the_pass_that_reads_the_whole_bucket_leaves_an_index_behind() {
     store
         .sweep(
             &namespace("Blastlands"),
-            &std::collections::HashSet::from([OID.to_string()]),
+            &std::collections::HashSet::from([OID.clone()]),
             Duration::from_secs(0),
             false,
         )

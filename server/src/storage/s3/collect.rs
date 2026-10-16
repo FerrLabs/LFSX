@@ -27,7 +27,7 @@ impl S3Store {
     pub async fn sweep(
         &self,
         ns: &Namespace,
-        retained: &HashSet<String>,
+        retained: &HashSet<Oid>,
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
@@ -102,13 +102,13 @@ impl S3Store {
     // from being read as an abandoned object.
     fn droppable(
         mine: Vec<(keyspace::Entry, Oid)>,
-        retained: &HashSet<String>,
+        retained: &HashSet<Oid>,
         grace: Duration,
         report: &mut SweepReport,
     ) -> Vec<(keyspace::Entry, Oid)> {
         mine.into_iter()
             .filter(|(entry, oid)| {
-                if retained.contains(oid.as_str()) {
+                if retained.contains(oid) {
                     return false;
                 }
 
@@ -129,7 +129,7 @@ impl S3Store {
     async fn sweep_indexed(
         &self,
         ns: &Namespace,
-        retained: &HashSet<String>,
+        retained: &HashSet<Oid>,
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
@@ -189,7 +189,7 @@ impl S3Store {
     async fn sweep_whole_bucket(
         &self,
         ns: &Namespace,
-        retained: &HashSet<String>,
+        retained: &HashSet<Oid>,
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {

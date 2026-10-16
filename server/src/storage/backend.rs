@@ -416,7 +416,7 @@ impl Store {
     pub async fn sweep(
         &self,
         ns: &Namespace,
-        retained: &std::collections::HashSet<String>,
+        retained: &std::collections::HashSet<crate::oid::Oid>,
         grace: std::time::Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {

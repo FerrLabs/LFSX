@@ -33,7 +33,7 @@ impl LocalStore {
     pub async fn sweep(
         &self,
         ns: &Namespace,
-        retained: &HashSet<String>,
+        retained: &HashSet<Oid>,
         grace: Duration,
         dry_run: bool,
     ) -> Result<SweepReport, Error> {
@@ -51,7 +51,7 @@ impl LocalStore {
         let elsewhere = self.other_repositories(ns).await;
 
         for found in walk.objects {
-            if retained.contains(found.oid.as_str()) {
+            if retained.contains(&found.oid) {
                 continue;
             }
 
