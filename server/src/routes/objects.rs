@@ -7,6 +7,7 @@ use futures_util::StreamExt;
 
 use crate::auth::Permission;
 use crate::error::Error;
+use crate::lfs_json::LfsJson;
 use crate::model::{Actions, BatchRequest, BatchResponse, ObjectId, ObjectSpec, Operation};
 use crate::namespace::Namespace;
 use crate::oid::Oid;
@@ -18,6 +19,8 @@ use crate::transfer;
 // The Git LFS transfer surface: what a client negotiates, what it sends and
 // what it gets back. Everything here is driven by a client running `git push`
 // or `git pull` and nothing else calls it.
+
+const HASH_ALGO: &str = "sha256";
 
 // A backstop rather than a policy. git-lfs sends at most a hundred and every
 // other client is in the same range, so nothing legitimate comes near this,
@@ -42,9 +45,17 @@ pub(super) async fn batch(
     Extension(permission): Extension<Permission>,
     headers: axum::http::HeaderMap,
     Json(request): Json<BatchRequest>,
-) -> Result<Json<BatchResponse>, Error> {
+) -> Result<LfsJson<BatchResponse>, Error> {
     if request.operation == Operation::Upload {
         permission.require_write()?;
+    }
+
+    if let Some(algo) = request
+        .hash_algo
+        .as_deref()
+        .filter(|algo| *algo != HASH_ALGO)
+    {
+        return Err(Error::UnsupportedHashAlgo(algo.to_owned()));
     }
 
     if request.objects.len() > BATCH_CEILING {
@@ -89,8 +100,9 @@ pub(super) async fn batch(
         .collect()
         .await;
 
-    Ok(Json(BatchResponse {
+    Ok(LfsJson(BatchResponse {
         transfer: negotiate(&request.transfers),
+        hash_algo: HASH_ALGO,
         objects,
     }))
 }

@@ -405,3 +405,44 @@ async fn a_lock_taken_through_one_spelling_of_the_namespace_holds_for_every_othe
         1
     );
 }
+
+#[tokio::test]
+async fn every_lock_response_is_in_the_git_lfs_media_type() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let media_type = "application/vnd.git-lfs+json";
+
+    let created = lock(app.clone(), "writer", SCENE).await;
+    assert_eq!(created.headers()["content-type"], media_type);
+    let id = read_json(created).await["lock"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let request = Request::builder()
+        .uri("/FerrLabs/Blastlands/locks")
+        .header("authorization", credentials("writer"))
+        .body(Body::empty())
+        .unwrap();
+    let listed = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(listed.headers()["content-type"], media_type);
+
+    let verified = post(
+        app.clone(),
+        "writer",
+        "/FerrLabs/Blastlands/locks/verify",
+        json!({}),
+    )
+    .await;
+    assert_eq!(verified.headers()["content-type"], media_type);
+
+    let unlocked = post(
+        app,
+        "writer",
+        &format!("/FerrLabs/Blastlands/locks/{id}/unlock"),
+        json!({ "force": false }),
+    )
+    .await;
+    assert_eq!(unlocked.headers()["content-type"], media_type);
+}

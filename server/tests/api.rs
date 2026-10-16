@@ -762,3 +762,77 @@ async fn a_name_that_is_not_a_digest_never_reaches_storage() {
         StatusCode::UNPROCESSABLE_ENTITY
     );
 }
+
+#[tokio::test]
+async fn a_batch_names_the_hash_algorithm_it_used() {
+    let root = tempfile::tempdir().unwrap();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({ "operation": "download", "objects": [] }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["hash_algo"], "sha256");
+}
+
+#[tokio::test]
+async fn a_batch_asking_for_sha256_is_answered() {
+    let root = tempfile::tempdir().unwrap();
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({ "operation": "download", "hash_algo": "sha256", "objects": [] }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["hash_algo"], "sha256");
+}
+
+#[tokio::test]
+async fn a_batch_asking_for_another_hash_algorithm_is_a_conflict() {
+    let root = tempfile::tempdir().unwrap();
+    let payload = b"payload".to_vec();
+    let oid = oid_of(&payload);
+
+    let (status, body) = batch(
+        app(&root),
+        serde_json::json!({
+            "operation": "upload",
+            "hash_algo": "sha512",
+            "objects": [{ "oid": oid, "size": payload.len() }]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("sha512"),
+        "the client needs to know which algorithm was refused: {body}"
+    );
+}
+
+#[tokio::test]
+async fn a_batch_answers_in_the_git_lfs_media_type() {
+    let root = tempfile::tempdir().unwrap();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/FerrLabs/Demo/objects/batch")
+        .header("content-type", "application/vnd.git-lfs+json")
+        .body(Body::from(
+            serde_json::json!({ "operation": "download", "objects": [] }).to_string(),
+        ))
+        .unwrap();
+
+    let response = app(&root).oneshot(request).await.unwrap();
+
+    assert_eq!(
+        response.headers()["content-type"],
+        "application/vnd.git-lfs+json"
+    );
+}

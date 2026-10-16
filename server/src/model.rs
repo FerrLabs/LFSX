@@ -22,6 +22,7 @@ pub struct BatchRequest {
     #[serde(default)]
     pub transfers: Vec<String>,
     pub objects: Vec<ObjectId>,
+    pub hash_algo: Option<String>,
     #[serde(rename = "ref")]
     pub reference: Option<Reference>,
 }
@@ -48,6 +49,7 @@ pub struct DedupeRequest {
 #[derive(Debug, Serialize)]
 pub struct BatchResponse {
     pub transfer: &'static str,
+    pub hash_algo: &'static str,
     pub objects: Vec<ObjectSpec>,
 }
 
