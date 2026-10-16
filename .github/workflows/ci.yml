@@ -497,3 +497,55 @@ jobs:
           if grep -q 'kind: PersistentVolumeClaim' ha.yaml; then
             echo "::error::a ReadWriteOnce claim cannot be shared by two pods"; exit 1
           fi
+
+      - name: The pod never mounts a token, and replicas get a disruption budget
+        run: |
+          set -euo pipefail
+
+          base="--set config.publicUrl=https://lfs.example.com"
+          bucket="$base --set storage.type=s3 --set storage.s3.endpoint=https://s3.example.com --set storage.s3.bucket=assets --set storage.s3.existingSecret=lfsx-s3 --set persistence.enabled=false"
+
+          helm template lfsx chart $base --set serviceAccount.create=false > noaccount.yaml
+          grep -q 'automountServiceAccountToken: false' noaccount.yaml || { echo "::error::the pod mounts the default service account token"; exit 1; }
+
+          helm template lfsx chart $base > single.yaml
+          if grep -q 'kind: PodDisruptionBudget' single.yaml; then
+            echo "::error::one replica got a disruption budget that would block every drain"; exit 1
+          fi
+
+          helm template lfsx chart $bucket --set replicaCount=2 > pdb.yaml
+          grep -q 'kind: PodDisruptionBudget' pdb.yaml || { echo "::error::two replicas have no disruption budget"; exit 1; }
+          grep -q 'maxUnavailable: 1' pdb.yaml || { echo "::error::the disruption budget does not cap evictions at one"; exit 1; }
+
+          helm template lfsx chart $bucket --set replicaCount=2 --set podDisruptionBudget.enabled=false > nopdb.yaml
+          if grep -q 'kind: PodDisruptionBudget' nopdb.yaml; then
+            echo "::error::podDisruptionBudget.enabled=false still rendered a budget"; exit 1
+          fi
+
+      - name: Forgejo and named forges are validated at render time
+        run: |
+          set -euo pipefail
+
+          base="--set config.publicUrl=https://lfs.example.com"
+
+          helm template lfsx chart $base --set auth.mode=forgejo --set auth.giteaApiUrl=https://git.example.com/api/v1 > forgejo.yaml
+          grep -q 'LFSX_GITEA_API_URL' forgejo.yaml || { echo "::error::auth.mode=forgejo lost its API URL"; exit 1; }
+
+          helm template lfsx chart $base --set 'auth.forges[0].name=work' --set 'auth.forges[0].mode=forgejo' --set 'auth.forges[0].apiUrl=https://git.example.com/api/v1' > forge.yaml
+          grep -q 'LFSX_FORGE_WORK_API_URL' forge.yaml || { echo "::error::a named forge lost its API URL"; exit 1; }
+
+          refuses() {
+            if helm template lfsx chart "$@" >/dev/null 2>&1; then
+              echo "::error::the chart rendered a forge the server would panic on: $*"
+              exit 1
+            fi
+          }
+
+          refuses $base --set auth.mode=forgejo
+          refuses $base --set 'auth.forges[0].name=work' --set 'auth.forges[0].mode=gitea'
+          refuses $base --set 'auth.forges[0].name=work' --set 'auth.forges[0].mode=forgejo'
+
+      - name: A RUST_LOG directive is a valid log level
+        run: |
+          helm template lfsx chart --set config.publicUrl=https://lfs.example.com --set-json 'config.logLevel="info,lfsx::audit=debug"' > loglevel.yaml
+          grep -q 'lfsx::audit=debug' loglevel.yaml || { echo "::error::a RUST_LOG directive did not reach the pod"; exit 1; }

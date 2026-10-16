@@ -41,5 +41,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          cargo publish -p lfsx-server
-          cargo publish -p lfsx
+          publish() {
+            version=$(cargo metadata --no-deps --format-version 1 | jq -r --arg crate "$1" '.packages[] | select(.name == $crate) | .version')
+            if curl -fsS -A lfsx-publish -o /dev/null "https://crates.io/api/v1/crates/$1/$version"; then
+              echo "$1 $version is already on crates.io, skipping"
+            else
+              cargo publish -p "$1"
+            fi
+          }
+
+          publish lfsx-server
+          publish lfsx

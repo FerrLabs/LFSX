@@ -55,10 +55,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- toYaml $annotations -}}
 {{- end -}}
 
+{{- define "lfsx.giteaLike" -}}
+{{- if or (eq .Values.auth.mode "gitea") (eq .Values.auth.mode "forgejo") -}}true{{- end -}}
+{{- end -}}
+
 {{- define "lfsx.forgeApiUrl" -}}
 {{- if eq .Values.auth.mode "gitlab" -}}
 {{- .Values.auth.gitlabApiUrl -}}
-{{- else if eq .Values.auth.mode "gitea" -}}
+{{- else if include "lfsx.giteaLike" . -}}
 {{- .Values.auth.giteaApiUrl -}}
 {{- else -}}
 {{- .Values.auth.githubApiUrl -}}
@@ -113,9 +117,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     {{- fail "auth.githubApp only means something with auth.mode=github" -}}
   {{- end -}}
 {{- end -}}
-{{- if eq .Values.auth.mode "gitea" -}}
+{{- if include "lfsx.giteaLike" . -}}
   {{- if not .Values.auth.giteaApiUrl -}}
-    {{- fail "auth.mode=gitea needs auth.giteaApiUrl: Gitea and Forgejo have no default API host, point it at https://git.example.com/api/v1" -}}
+    {{- fail "auth.mode=gitea or forgejo needs auth.giteaApiUrl: Gitea and Forgejo have no default API host, point it at https://git.example.com/api/v1" -}}
+  {{- end -}}
+{{- end -}}
+{{- range .Values.auth.forges -}}
+  {{- if and (or (eq .mode "gitea") (eq .mode "forgejo")) (not .apiUrl) -}}
+    {{- fail (printf "auth.forges %q has mode %s and needs apiUrl: Gitea and Forgejo have no default API host, point it at https://git.example.com/api/v1" .name .mode) -}}
   {{- end -}}
 {{- end -}}
 {{- if gt (int .Values.replicaCount) 1 -}}
