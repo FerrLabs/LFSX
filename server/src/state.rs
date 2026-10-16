@@ -19,6 +19,7 @@ pub struct AppState {
     // transfer keeps bytes moving, which for a download means as long as the
     // client keeps reading the body, so the permit travels with the stream.
     pub transfers: Option<Arc<Semaphore>>,
+    pub transfer_idle: std::time::Duration,
     pub started: std::time::Instant,
     pub session_key: tokio::sync::OnceCell<Vec<u8>>,
 }
