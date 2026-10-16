@@ -11,6 +11,19 @@ the nginx annotations that keep large uploads from being rejected, a single repl
 `ReadWriteOnce` volume with the `Recreate` strategy, and probes on `/health` and `/ready`. See
 [chart/README.md](../chart/README.md).
 
+### Rollouts drain, and slow boots are not crashes
+
+On SIGTERM the server stops accepting connections and waits for running transfers to finish. Kubernetes
+only waits `terminationGracePeriodSeconds` before sending SIGKILL, and its default of 30 seconds
+would cut any multi-GB transfer, so the chart sets it to an hour. A `preStop` hook runs
+`lfsx-server sleep 10` first (`preStopSeconds`), keeping the pod serving while the endpoint is
+removed, so requests routed to it during that window are not refused. The image is distroless, which
+is why the sleep is a subcommand of the server rather than `sleep 10`.
+
+A `startupProbe` on `/health` allows 30 minutes (`startupProbe.failureThreshold` times
+`periodSeconds`) before the pod is restarted; the liveness probe only starts once it passes. The
+staging cleanup that walks the store runs after the listener is bound, so it does not delay it.
+
 ### More than one replica needs a bucket
 
 A volume deployment is one pod, and the chart refuses to render more: an upload is staged and

@@ -146,6 +146,12 @@ ingress:
     enabled: true
     secretName: ""
 
+terminationGracePeriodSeconds: 3600
+preStopSeconds: 10
+startupProbe:
+  periodSeconds: 10
+  failureThreshold: 180
+
 resources:
   requests:
     cpu: 50m
