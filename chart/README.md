@@ -76,7 +76,7 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `storage.s3.region` | `us-east-1` | signing region; MinIO and Garage accept the default, AWS wants the bucket one |
 | `storage.s3.pathStyle` | `true` | `false` for virtual-host addressing; MinIO and Garage want path style |
 | `config.publicUrl` | derived from `ingress.host` | URL clients reach; unset means each request is answered on the host it used |
-| `config.logLevel` | `info` | `RUST_LOG` filter |
+| `config.logLevel` | `info` | `RUST_LOG` filter, a bare level or directives such as `info,lfsx::audit=debug` |
 | `config.otlpEndpoint` | `""` | HTTP traces URL of an OTLP collector; empty keeps traces off |
 | `storage.s3.cacheDir` | `""` | directory holding a local copy of what the bucket serves; empty means every download is a bucket round trip |
 | `storage.s3.cacheMaxBytes` | `""` | bytes that cache may hold; required with a `cacheDir`, which is refused without it |
@@ -89,10 +89,10 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `storage.gcs.endpoint` | `""` | API endpoint override, empty means `https://storage.googleapis.com` |
 | `storage.gcs.existingSecret` / `keyFileKey` | `""` / `key.json` | secret holding a service account key file, mounted read-only; leave it empty for workload identity, with the GCP service account named through `serviceAccount.annotations` (`iam.gke.io/gcp-service-account`) |
 | `storage.gcs.presign`, `cacheDir`, `cacheMaxBytes` | as `storage.s3` | same meaning as for a bucket; a download redirect needs the key file |
-| `auth.mode` | `github` | `github`, `gitlab`, `gitea` (which also covers Forgejo), or `disabled` which accepts every request |
+| `auth.mode` | `github` | `github`, `gitlab`, `gitea`, `forgejo` (the same API as `gitea`), or `disabled` which accepts every request |
 | `auth.githubApiUrl` | `https://api.github.com` | point at your GitHub Enterprise host |
 | `auth.gitlabApiUrl` | `https://gitlab.com/api/v4` | point at your self-managed GitLab |
-| `auth.giteaApiUrl` | `""` | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1`; required with `auth.mode: gitea`, there is no default host to fall back to |
+| `auth.giteaApiUrl` | `""` | API root of your Gitea or Forgejo instance, `https://git.example.com/api/v1`; required with `auth.mode: gitea` or `forgejo`, there is no default host to fall back to |
 | `auth.githubApp.appId` | `""` | GitHub App id lending the server its own quota for anonymous lookups; empty keeps today's unauthenticated ask |
 | `auth.githubApp.existingSecret` | `""` | Secret holding the App's RSA private key; required with an `appId`, the chart never takes the key as a value |
 | `auth.githubApp.key` | `private-key.pem` | key of the PEM inside that Secret |
@@ -134,7 +134,9 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `preStopSeconds` | `10` | seconds the pod keeps serving after it is marked terminating, so the endpoint is removed everywhere before the listener closes; runs as `lfsx-server sleep` since the image has no shell |
 | `startupProbe.periodSeconds` / `startupProbe.failureThreshold` | `10` / `180` | `/health` is polled for up to 30 minutes before the pod is restarted, so a slow boot over a large store is not a crash loop; liveness starts once it passes |
 | `resources` | 50m / 64Mi requested | streaming means memory stays flat whatever the object size |
-| `serviceAccount.create` | `true` | token automount is off either way |
+| `serviceAccount.create` | `true` | token automount is off either way, on the pod itself too |
+| `podDisruptionBudget.enabled` | `true` | renders a PodDisruptionBudget when `replicaCount` is above 1, so a drain cannot evict every replica at once |
+| `podDisruptionBudget.maxUnavailable` | `1` | replicas a voluntary disruption may take down together |
 | `podAnnotations` | Prometheus scrape hints | set to `{}` if your cluster discovers targets some other way |
 
 `limits.maxObjectSize`, `limits.repoQuota`, `locks.maxAge`, `gc.grace` and `gc.stagingMaxAge` take digits only: `5Gi` is refused at

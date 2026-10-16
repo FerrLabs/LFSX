@@ -170,6 +170,10 @@ resources:
     memory: 512Mi
     ephemeral-storage: 2Gi
 
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
 serviceAccount:
   create: true
   name: ""
