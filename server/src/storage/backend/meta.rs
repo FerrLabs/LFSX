@@ -55,7 +55,9 @@ impl Store {
                 let directory = store.root.join(DIRECTORY);
                 let staged = stage(&directory, name, &bytes).await?;
                 let linked = tokio::fs::hard_link(&staged, directory.join(name)).await;
-                tokio::fs::remove_file(&staged).await?;
+                if let Err(error) = tokio::fs::remove_file(&staged).await {
+                    tracing::warn!(%error, path = %staged.display(), "a staged meta file could not be removed");
+                }
                 match linked {
                     Ok(()) => Ok(true),
                     Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
