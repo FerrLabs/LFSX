@@ -41,11 +41,18 @@ fn fill_behind(cache: std::sync::Arc<super::cache::Cache>, bucket: S3Store, oid:
     // An object that cannot fit is never fetched: filling it would evict the
     // whole cache and then itself, leaving nothing behind and doing it again on
     // the next download.
-    if !cache.fits(size) || !cache.claim(&oid) {
+    if !cache.fits(size) {
+        return;
+    }
+    let Some(slot) = cache.fill_slot() else {
+        return;
+    };
+    if !cache.claim(&oid) {
         return;
     }
 
     tokio::spawn(async move {
+        let _slot = slot;
         let filled = async {
             use futures_util::StreamExt;
 

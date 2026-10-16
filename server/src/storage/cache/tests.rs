@@ -175,3 +175,96 @@ async fn a_short_body_is_refused_rather_than_cached() {
     assert!(cache.open(&oid(9)).await.is_none());
     assert_eq!(cache.stats().bytes, 0);
 }
+
+fn incoming(root: &tempfile::TempDir) -> Vec<String> {
+    std::fs::read_dir(root.path().join("cache"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".incoming-"))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_failed_fill_leaves_no_incoming_file() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = cache(&root, 1 << 20);
+    let blocker = root.path().join("cache").join(oid(10).to_string());
+    std::fs::create_dir_all(&blocker).unwrap();
+    std::fs::write(blocker.join("occupied"), b"x").unwrap();
+
+    let chunk = axum::body::Bytes::from_static(b"payload");
+    let filled = cache
+        .fill(&oid(10), 7, futures_util::stream::once(async { Ok(chunk) }))
+        .await;
+
+    assert!(filled.is_err());
+    assert!(incoming(&root).is_empty());
+}
+
+#[tokio::test]
+async fn a_leftover_incoming_file_is_swept_at_startup() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path().join("cache");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(format!(".incoming-{}", oid(11))), b"half").unwrap();
+
+    let cache = cache(&root, 1 << 20);
+
+    assert!(incoming(&root).is_empty());
+    assert_eq!(cache.stats().bytes, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn touching_never_exposes_a_truncated_digest() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = std::sync::Arc::new(cache(&root, 1 << 20));
+    fill(&cache, &oid(12), b"a pack").await;
+    let digest = root.path().join("cache").join(format!("{}.b3", oid(12)));
+    let expected = std::fs::read_to_string(&digest).unwrap();
+
+    let toucher = {
+        let cache = cache.clone();
+        tokio::spawn(async move {
+            for _ in 0..500 {
+                cache.touch(&oid(12)).await;
+            }
+        })
+    };
+    while !toucher.is_finished() {
+        let seen = std::fs::read_to_string(&digest).unwrap();
+        assert_eq!(seen, expected);
+    }
+    toucher.await.unwrap();
+}
+
+#[tokio::test]
+async fn touching_moves_the_recency_signal_forward() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = cache(&root, 1 << 20);
+    fill(&cache, &oid(13), b"a pack").await;
+    let digest = root.path().join("cache").join(format!("{}.b3", oid(13)));
+    let past = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    std::fs::File::options()
+        .write(true)
+        .open(&digest)
+        .unwrap()
+        .set_modified(past)
+        .unwrap();
+
+    cache.touch(&oid(13)).await;
+
+    assert!(std::fs::metadata(&digest).unwrap().modified().unwrap() > past);
+}
+
+#[tokio::test]
+async fn fills_never_exceed_the_bound() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = cache(&root, 1 << 20);
+
+    let held: Vec<_> = std::iter::from_fn(|| cache.fill_slot()).collect();
+    assert_eq!(held.len(), super::FILL_LIMIT);
+
+    drop(held);
+    assert!(cache.fill_slot().is_some());
+}
