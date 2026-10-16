@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.19] - 2026-10-16
+
+### Bug Fixes
+
+- fix(storage): keep the staged file until the shared content is linked (#650)
+
 ## [1.26.18] - 2026-10-16
 
 ### Bug Fixes
