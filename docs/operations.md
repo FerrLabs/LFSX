@@ -143,8 +143,8 @@ is gone, recover it the way the next section describes.
 
 With `LFSX_STORAGE=s3`, `azure` or `gcs` the objects, the locks and the `.lfsx/` files above are all
 keys in the bucket: `.content/`, `<org>/<repo>/` markers, `.locks/`, `.lfsx/`, plus the `.refs/`
-and `.sizes/` indexes. The volume is a write buffer and holds nothing worth keeping, so there is
-nothing to back up there and no `.part` file to care about. The encryption key is still yours to
+and `<org>/<repo>/.sizes/` indexes. The volume is a write buffer and holds nothing worth keeping,
+so there is nothing to back up there and no `.part` file to care about. The encryption key is still yours to
 keep, exactly as above.
 
 `rsync -aH` does not apply, and the hard-link warning goes with it: a marker is an empty key, not a
@@ -160,11 +160,11 @@ What protects a bucket is configured on the bucket, not in this server. Two sett
   `dashboard-tokens.json`, which is useful, and every lock that was ever taken and released, which
   is not: add a lifecycle rule that expires noncurrent versions under `.locks/`.
 - **Replication** to a second bucket or region survives losing the first, and replicates deletions
-  and mistakes along with everything else, so it is a second copy and not a backup. Keep it in another account if a leaked credential is part
-  of what you plan for. It is also
-  asynchronous and does not order keys: a replica can hold a marker whose content object has not
-  arrived. After promoting one, run `lfsx doctor` per repository and expect to re-push what it
-  reports missing.
+  and mistakes along with everything else, so it is a second copy and not a backup. Keep it in
+  another account if a leaked credential is part of what you plan for. It is also asynchronous
+  and does not order keys: a replica can hold a marker whose content object has not arrived.
+  After promoting one, run `lfsx doctor` per repository and expect to re-push what it reports
+  missing.
 
 Restoring is copying the keys back to an empty bucket, or promoting a replica, and pointing
 `LFSX_S3_BUCKET` (or the Azure or GCS equivalent) at it. Start the server afterwards: `/ready`
