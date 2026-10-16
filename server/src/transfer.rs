@@ -46,10 +46,17 @@ where
 
     tokio::spawn(async move {
         let _permit = permit;
-        while let Ok(Some(chunk)) = tokio::time::timeout(idle, chunks.next()).await {
-            let failed = chunk.is_err();
-            let sent = tokio::time::timeout(idle, sender.send(chunk.map_err(Into::into))).await;
-            if failed || !matches!(sent, Ok(Ok(()))) {
+        loop {
+            let (item, last) = match tokio::time::timeout(idle, chunks.next()).await {
+                Ok(Some(chunk)) => {
+                    let failed = chunk.is_err();
+                    (chunk.map_err(Into::into), failed)
+                }
+                Ok(None) => break,
+                Err(_) => (Err(stalled().into()), true),
+            };
+            let sent = tokio::time::timeout(idle, sender.send(item)).await;
+            if last || !matches!(sent, Ok(Ok(()))) {
                 break;
             }
         }

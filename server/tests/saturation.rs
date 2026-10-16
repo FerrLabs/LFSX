@@ -143,9 +143,18 @@ async fn a_download_holds_its_slot_until_the_body_is_dropped() {
 
     // Dropping the body releases the permit.
     drop(held);
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let after = app.oneshot(get(&oid)).await.unwrap();
-    assert_eq!(after.status(), StatusCode::OK);
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let after = app.clone().oneshot(get(&oid)).await.unwrap();
+        if after.status() == StatusCode::OK {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the slot was never given back"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }
 
 // Zero is the off switch, for the operator whose proxy already does this job.
