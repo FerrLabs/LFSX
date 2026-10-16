@@ -15,8 +15,8 @@ fn oid_of(payload: &[u8]) -> String {
 fn store_the_old_way(root: &Path, repo: &str, payload: &[u8]) -> PathBuf {
     let oid = oid_of(payload);
     let fanout = root
-        .join("FerrLabs")
-        .join(repo)
+        .join("ferrlabs")
+        .join(repo.to_ascii_lowercase())
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();
@@ -140,7 +140,7 @@ async fn an_object_that_does_not_match_its_name_is_left_where_it_is() {
     let oid = oid_of(b"the name it was given");
     let fanout = root
         .path()
-        .join("FerrLabs/Blastlands")
+        .join("ferrlabs/blastlands")
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();

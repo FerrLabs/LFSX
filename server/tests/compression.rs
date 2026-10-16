@@ -58,7 +58,7 @@ async fn download(app: Router, oid: &str, range: Option<&str>) -> (StatusCode, V
 fn on_disk(root: &tempfile::TempDir, oid: &str) -> u64 {
     std::fs::metadata(
         root.path()
-            .join("FerrLabs/LFSX")
+            .join("ferrlabs/lfsx")
             .join(&oid[0..2])
             .join(&oid[2..4])
             .join(oid),

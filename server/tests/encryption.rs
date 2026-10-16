@@ -63,7 +63,7 @@ async fn download(app: Router, oid: &str, range: Option<&str>) -> (StatusCode, V
 fn stored(root: &tempfile::TempDir, oid: &str) -> Vec<u8> {
     std::fs::read(
         root.path()
-            .join("FerrLabs/LFSX")
+            .join("ferrlabs/lfsx")
             .join(&oid[0..2])
             .join(&oid[2..4])
             .join(oid),

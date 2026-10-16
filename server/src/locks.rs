@@ -132,7 +132,7 @@ impl LockStore {
     // The same layout in both, so an operator reading a bucket sees what they
     // would see on the volume.
     fn prefix(ns: &Namespace) -> String {
-        format!(".locks/{}/{}/", ns.stored_org(), ns.repo())
+        format!(".locks/{}/{}/", ns.stored_org(), ns.stored_repo())
     }
 
     fn key_of(ns: &Namespace, id: &str) -> String {
@@ -396,7 +396,9 @@ impl LockStore {
     }
 
     fn directory_in(root: &Path, ns: &Namespace) -> PathBuf {
-        root.join(".locks").join(ns.stored_org()).join(ns.repo())
+        root.join(".locks")
+            .join(ns.stored_org())
+            .join(ns.stored_repo())
     }
 
     fn path_in(root: &Path, ns: &Namespace, id: &str) -> PathBuf {

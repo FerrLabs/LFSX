@@ -114,7 +114,7 @@ async fn the_same_repository_on_two_forges_holds_its_own_objects() {
 
     assert_eq!(stats(served.app.clone(), "/-/work").await["objects"], 1);
     assert_eq!(stats(served.app.clone(), "").await["objects"], 0);
-    assert!(served.root.path().join("work~FerrLabs/LFSX").is_dir());
+    assert!(served.root.path().join("work~ferrlabs/lfsx").is_dir());
     assert!(!served.root.path().join("FerrLabs").exists());
 }
 

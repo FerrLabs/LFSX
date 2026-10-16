@@ -299,6 +299,24 @@ fn keyspace(config: &Config) -> Option<Keyspace> {
     })
 }
 
+pub async fn canonicalise_namespaces(config: &Config) -> Result<u64, error::Error> {
+    use crate::storage::canonical::{fold_bucket, fold_local};
+
+    let folded = match keyspace(config) {
+        Some(keys) => fold_bucket(&keys).await?,
+        None => fold_local(&config.storage_root).await?,
+    };
+
+    if folded > 0 {
+        tracing::info!(
+            folded,
+            "merged storage written under case variants of a namespace into the lowercase name"
+        );
+    }
+
+    Ok(folded)
+}
+
 pub fn store(config: &Config) -> Store {
     backends(config).0
 }

@@ -30,8 +30,8 @@ fn noise(len: usize) -> Vec<u8> {
 fn store_uncompressed(root: &Path, repo: &str, payload: &[u8]) -> PathBuf {
     let oid = hex::encode(Sha256::digest(payload));
     let fanout = root
-        .join("FerrLabs")
-        .join(repo)
+        .join("ferrlabs")
+        .join(repo.to_ascii_lowercase())
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();
@@ -130,7 +130,7 @@ async fn an_object_that_does_not_hash_to_its_name_is_refused() {
     let oid = hex::encode(Sha256::digest(b"the name it carries"));
     let fanout = root
         .path()
-        .join("FerrLabs/Blastlands")
+        .join("ferrlabs/blastlands")
         .join(&oid[0..2])
         .join(&oid[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();

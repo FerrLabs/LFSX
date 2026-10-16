@@ -2,12 +2,13 @@ use crate::error::Error;
 
 const FORGE_SEPARATOR: char = '~';
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Namespace {
     forge: Option<String>,
     org: String,
     repo: String,
     stored_org: String,
+    stored_repo: String,
 }
 
 impl Namespace {
@@ -17,7 +18,8 @@ impl Namespace {
         (is_well_formed(&org) && is_well_formed(&repo))
             .then(|| Self {
                 forge: None,
-                stored_org: org.clone(),
+                stored_org: org.to_ascii_lowercase(),
+                stored_repo: repo.to_ascii_lowercase(),
                 org,
                 repo,
             })
@@ -36,7 +38,7 @@ impl Namespace {
         let ns = Self::new(org, repo)?;
 
         Ok(Self {
-            stored_org: format!("{forge}{FORGE_SEPARATOR}{}", ns.org),
+            stored_org: format!("{forge}{FORGE_SEPARATOR}{}", ns.stored_org),
             forge: Some(forge),
             ..ns
         })
@@ -58,6 +60,10 @@ impl Namespace {
         &self.stored_org
     }
 
+    pub fn stored_repo(&self) -> &str {
+        &self.stored_repo
+    }
+
     pub fn upstream(&self) -> String {
         format!("{}/{}", self.org, self.repo)
     }
@@ -70,9 +76,19 @@ impl Namespace {
     }
 }
 
+impl PartialEq for Namespace {
+    fn eq(&self, other: &Self) -> bool {
+        self.forge == other.forge
+            && self.stored_org == other.stored_org
+            && self.stored_repo == other.stored_repo
+    }
+}
+
+impl Eq for Namespace {}
+
 impl std::fmt::Display for Namespace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.stored_org, self.repo)
+        write!(f, "{}/{}", self.stored_org, self.stored_repo)
     }
 }
 

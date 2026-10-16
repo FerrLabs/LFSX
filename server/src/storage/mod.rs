@@ -1,5 +1,6 @@
 mod backend;
 pub(crate) mod cache;
+pub(crate) mod canonical;
 pub(crate) mod codec;
 pub mod crypt;
 mod dedupe;
@@ -217,7 +218,7 @@ impl LocalStore {
         let (first, second) = oid.fanout();
         self.root
             .join(ns.stored_org())
-            .join(ns.repo())
+            .join(ns.stored_repo())
             .join(first)
             .join(second)
             .join(oid.as_str())

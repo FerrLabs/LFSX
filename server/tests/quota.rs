@@ -232,3 +232,37 @@ async fn collecting_makes_room_the_next_push_can_use() {
         "the budget has to follow the disk within the push that freed it, not a cache expiry later"
     );
 }
+
+#[tokio::test]
+async fn case_variants_of_a_namespace_share_one_quota() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url);
+    fill(app.clone()).await;
+
+    for spelling in ["FERRLABS/lfsx", "ferrlabs/LFSX", "fErRlAbS/LfSx"] {
+        let payload = b"two hundred bytes that cannot fit beside the first nine hundred".repeat(4);
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/{spelling}/objects/batch"))
+            .header("content-type", "application/vnd.git-lfs+json")
+            .header("authorization", credentials("writer"))
+            .body(Body::from(
+                json!({ "operation": "upload", "objects": [object(&payload)] }).to_string(),
+            ))
+            .unwrap();
+
+        let batch = read_json(app.clone().oneshot(request).await.unwrap()).await;
+
+        assert_eq!(
+            batch["objects"][0]["error"]["code"], 507,
+            "{spelling}: {batch}"
+        );
+    }
+    assert_eq!(
+        std::fs::read_dir(root.path().join("ferrlabs"))
+            .unwrap()
+            .count(),
+        1
+    );
+}

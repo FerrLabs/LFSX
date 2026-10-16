@@ -6,7 +6,7 @@ fn store_with_files(files: &[(&str, &[u8])]) -> (tempfile::TempDir, LocalStore) 
     let root = tempfile::tempdir().unwrap();
     let fanout = root
         .path()
-        .join("FerrLabs/Blastlands")
+        .join("ferrlabs/blastlands")
         .join(&OID[0..2])
         .join(&OID[2..4]);
     std::fs::create_dir_all(&fanout).unwrap();
@@ -35,7 +35,7 @@ async fn an_abandoned_staging_file_is_reclaimed_with_its_size() {
     assert!(
         !root
             .path()
-            .join("FerrLabs/Blastlands")
+            .join("ferrlabs/blastlands")
             .join(&OID[0..2])
             .join(&OID[2..4])
             .join(format!("{OID}.0.part"))
@@ -69,7 +69,7 @@ async fn objects_are_never_touched() {
     assert_eq!(reclaimed.files, 1);
     assert!(
         root.path()
-            .join("FerrLabs/Blastlands")
+            .join("ferrlabs/blastlands")
             .join(&OID[0..2])
             .join(&OID[2..4])
             .join(OID)

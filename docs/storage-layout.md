@@ -10,6 +10,15 @@ $LFSX_STORAGE_ROOT/<org>/<repo>/<oid[0:2]>/<oid[2:4]>/<oid>   a hard link per re
 A repository on one of the [other forges](forges.md) has `<forge>~<org>` in place of `<org>`, so
 `acme/game` on the forge named `work` lives under `work~acme/game`.
 
+Directory and key names are lowercase whatever case the client used, because forges resolve
+`Acme/Repo` and `acme/repo` to the same repository and so does the allow-list. All spellings share
+one quota, one set of locks and one `lfsx gc`. A store written by an older version keeps the
+spelling it was written under, and on first start the server merges those directories (and, in a
+bucket, the keys under them) into the lowercase name. The merge is idempotent and an interrupted run
+is finished on the next start. In a bucket it is recorded in `.lfsx/namespace-case` so the bucket is
+listed once; uploads in flight under `.incoming/` are not moved and are reclaimed as usual. Run one
+replica through the first start of an upgraded bucket deployment rather than several at once.
+
 **The bytes are stored once.** Two projects sharing the same Synty or Quixel pack cost the disk
 once, however many repositories push it, and for a studio that is most of the disk. Each
 repository holds a hard link, so the filesystem keeps the reference count and the content survives

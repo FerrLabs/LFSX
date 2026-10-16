@@ -116,7 +116,7 @@ grep -Eqi '^(error|fatal)' "${work}/push.log" && {
 
 echo "--- the object landed in the documented layout"
 oid=$(digest <assets/huge.bin)
-stored="${work}/objects/${namespace}/${oid:0:2}/${oid:2:2}/${oid}"
+stored="${work}/objects/$(printf %s "$namespace" | tr '[:upper:]' '[:lower:]')/${oid:0:2}/${oid:2:2}/${oid}"
 [ -f "$stored" ] || fail "expected the object at ${stored}"
 
 echo "--- clone it back and compare the bytes"
