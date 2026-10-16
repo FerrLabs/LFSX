@@ -4,9 +4,10 @@ mod doctor;
 mod gc;
 mod summary;
 
+use std::path::Path;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use client::Server;
@@ -19,7 +20,7 @@ use client::Server;
 )]
 struct Cli {
     #[arg(long, env = "LFSX_URL")]
-    url: String,
+    url: Option<String>,
 
     #[arg(long, env = "LFSX_TOKEN", hide_env_values = true)]
     token: Option<String>,
@@ -36,10 +37,13 @@ enum Command {
     },
     Gc {
         #[arg(long)]
-        repo: String,
+        repo: Option<String>,
 
         #[arg(long)]
         dry_run: bool,
+
+        #[arg(long)]
+        no_review_refs: bool,
     },
     Dedupe {
         #[arg(long)]
@@ -76,7 +80,11 @@ impl Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let server = Server::new(&cli.url, cli.token, cli.command.request_timeout())?;
+    let url = match &cli.command {
+        Command::Gc { .. } => gc::resolve_url(Path::new("."), cli.url.as_deref())?,
+        _ => cli.url.clone().context("--url or LFSX_URL is required")?,
+    };
+    let server = Server::new(&url, cli.token, cli.command.request_timeout())?;
 
     match cli.command {
         Command::Doctor { repo } => {
@@ -87,11 +95,13 @@ fn main() -> Result<()> {
                 std::process::exit(1);
             }
         }
-        Command::Gc { repo, dry_run } => {
-            println!(
-                "{}",
-                summary::gc(&gc::run(&server, &repo, dry_run)?, dry_run)
-            );
+        Command::Gc {
+            repo,
+            dry_run,
+            no_review_refs,
+        } => {
+            let report = gc::run(&server, repo.as_deref(), dry_run, !no_review_refs)?;
+            println!("{}", summary::gc(&report, dry_run));
         }
         Command::Dedupe { repo, dry_run } => {
             let report = dedupe::run(&server, &repo, dry_run)?;
