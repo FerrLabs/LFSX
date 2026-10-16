@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.13] - 2026-10-16
+
+### Bug Fixes
+
+- fix(chart): use Recreate for a bucket deployment over a ReadWriteOnce claim (#641)
+
 ## [1.26.12] - 2026-10-16
 
 ### Bug Fixes
