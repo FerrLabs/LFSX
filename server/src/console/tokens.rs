@@ -3,6 +3,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::audit::audit_log;
 use crate::error::Error;
 use crate::storage::Store;
 
@@ -73,6 +74,7 @@ pub async fn create(store: &Store, name: &str) -> Result<String, Refusal> {
         hash: digest(&token),
     });
     keep(store, &issued).await?;
+    audit_log!(name, "a dashboard token was created");
 
     Ok(token)
 }
@@ -85,7 +87,10 @@ pub async fn revoke(store: &Store, name: &str) -> Result<(), Refusal> {
         return Err(Refusal::Unknown(name.to_owned()));
     }
 
-    Ok(keep(store, &issued).await?)
+    keep(store, &issued).await?;
+    audit_log!(name, "a dashboard token was revoked");
+
+    Ok(())
 }
 
 impl Issued {

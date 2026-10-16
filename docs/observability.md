@@ -60,7 +60,8 @@ RUST_LOG=lfsx::audit=info
 ```
 
 What is on it, each with the actor (the forge login of the token that asked, or `anonymous` with
-auth disabled) and the namespace:
+auth disabled) and the namespace. Dashboard events name the viewer instead, as `Forge("login")` or
+`Token("name")`, and carry no namespace:
 
 | Event | Also carries |
 |---|---|
@@ -70,6 +71,10 @@ auth disabled) and the namespace:
 | a lock was force-opened over its owner | `path`, `owner` |
 | a stale lock was taken over | `path`, `previous_owner`, `untouched_for_seconds` |
 | a bucket upload was adopted (pre-signed verify) | `oid`, `bytes` |
+| a retain sweep failed part way | `error` (objects may already be unlinked) |
+| dashboard access settings were changed or reset | `file`, `before`, `after` |
+| someone signed in to the dashboard | the actor only |
+| a dashboard token was created or revoked (`lfsx-server dashboard token`) | `name` (the CLI logs to stderr) |
 
 Dry runs are reads and stay off the trail. The actor is resolved before the mutation runs, so a
 privileged operation that cannot be attributed is refused rather than performed anonymously.

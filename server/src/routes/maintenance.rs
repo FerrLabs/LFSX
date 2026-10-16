@@ -60,7 +60,17 @@ pub(super) async fn retain(
     let report = state
         .store
         .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
-        .await?;
+        .await
+        .inspect_err(|error| {
+            if let Some(Actor(actor)) = &actor {
+                audit_log!(
+                    actor,
+                    namespace = %ns,
+                    %error,
+                    "a retain sweep failed part way, so some objects may already be unlinked"
+                );
+            }
+        })?;
 
     if let Some(Actor(actor)) = actor {
         audit_log!(

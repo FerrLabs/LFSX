@@ -18,6 +18,8 @@ use crate::error::Error;
 use crate::metrics::Metrics;
 use crate::state::Shared;
 
+use session::Viewer;
+
 #[derive(Debug, Serialize)]
 pub struct Overview {
     pub version: &'static str,
@@ -157,21 +159,25 @@ async fn overview(
     }))
 }
 
-pub(crate) async fn admit(state: &Shared, headers: &HeaderMap) -> Result<(), Error> {
+pub(crate) async fn admit(state: &Shared, headers: &HeaderMap) -> Result<Viewer, Error> {
     let Some(dashboard) = &state.config.dashboard else {
         return Err(Error::NotServed);
     };
 
-    if session::viewer(state, headers).await?.is_some() {
-        return Ok(());
+    if let Some(viewer) = session::viewer(state, headers).await? {
+        return Ok(viewer);
     }
 
     match (&state.config.auth, &dashboard.admins) {
-        (Auth::Forge { .. }, Some(admins)) => state
-            .authorizer_for(admins)?
-            .forge_permission(headers, admins)
-            .await?
-            .require_admin(),
+        (Auth::Forge { .. }, Some(admins)) => {
+            let authorizer = state.authorizer_for(admins)?;
+            authorizer
+                .forge_permission(headers, admins)
+                .await?
+                .require_admin()?;
+
+            Ok(Viewer::Forge(authorizer.actor(headers).await?.0))
+        }
         _ => Err(Error::Unauthenticated),
     }
 }

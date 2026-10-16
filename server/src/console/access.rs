@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use super::{Refused, admit};
+use crate::audit::audit_log;
 use crate::auth::{Access, Authorizer, Namespaces};
 use crate::config::Auth;
 use crate::error::Error;
@@ -225,7 +226,7 @@ pub(crate) async fn write(
     headers: HeaderMap,
     Json(saved): Json<Saved>,
 ) -> Result<Response, Refused> {
-    admit(&state, &headers).await?;
+    let viewer = admit(&state, &headers).await?;
     let target = target(&state, &which)?;
 
     if target.authorizer.access().is_none() {
@@ -246,6 +247,7 @@ pub(crate) async fn write(
         }
     };
 
+    let before = shown(&state, &target).await?;
     state
         .store
         .write_meta(
@@ -254,7 +256,13 @@ pub(crate) async fn write(
         )
         .await?;
     target.authorizer.set_access(access);
-    tracing::info!(file = %target.file, ?saved, "access settings changed from the dashboard");
+    audit_log!(
+        actor = ?viewer,
+        file = %target.file,
+        ?before,
+        ?saved,
+        "access settings changed from the dashboard"
+    );
 
     Ok(Json(shown(&state, &target).await?).into_response())
 }
@@ -264,17 +272,20 @@ pub(crate) async fn reset(
     Query(which): Query<Which>,
     headers: HeaderMap,
 ) -> Result<Response, Refused> {
-    admit(&state, &headers).await?;
+    let viewer = admit(&state, &headers).await?;
     let target = target(&state, &which)?;
 
     let Some(environment) = from_auth(target.auth) else {
         return Ok(unchangeable());
     };
 
+    let before = shown(&state, &target).await?;
     state.store.delete_meta(&target.file).await?;
     target.authorizer.set_access(environment);
-    tracing::info!(
+    audit_log!(
+        actor = ?viewer,
         file = %target.file,
+        ?before,
         "access settings reset to the environment from the dashboard"
     );
 
