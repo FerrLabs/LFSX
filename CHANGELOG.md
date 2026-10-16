@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.27] - 2026-10-16
+
+### Bug Fixes
+
+- fix(storage): treat case variants of a namespace as one (#661)
+
 ## [1.26.26] - 2026-10-16
 
 ### Bug Fixes
