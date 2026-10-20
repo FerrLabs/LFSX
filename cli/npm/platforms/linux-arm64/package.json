@@ -1,6 +1,6 @@
 {
   "name": "@ferrlabs/lfsx-linux-arm64",
-  "version": "1.26.31",
+  "version": "1.26.32",
   "description": "lfsx Linux arm64 binary",
   "license": "MPL-2.0",
   "os": [
