@@ -8,6 +8,7 @@ fn lock(id: &str) -> Lock {
         locked_at: "2026-08-15T00:00:00Z".to_owned(),
         owner: Owner {
             name: "writer".to_owned(),
+            id: None,
         },
     }
 }

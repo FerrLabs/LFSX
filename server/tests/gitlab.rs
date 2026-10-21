@@ -65,7 +65,7 @@ async fn project(Path(path): Path<String>, headers: HeaderMap) -> Response {
 async fn user(headers: HeaderMap) -> Response {
     match token_of(&headers).as_str() {
         "" => (StatusCode::UNAUTHORIZED, Json(json!({}))).into_response(),
-        token => Json(json!({ "username": token })).into_response(),
+        token => Json(json!({ "id": 1, "username": token })).into_response(),
     }
 }
 

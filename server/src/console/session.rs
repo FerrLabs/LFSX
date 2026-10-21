@@ -183,7 +183,7 @@ async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>
         .await?
         .require_admin()?;
 
-    Ok((Viewer::Forge(authorizer.actor(&headers).await?.0), None))
+    Ok((Viewer::Forge(authorizer.actor(&headers).await?.login), None))
 }
 
 pub(crate) async fn sign_in(

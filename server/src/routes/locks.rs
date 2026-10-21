@@ -2,7 +2,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 
-use crate::auth::{Actor, Permission};
+use crate::auth::Permission;
 use crate::error::Error;
 use crate::lfs_json::LfsJson;
 use crate::model::{
@@ -25,7 +25,7 @@ pub(super) async fn create_lock(
 ) -> Result<(StatusCode, LfsJson<LockResponse>), Error> {
     permission.require_write()?;
 
-    let Actor(owner) = state.authorizer_for(&ns)?.actor(&headers).await?;
+    let owner = state.authorizer_for(&ns)?.actor(&headers).await?;
     let lock = state.locks.create(&ns, &request.path, &owner).await?;
 
     Ok((StatusCode::CREATED, LfsJson(LockResponse { lock })))
@@ -59,7 +59,7 @@ pub(super) async fn verify_locks(
     headers: axum::http::HeaderMap,
     Json(request): Json<VerifyLocksRequest>,
 ) -> Result<LfsJson<VerifyLocksResponse>, Error> {
-    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
+    let caller = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     // Paginated over the whole list before it is split, so a cursor means the
     // same position on both sides and a client walking pages sees each lock once.
@@ -71,7 +71,7 @@ pub(super) async fn verify_locks(
     let (ours, theirs) = page
         .locks
         .into_iter()
-        .partition(|lock| lock.owner.name == caller);
+        .partition(|lock| lock.owner.is(&caller));
 
     Ok(LfsJson(VerifyLocksResponse {
         ours,
@@ -95,7 +95,7 @@ pub(super) async fn unlock(
 ) -> Result<LfsJson<LockResponse>, Error> {
     permission.require_write()?;
 
-    let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
+    let caller = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     let _gate = state.locks.exclusive(&id).await;
     let held = state
@@ -105,7 +105,7 @@ pub(super) async fn unlock(
         .ok_or(Error::LockNotFound)?;
     let lock = &held.lock;
 
-    let forced = lock.owner.name != caller;
+    let forced = !lock.owner.is(&caller);
     if forced {
         if !request.force {
             return Err(Error::Forbidden);
@@ -117,7 +117,7 @@ pub(super) async fn unlock(
 
     if forced {
         crate::audit::audit_log!(
-            actor = caller,
+            actor = caller.login,
             namespace = %ns,
             path = lock.path,
             owner = lock.owner.name,

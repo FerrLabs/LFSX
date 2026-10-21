@@ -416,7 +416,8 @@ pub(super) async fn verify(
     // never crossed this server, which is why lfsx_uploaded_bytes does not move:
     // counting a figure nothing here measured would make that counter mean two
     // different things.
-    let crate::auth::Actor(actor) = state.authorizer_for(&ns)?.actor(&headers).await?;
+    let crate::auth::Actor { login: actor, .. } =
+        state.authorizer_for(&ns)?.actor(&headers).await?;
     state.store.adopt(&ns, &oid, arrived).await?;
     state.metrics.object_size.observe(arrived as f64);
 

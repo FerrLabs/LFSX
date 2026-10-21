@@ -177,7 +177,7 @@ pub(crate) async fn admit(state: &Shared, headers: &HeaderMap) -> Result<Viewer,
                 .await?
                 .require_admin()?;
 
-            Ok(Viewer::Forge(authorizer.actor(headers).await?.0))
+            Ok(Viewer::Forge(authorizer.actor(headers).await?.login))
         }
         _ => Err(Error::Unauthenticated),
     }
