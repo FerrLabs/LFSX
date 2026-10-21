@@ -222,11 +222,12 @@ fn bucket_config(
 }
 
 // The classification production makes before serving: `main` runs
-// `verify_locking`, and a store that cannot arbitrate `If-None-Match: *` gets
+// `verify_locking`, and a store that cannot arbitrate `If-None-Match: *` or a conditional delete gets
 // locking turned off, so taking a lock answers 501 instead of being handed to
 // two people. The tests that assert a refusal are specifying an arbitrating
 // store, so they ask the same question first and step aside where production
-// would never run naive locking. Garage 1.x is such a store; MinIO arbitrates.
+// would never run naive locking. Garage 1.x is such a store, and so are MinIO and fake-gcs-server,
+// which delete an object whose version has changed.
 async fn store_arbitrates(bucket: &Bucket) -> bool {
     let root = tempfile::tempdir().unwrap();
     let mut config = bucket_config(&root, bucket, false, None, None, false);
@@ -241,7 +242,7 @@ macro_rules! arbitration_or_skip {
     ($bucket:expr) => {
         if !store_arbitrates($bucket).await {
             eprintln!(
-                "skipped: this store does not arbitrate `If-None-Match: *`, so production                  answers 501 here instead of taking locks"
+                "skipped: this store does not arbitrate `If-None-Match: *` and `If-Match` on delete, so production                  answers 501 here instead of taking locks"
             );
             return;
         }
@@ -669,10 +670,9 @@ async fn the_locking_probe_matches_what_the_store_actually_does() {
     let (second, _) = lock(two, "ProbeTruth", &path).await;
     let refused = second == StatusCode::CONFLICT;
 
-    assert_eq!(
-        store_arbitrates(&bucket).await,
-        refused,
-        "the probe and the store disagree about who wins a race for the same lock"
+    assert!(
+        refused || !store_arbitrates(&bucket).await,
+        "the probe trusts a store that handed the same lock to both replicas"
     );
 }
 
