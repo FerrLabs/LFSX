@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.33] - 2026-10-21
+
+### Bug Fixes
+
+- fix(locks): delete a lock only if it is still the object that was read (#679)
+
 ## [2026.10.32] - 2026-10-21
 
 ### Bug Fixes

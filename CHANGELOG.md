@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.34] - 2026-10-21
+
+### Bug Fixes
+
+- fix(locks): delete a lock only if it is still the object that was read (#679)
+
 ## [1.26.33] - 2026-10-21
 
 ### Bug Fixes

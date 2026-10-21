@@ -20,7 +20,7 @@ pub(crate) type Objects = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 // the authentication tests run against: a real MinIO belongs in CI, not in the
 // path of every `cargo test`.
 pub(crate) async fn bucket() -> (String, Objects) {
-    let (endpoint, objects, _) = stub(true, true, None).await;
+    let (endpoint, objects, _) = stub(true, true, true, None).await;
     (endpoint, objects)
 }
 
@@ -30,7 +30,7 @@ pub(crate) async fn bucket() -> (String, Objects) {
 // stays still for LIST, HEAD, PUT and DELETE.
 pub(crate) async fn bucket_counting_key_reads()
 -> (String, Objects, Arc<std::sync::atomic::AtomicUsize>) {
-    stub(true, true, None).await
+    stub(true, true, true, None).await
 }
 
 // A store where another repository turns up in the middle of a collection: the
@@ -40,7 +40,7 @@ pub(crate) async fn bucket_counting_key_reads()
 // It is the one interleaving that matters and the one a test cannot otherwise
 // produce, since both sides are a handful of requests wide.
 pub(crate) async fn bucket_where_a_claim_arrives_mid_sweep(key: &str) -> (String, Objects) {
-    let (endpoint, objects, _) = stub(true, true, Some(key.to_owned())).await;
+    let (endpoint, objects, _) = stub(true, true, true, Some(key.to_owned())).await;
     (endpoint, objects)
 }
 
@@ -49,7 +49,7 @@ pub(crate) async fn bucket_where_a_claim_arrives_mid_sweep(key: &str) -> (String
 // accept `x-amz-checksum-*` this way, which is why the server asks rather than
 // assumes.
 pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
-    let (endpoint, objects, _) = stub(false, true, None).await;
+    let (endpoint, objects, _) = stub(false, true, true, None).await;
     (endpoint, objects)
 }
 
@@ -57,13 +57,23 @@ pub(crate) async fn bucket_ignoring_checksums() -> (String, Objects) {
 // and writes anyway, so two callers racing for the same lock are both told they
 // took it.
 pub(crate) async fn bucket_ignoring_conditions() -> (String, Objects) {
-    let (endpoint, objects, _) = stub(true, false, None).await;
+    let (endpoint, objects, _) = stub(true, false, false, None).await;
+    (endpoint, objects)
+}
+
+// Honours `If-None-Match: *` and ignores `If-Match` on a delete, which is what a
+// store looks like when it implemented the first and not the second: a lock
+// cannot be taken twice, but one replica can still delete what another just
+// took over.
+pub(crate) async fn bucket_ignoring_conditional_deletes() -> (String, Objects) {
+    let (endpoint, objects, _) = stub(true, true, false, None).await;
     (endpoint, objects)
 }
 
 async fn stub(
     enforces_checksums: bool,
     enforces_conditions: bool,
+    enforces_conditional_deletes: bool,
     arriving: Option<String>,
 ) -> (String, Objects, Arc<std::sync::atomic::AtomicUsize>) {
     let objects: Objects = Arc::new(Mutex::new(HashMap::new()));
@@ -110,7 +120,13 @@ async fn stub(
                                 )
                             }
                             axum::http::Method::HEAD => head(&objects, &key),
-                            axum::http::Method::DELETE => delete(&objects, &key, &arriving),
+                            axum::http::Method::DELETE => delete(
+                                &objects,
+                                &key,
+                                &headers,
+                                enforces_conditional_deletes,
+                                &arriving,
+                            ),
                             _ => {
                                 counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 get(&objects, &key, &headers)
@@ -178,7 +194,23 @@ fn head(objects: &Objects, key: &str) -> Response {
 // S3 answers 204 whether or not the key was there, and the store depends on
 // that: it settles whether a delete removed anything with a HEAD beforehand
 // rather than reading the status.
-fn delete(objects: &Objects, key: &str, arriving: &Mutex<Option<String>>) -> Response {
+fn delete(
+    objects: &Objects,
+    key: &str,
+    headers: &HeaderMap,
+    enforces_conditional_deletes: bool,
+    arriving: &Mutex<Option<String>>,
+) -> Response {
+    if enforces_conditional_deletes && let Some(expected) = headers.get(header::IF_MATCH) {
+        match objects.lock().unwrap().get(key) {
+            None => return StatusCode::NOT_FOUND.into_response(),
+            Some(object) if etag(object) != expected.to_str().unwrap_or_default() => {
+                return StatusCode::PRECONDITION_FAILED.into_response();
+            }
+            Some(_) => {}
+        }
+    }
+
     objects.lock().unwrap().remove(key);
 
     // Once, on the first delete of the run.
@@ -187,6 +219,10 @@ fn delete(objects: &Objects, key: &str, arriving: &Mutex<Option<String>>) -> Res
     }
 
     StatusCode::NO_CONTENT.into_response()
+}
+
+fn etag(bytes: &[u8]) -> String {
+    format!("\"{}\"", hex::encode(sha2::Sha256::digest(bytes)))
 }
 
 // A request with no checksum header is nothing to disagree with. One that has it
@@ -214,7 +250,12 @@ fn get(objects: &Objects, key: &str, headers: &HeaderMap) -> Response {
         .and_then(|value| value.split_once('-'));
 
     let Some((start, end)) = range else {
-        return (StatusCode::OK, object.clone()).into_response();
+        return (
+            StatusCode::OK,
+            [(header::ETAG, etag(object))],
+            object.clone(),
+        )
+            .into_response();
     };
 
     let start: usize = start.parse().unwrap_or_default();

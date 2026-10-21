@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use super::*;
 use crate::storage::s3::tests::{
-    bucket, bucket_ignoring_checksums, bucket_ignoring_conditions, keyspace, s3_keys,
-    unreachable_keyspace,
+    bucket, bucket_ignoring_checksums, bucket_ignoring_conditional_deletes,
+    bucket_ignoring_conditions, keyspace, s3_keys, unreachable_keyspace,
 };
 
 // The good case, and the one that makes the rest meaningful: a store that
@@ -190,6 +190,54 @@ async fn a_store_that_cannot_be_asked_about_conditions_is_not_trusted_either() {
         conditional_writes(&unreachable_keyspace()).await,
         Conditional::Unknown
     );
+}
+
+#[tokio::test]
+async fn a_store_that_refuses_a_stale_delete_is_trusted_and_left_clean() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket().await;
+
+    assert_eq!(
+        conditional_deletes(&keyspace(&endpoint)).await,
+        Conditional::Enforced
+    );
+    assert!(objects.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_store_that_deletes_whatever_version_it_is_told_cannot_arbitrate() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, objects) = bucket_ignoring_conditional_deletes().await;
+
+    assert_eq!(
+        conditional_deletes(&keyspace(&endpoint)).await,
+        Conditional::Ignored
+    );
+    assert!(objects.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_store_that_cannot_be_asked_about_conditional_deletes_is_not_trusted() {
+    crate::tls::install_crypto_provider();
+
+    assert_eq!(
+        conditional_deletes(&unreachable_keyspace()).await,
+        Conditional::Unknown
+    );
+}
+
+#[tokio::test]
+async fn a_store_that_ignores_conditional_deletes_loses_locking() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = bucket_ignoring_conditional_deletes().await;
+    let mut config = presigning(&endpoint);
+
+    crate::verify_locking(&mut config).await;
+
+    assert!(!locks(&config));
 }
 
 fn locks(config: &crate::config::Config) -> bool {
