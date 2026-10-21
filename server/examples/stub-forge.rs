@@ -32,7 +32,7 @@ async fn main() {
 async fn user(State(expected): State<Arc<String>>, headers: HeaderMap) -> Response {
     match presented(&headers) {
         Some(token) if token == expected.as_str() => {
-            Json(json!({ "login": "e2e" })).into_response()
+            Json(json!({ "id": 1, "login": "e2e" })).into_response()
         }
         _ => (
             StatusCode::UNAUTHORIZED,

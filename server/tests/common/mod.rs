@@ -299,7 +299,7 @@ pub async fn batch_at(app: Router, repository: &str, token: &str, operation: &st
 fn forge_id(login: &str) -> u64 {
     login
         .bytes()
-        .fold(0, |id, byte| id * 31 + u64::from(byte) % 1_000_003)
+        .fold(0, |id, byte| (id * 31 + u64::from(byte)) % 1_000_003)
 }
 
 pub async fn user(headers: HeaderMap) -> Response {
