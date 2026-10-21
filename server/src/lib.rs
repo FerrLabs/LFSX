@@ -204,14 +204,25 @@ pub async fn verify_presign(config: &mut Config) {
 // deployment is untouched, objects included, because a team that never takes a
 // lock should not lose a working server over this.
 pub async fn verify_locking(config: &mut Config) {
-    use crate::storage::s3::probe::{Conditional, conditional_writes};
+    use crate::storage::s3::probe::{Conditional, conditional_deletes, conditional_writes};
 
     let Some(keys) = keyspace(config) else {
         return;
     };
 
     let refusal = match conditional_writes(&keys).await {
-        Conditional::Enforced => return,
+        Conditional::Enforced => match conditional_deletes(&keys).await {
+            Conditional::Enforced => return,
+            Conditional::Ignored => {
+                "this object store deleted an object whose version had changed under a condition \
+                 that should have refused it, so a lock taken over on one replica can be removed \
+                 by an unlock issued on another"
+            }
+            Conditional::Unknown => {
+                "this object store could not be asked whether it refuses a conditional delete, and \
+                 a lock taken over on one replica must not be removed by another"
+            }
+        },
         Conditional::Ignored => {
             "this object store wrote the same key twice under a condition that should have refused \
              the second, so it cannot say which of two clients racing for a lock arrived first"

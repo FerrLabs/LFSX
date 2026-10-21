@@ -68,16 +68,33 @@ async fn blob(
             container.blobs.insert(name, body.to_vec());
             StatusCode::CREATED.into_response()
         }
-        (Method::DELETE, None) => match container.blobs.remove(&name) {
-            Some(_) => StatusCode::ACCEPTED.into_response(),
-            None => StatusCode::NOT_FOUND.into_response(),
-        },
+        (Method::DELETE, None) => {
+            let Some(bytes) = container.blobs.get(&name) else {
+                return StatusCode::NOT_FOUND.into_response();
+            };
+            if headers
+                .get("if-match")
+                .is_some_and(|expected| expected.as_bytes() != etag(bytes).as_bytes())
+            {
+                return StatusCode::PRECONDITION_FAILED.into_response();
+            }
+            container.blobs.remove(&name);
+            StatusCode::ACCEPTED.into_response()
+        }
         (Method::GET, None) => match container.blobs.get(&name) {
-            Some(bytes) => bytes.clone().into_response(),
+            Some(bytes) => ([("etag", etag(bytes))], bytes.clone()).into_response(),
             None => StatusCode::NOT_FOUND.into_response(),
         },
         _ => StatusCode::BAD_REQUEST.into_response(),
     }
+}
+
+fn etag(bytes: &[u8]) -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    format!("\"0x{:X}\"", hasher.finish())
 }
 
 async fn token(State(issued): State<Arc<AtomicUsize>>, body: String) -> Response {
@@ -197,6 +214,39 @@ async fn the_second_writer_is_refused_with_azures_conflict() {
         "Azure answers 409 rather than 412 to `If-None-Match: *` on an existing blob, and reading \
          that as an error is a lock both clients are told they hold"
     );
+}
+
+#[tokio::test]
+async fn a_delete_pinned_to_an_etag_leaves_a_blob_written_since() {
+    let (endpoint, container) = store().await;
+    let keys = keys(&endpoint);
+    keys.put_if_absent(".locks/one", b"first".to_vec())
+        .await
+        .unwrap();
+    let read = keys.get_versioned(".locks/one").await.unwrap().unwrap();
+    assert_eq!(read.body, b"first");
+
+    keys.put(".locks/one", reqwest::Body::from(b"second".to_vec()), 6)
+        .await
+        .unwrap();
+
+    assert!(
+        !keys
+            .delete_if_unchanged(".locks/one", &read.version)
+            .await
+            .unwrap(),
+        "a delete that lands on the replacement removes a lock somebody else was just told was \
+         theirs"
+    );
+    assert!(container.lock().unwrap().blobs.contains_key(".locks/one"));
+
+    let current = keys.get_versioned(".locks/one").await.unwrap().unwrap();
+    assert!(
+        keys.delete_if_unchanged(".locks/one", &current.version)
+            .await
+            .unwrap()
+    );
+    assert!(keys.get_versioned(".locks/one").await.unwrap().is_none());
 }
 
 #[tokio::test]

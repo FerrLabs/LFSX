@@ -98,11 +98,12 @@ pub(super) async fn unlock(
     let Actor(caller) = state.authorizer_for(&ns)?.actor(&headers).await?;
 
     let _gate = state.locks.exclusive(&id).await;
-    let lock = state
+    let held = state
         .locks
-        .get(&ns, &id)
+        .read(&ns, &id)
         .await?
         .ok_or(Error::LockNotFound)?;
+    let lock = &held.lock;
 
     let forced = lock.owner.name != caller;
     if forced {
@@ -112,7 +113,7 @@ pub(super) async fn unlock(
         permission.require_admin()?;
     }
 
-    state.locks.remove(&ns, &id).await?;
+    state.locks.release(&ns, &held).await?;
 
     if forced {
         crate::audit::audit_log!(
@@ -124,5 +125,5 @@ pub(super) async fn unlock(
         );
     }
 
-    Ok(LfsJson(LockResponse { lock }))
+    Ok(LfsJson(LockResponse { lock: held.lock }))
 }

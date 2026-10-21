@@ -45,6 +45,11 @@ const DEFAULT_CAPACITY: usize = 10_000;
 
 const GATES: usize = 64;
 
+pub struct Held {
+    pub lock: Lock,
+    version: Option<String>,
+}
+
 pub struct LockStore {
     backend: Backend,
     max_age: Option<Duration>,
@@ -87,7 +92,7 @@ impl LockStore {
     // takeover landing between the read and the delete has its fresh lock
     // removed by the caller who read the old one, and both are told the path is
     // theirs. It orders callers within this process; replicas sharing a bucket
-    // are ordered by the bucket's conditional create alone.
+    // are ordered by the bucket's conditional create and conditional delete.
     pub async fn exclusive(&self, id: &str) -> tokio::sync::MutexGuard<'_, ()> {
         let slot = id
             .get(..2)
@@ -185,19 +190,19 @@ impl LockStore {
         // can race with a release. Naming the caller's own attempt is a worse
         // answer than none, so a lock that vanished underfoot is reported as
         // held by nobody in particular rather than by the caller.
-        let Some(held) = self.get(ns, &lock.id).await? else {
+        let Some(held) = self.read(ns, &lock.id).await? else {
             return Err(Error::LockHeld(Box::new(lock)));
         };
 
-        let Some(age) = self.stale_for(&held) else {
-            return Err(Error::LockHeld(Box::new(held)));
+        let Some(age) = self.stale_for(&held.lock) else {
+            return Err(Error::LockHeld(Box::new(held.lock)));
         };
 
         // Discarding it and taking it conditionally, rather than overwriting in
         // place, is what stops two replicas both claiming one abandoned lock:
         // whoever loses the create loses outright and is told who won. Somebody
         // taking it fresh in the gap wins for the same reason.
-        self.discard(ns, &held.id).await?;
+        self.discard(ns, &held).await?;
 
         if !self.take(ns, &lock, &encoded).await? {
             return match self.get(ns, &lock.id).await? {
@@ -210,7 +215,7 @@ impl LockStore {
             actor = lock.owner.name,
             namespace = %ns,
             path = lock.path,
-            previous_owner = held.owner.name,
+            previous_owner = held.lock.owner.name,
             untouched_for_seconds = age.as_secs(),
             "a lock nobody had touched was taken over"
         );
@@ -241,8 +246,8 @@ impl LockStore {
 
     // Removing something already gone is the normal case here: another replica
     // may have discarded the same abandoned lock a moment earlier.
-    async fn discard(&self, ns: &Namespace, id: &str) -> Result<(), Error> {
-        match self.remove(ns, id).await {
+    async fn discard(&self, ns: &Namespace, held: &Held) -> Result<(), Error> {
+        match self.release(ns, held).await {
             Ok(()) | Err(Error::LockNotFound) => Ok(()),
             Err(error) => Err(error),
         }
@@ -292,20 +297,32 @@ impl LockStore {
     }
 
     pub async fn get(&self, ns: &Namespace, id: &str) -> Result<Option<Lock>, Error> {
+        Ok(self.read(ns, id).await?.map(|held| held.lock))
+    }
+
+    // The lock together with the version of the object it was read from, which
+    // is what `release` hands back to the store so that the delete only happens
+    // if nobody replaced it in between.
+    pub async fn read(&self, ns: &Namespace, id: &str) -> Result<Option<Held>, Error> {
         if !is_well_formed_id(id) {
             return Ok(None);
         }
 
-        let encoded = match &self.backend {
+        let (encoded, version) = match &self.backend {
             Backend::Local { root } => match fs::read(Self::path_in(root, ns, id)).await {
-                Ok(bytes) => Some(bytes),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Ok(bytes) => (bytes, None),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
                 Err(error) => return Err(error.into()),
             },
-            Backend::Bucket(bucket) => bucket.get_bytes(&Self::key_of(ns, id)).await?,
+            Backend::Bucket(bucket) => match bucket.get_versioned(&Self::key_of(ns, id)).await? {
+                Some(object) => (object.body, Some(object.version)),
+                None => return Ok(None),
+            },
         };
 
-        Ok(encoded.and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+        Ok(serde_json::from_slice(&encoded)
+            .ok()
+            .map(|lock| Held { lock, version }))
     }
 
     // How many, and nothing else. `list` reads and decodes every lock's body,
@@ -378,18 +395,23 @@ impl LockStore {
         Ok(locks)
     }
 
-    pub async fn remove(&self, ns: &Namespace, id: &str) -> Result<(), Error> {
-        if !is_well_formed_id(id) {
-            return Err(Error::LockNotFound);
-        }
+    pub async fn release(&self, ns: &Namespace, held: &Held) -> Result<(), Error> {
+        let id = &held.lock.id;
 
-        let removed = match &self.backend {
-            Backend::Local { root } => match fs::remove_file(Self::path_in(root, ns, id)).await {
-                Ok(()) => true,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-                Err(error) => return Err(error.into()),
-            },
-            Backend::Bucket(bucket) => bucket.delete(&Self::key_of(ns, id)).await?,
+        let removed = match (&self.backend, &held.version) {
+            (Backend::Local { root }, _) => {
+                match fs::remove_file(Self::path_in(root, ns, id)).await {
+                    Ok(()) => true,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                    Err(error) => return Err(error.into()),
+                }
+            }
+            (Backend::Bucket(bucket), Some(version)) => {
+                bucket
+                    .delete_if_unchanged(&Self::key_of(ns, id), version)
+                    .await?
+            }
+            (Backend::Bucket(_), None) => false,
         };
 
         removed.then_some(()).ok_or(Error::LockNotFound)

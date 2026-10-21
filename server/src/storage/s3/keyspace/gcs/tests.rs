@@ -90,6 +90,46 @@ async fn session(
     StatusCode::OK.into_response()
 }
 
+fn generation(bytes: &[u8]) -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish().to_string()
+}
+
+async fn object(
+    State(bucket): State<Shared>,
+    axum::extract::Path((_bucket, name)): axum::extract::Path<(String, String)>,
+    Query(query): Query<HashMap<String, String>>,
+    method: axum::http::Method,
+) -> Response {
+    let mut bucket = bucket.lock().unwrap();
+
+    match method {
+        axum::http::Method::GET => match bucket.objects.get(&name) {
+            Some(bytes) => {
+                ([("x-goog-generation", generation(bytes))], bytes.clone()).into_response()
+            }
+            None => StatusCode::NOT_FOUND.into_response(),
+        },
+        axum::http::Method::DELETE => {
+            let Some(bytes) = bucket.objects.get(&name) else {
+                return StatusCode::NOT_FOUND.into_response();
+            };
+            if query
+                .get("ifGenerationMatch")
+                .is_some_and(|expected| *expected != generation(bytes))
+            {
+                return StatusCode::PRECONDITION_FAILED.into_response();
+            }
+            bucket.objects.remove(&name);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        _ => StatusCode::BAD_REQUEST.into_response(),
+    }
+}
+
 async fn list(State(bucket): State<Shared>, headers: HeaderMap) -> Response {
     let mut bucket = bucket.lock().unwrap();
     seen(&mut bucket, &headers);
@@ -110,6 +150,10 @@ async fn store() -> (String, Shared) {
             .route("/upload/storage/v1/b/{bucket}/o", post(upload))
             .route("/session/{*name}", put(session))
             .route("/storage/v1/b/{bucket}/o", get(list))
+            .route(
+                "/storage/v1/b/{bucket}/o/{name}",
+                axum::routing::any(object),
+            )
             .with_state(bucket.clone()),
     )
     .await;
@@ -177,6 +221,46 @@ async fn the_second_writer_is_refused_by_generation_zero() {
             .await
             .unwrap()
     );
+}
+
+#[tokio::test]
+async fn a_delete_pinned_to_a_generation_leaves_an_object_written_since() {
+    let (endpoint, bucket) = store().await;
+    let keys = GcsKeys::new(&config(&endpoint)).unwrap();
+    keys.put_if_absent(".locks/one", b"first".to_vec())
+        .await
+        .unwrap();
+    let read = keys.get_versioned(".locks/one").await.unwrap().unwrap();
+    assert_eq!(read.body, b"first");
+
+    keys.put(".locks/one", reqwest::Body::from(b"second".to_vec()), 6)
+        .await
+        .unwrap();
+
+    assert!(
+        !keys
+            .delete_if_unchanged(".locks/one", &read.version)
+            .await
+            .unwrap(),
+        "ifGenerationMatch is the whole of it: a delete that lands on the replacement removes a \
+         lock somebody else was just told was theirs"
+    );
+    assert!(bucket.lock().unwrap().objects.contains_key(".locks/one"));
+
+    let current = keys.get_versioned(".locks/one").await.unwrap().unwrap();
+    assert!(
+        keys.delete_if_unchanged(".locks/one", &current.version)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !keys
+            .delete_if_unchanged(".locks/one", &current.version)
+            .await
+            .unwrap(),
+        "already gone is not removed by this call"
+    );
+    assert!(keys.get_versioned(".locks/one").await.unwrap().is_none());
 }
 
 async fn token_endpoint(State(issued): State<Arc<AtomicUsize>>, body: String) -> Response {

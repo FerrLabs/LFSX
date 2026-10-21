@@ -70,7 +70,8 @@ async fn removing_a_lock_frees_the_path() {
         .await
         .unwrap();
 
-    locks.remove(&ns, &lock.id).await.unwrap();
+    let held = locks.read(&ns, &lock.id).await.unwrap().unwrap();
+    locks.release(&ns, &held).await.unwrap();
 
     assert!(locks.list(&ns).await.unwrap().is_empty());
     locks
@@ -80,20 +81,93 @@ async fn removing_a_lock_frees_the_path() {
 }
 
 #[tokio::test]
-async fn removing_something_that_is_not_a_lock_is_reported_as_missing() {
+async fn releasing_a_lock_that_is_already_gone_is_reported_as_missing() {
     let root = tempfile::tempdir().unwrap();
     let locks = LockStore::local(root.path());
+    let ns = namespace();
+    let lock = locks
+        .create(&ns, "Assets/Art/Hero.psd", "jane")
+        .await
+        .unwrap();
+    let held = locks.read(&ns, &lock.id).await.unwrap().unwrap();
+    locks.release(&ns, &held).await.unwrap();
 
     assert!(matches!(
-        locks.remove(&namespace(), "not-an-id").await,
+        locks.release(&ns, &held).await,
         Err(Error::LockNotFound)
     ));
-    assert!(matches!(
+    assert!(locks.read(&ns, "not-an-id").await.unwrap().is_none());
+    assert!(
         locks
-            .remove(&namespace(), &LockStore::id_of("never/locked"))
-            .await,
+            .read(&ns, &LockStore::id_of("never/locked"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn a_bucket_release_leaves_a_lock_that_was_replaced_after_it_was_read() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket().await;
+    let replica = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let other = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+    let lock = replica.create(&ns, "Arena.unity", "marie").await.unwrap();
+    let stale = replica.read(&ns, &lock.id).await.unwrap().unwrap();
+
+    let current = other.read(&ns, &lock.id).await.unwrap().unwrap();
+    other.release(&ns, &current).await.unwrap();
+    other.create(&ns, "Arena.unity", "jane").await.unwrap();
+
+    assert!(matches!(
+        replica.release(&ns, &stale).await,
         Err(Error::LockNotFound)
     ));
+    assert_eq!(
+        replica
+            .get(&ns, &lock.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .owner
+            .name,
+        "jane",
+        "the unlock that read marie's lock must not remove the one jane took in the gap"
+    );
+}
+
+#[tokio::test]
+async fn a_bucket_takeover_does_not_remove_a_lock_taken_fresh_in_the_gap() {
+    crate::tls::install_crypto_provider();
+
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket().await;
+    let replica =
+        LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint)).with_max_age(Some(WEEK));
+    let other =
+        LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint)).with_max_age(Some(WEEK));
+    let ns = namespace();
+    abandoned(&replica, &ns, "Arena.unity", "marie", 3 * WEEK).await;
+    let stale = replica
+        .read(&ns, &LockStore::id_of("Arena.unity"))
+        .await
+        .unwrap()
+        .unwrap();
+
+    other.create(&ns, "Arena.unity", "jane").await.unwrap();
+    replica.discard(&ns, &stale).await.unwrap();
+
+    assert_eq!(
+        replica
+            .get(&ns, &stale.lock.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .owner
+            .name,
+        "jane"
+    );
 }
 
 // A lock is stale by its own timestamp, so an abandoned one is written directly

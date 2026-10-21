@@ -8,7 +8,7 @@ use std::time::Duration;
 use reqwest::{Method, StatusCode};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use super::{Entry, expect_success, read_retrying, unreachable_store};
+use super::{Entry, Versioned, expect_success, read_retrying, unreachable_store, versioned};
 use crate::config::GcsCredential;
 use crate::error::Error;
 
@@ -346,6 +346,44 @@ impl GcsKeys {
             .await
             .map(|bytes| Some(bytes.to_vec()))
             .map_err(|_| unreachable_store())
+    }
+
+    pub(crate) async fn get_versioned(&self, key: &str) -> Result<Option<Versioned>, Error> {
+        let url = self.url(false, Some(key), &[("alt", "media")]);
+        let response = read_retrying(self.authorized(Method::GET, url).await?).await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let response = expect_success(response, "read").await?;
+
+        versioned(response, "x-goog-generation").await.map(Some)
+    }
+
+    pub(crate) async fn delete_if_unchanged(
+        &self,
+        key: &str,
+        version: &str,
+    ) -> Result<bool, Error> {
+        let url = self.url(false, Some(key), &[("ifGenerationMatch", version)]);
+        let response = self
+            .authorized(Method::DELETE, url)
+            .await?
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        if matches!(
+            response.status(),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_FOUND
+        ) {
+            return Ok(false);
+        }
+
+        expect_success(response, "delete").await?;
+
+        Ok(true)
     }
 
     pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {

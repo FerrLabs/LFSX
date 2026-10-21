@@ -61,11 +61,17 @@ has it; some of the others accept the header and write anyway, answering success
 are then told the lock is theirs, nothing detects it, and locking has quietly become advisory, which
 is exactly the situation it exists to prevent.
 
+Releasing and taking over a stale lock read the lock and then delete it, and between the two another
+replica can have taken it over. So the delete is conditional on the object that was read: `If-Match`
+on S3 and Azure, `ifGenerationMatch` on GCS. A delete that finds a different object leaves it alone
+and the caller is told the lock it read is gone.
+
 So the server asks at startup rather than assuming. It writes one key twice under the condition and
-requires the second to be refused. A store that performs both writes, or that cannot be asked, loses
-locking: taking a lock answers `501` with a message saying why, and objects, transfers and everything
-else carry on untouched. A refusal at the moment somebody asks is the only honest answer available;
-handing out a lock two people can hold is not.
+requires the second to be refused, then replaces a key and requires a delete pinned to the old
+version to be refused. A store that fails either, or that cannot be asked, loses locking: taking a
+lock answers `501` with a message saying why, and objects, transfers and everything else carry on
+untouched. A refusal at the moment somebody asks is the only honest answer available; handing out a
+lock two people can hold is not.
 
 This is why there is no table here of which providers work. Each deployment establishes it against
 its own store, at boot, and says so in the log, which is worth more than a list somebody tested once.

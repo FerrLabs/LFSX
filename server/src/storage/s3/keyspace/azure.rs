@@ -9,7 +9,9 @@ use base64::Engine;
 use reqwest::{Method, StatusCode};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use super::{Entry, content_length, expect_success, read_retrying, unreachable_store};
+use super::{
+    Entry, Versioned, content_length, expect_success, read_retrying, unreachable_store, versioned,
+};
 use crate::config::AzureCredential;
 use crate::error::Error;
 
@@ -368,6 +370,43 @@ impl AzureKeys {
             .await
             .map(|bytes| Some(bytes.to_vec()))
             .map_err(|_| unreachable_store())
+    }
+
+    pub(crate) async fn get_versioned(&self, key: &str) -> Result<Option<Versioned>, Error> {
+        let response = read_retrying(self.request(Method::GET, Some(key), &[]).await?).await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let response = expect_success(response, "read").await?;
+
+        versioned(response, "etag").await.map(Some)
+    }
+
+    pub(crate) async fn delete_if_unchanged(
+        &self,
+        key: &str,
+        version: &str,
+    ) -> Result<bool, Error> {
+        let response = self
+            .request(Method::DELETE, Some(key), &[])
+            .await?
+            .header(reqwest::header::IF_MATCH, version)
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        if matches!(
+            response.status(),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_FOUND
+        ) {
+            return Ok(false);
+        }
+
+        expect_success(response, "delete").await?;
+
+        Ok(true)
     }
 
     pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {
