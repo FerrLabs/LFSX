@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.32] - 2026-10-21
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#677)
+
 ## [2026.10.30] - 2026-10-17
 
 ### Bug Fixes
