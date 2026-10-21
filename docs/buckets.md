@@ -21,8 +21,9 @@ holds a scene, and a release on either frees it on both. Tested against MinIO ra
 including the case where both replicas ask at once.
 
 That leans entirely on the store performing the condition, and not every implementation does, so it
-is asked at startup: one key written twice, with the second required to be refused. A store that
-writes both, or that cannot be asked, loses locking rather than pretending, and taking a lock there
+is asked at startup: one key written twice, with the second required to be refused, and one key
+replaced, with a delete pinned to the old version required to be refused. A store that fails either,
+or that cannot be asked, loses locking rather than pretending, and taking a lock there
 answers `501`. [Locking](locking.md#what-makes-a-lock-unique) has the reasoning.
 
 The volume is still needed as a write buffer for uploads, but it no longer carries state a second

@@ -6,7 +6,10 @@ use rusty_s3::actions::{
 };
 use rusty_s3::{Bucket, Credentials, UrlStyle};
 
-use super::{Entry, Presigned, content_length, expect_success, read_retrying, unreachable_store};
+use super::{
+    Entry, Presigned, Versioned, content_length, expect_success, read_retrying, unreachable_store,
+    versioned,
+};
 use crate::error::Error;
 use crate::storage::s3::{S3Config, multipart};
 
@@ -287,6 +290,49 @@ impl S3Keys {
             .await
             .map(|bytes| Some(bytes.to_vec()))
             .map_err(|_| unreachable_store())
+    }
+
+    pub(crate) async fn get_versioned(&self, key: &str) -> Result<Option<Versioned>, Error> {
+        let action = GetObject::new(&self.bucket, Some(&self.credentials), key);
+        let response = read_retrying(self.client.get(action.sign(self.lifetime))).await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let response = expect_success(response, "read").await?;
+
+        versioned(response, "etag").await.map(Some)
+    }
+
+    pub(crate) async fn delete_if_unchanged(
+        &self,
+        key: &str,
+        version: &str,
+    ) -> Result<bool, Error> {
+        let mut action = DeleteObject::new(&self.bucket, Some(&self.credentials), key);
+        action
+            .headers_mut()
+            .insert("if-match", std::borrow::Cow::Owned(version.to_owned()));
+
+        let response = self
+            .client
+            .delete(action.sign(self.lifetime))
+            .header("if-match", version)
+            .send()
+            .await
+            .map_err(|_| unreachable_store())?;
+
+        if matches!(
+            response.status(),
+            reqwest::StatusCode::PRECONDITION_FAILED | reqwest::StatusCode::NOT_FOUND
+        ) {
+            return Ok(false);
+        }
+
+        expect_success(response, "delete").await?;
+
+        Ok(true)
     }
 
     pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {

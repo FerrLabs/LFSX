@@ -16,6 +16,11 @@ pub use azure::{AzureConfig, AzureKeys};
 pub use gcs::{GcsConfig, GcsKeys};
 pub(crate) use s3::S3Keys;
 
+pub(crate) struct Versioned {
+    pub(crate) body: Vec<u8>,
+    pub(crate) version: String,
+}
+
 pub(crate) struct Listing {
     pub(crate) entries: Vec<Entry>,
     pub(crate) complete: bool,
@@ -145,6 +150,26 @@ impl Keyspace {
         }
     }
 
+    pub(crate) async fn get_versioned(&self, key: &str) -> Result<Option<Versioned>, Error> {
+        match self {
+            Self::S3(keys) => keys.get_versioned(key).await,
+            Self::Azure(keys) => keys.get_versioned(key).await,
+            Self::Gcs(keys) => keys.get_versioned(key).await,
+        }
+    }
+
+    pub(crate) async fn delete_if_unchanged(
+        &self,
+        key: &str,
+        version: &str,
+    ) -> Result<bool, Error> {
+        match self {
+            Self::S3(keys) => keys.delete_if_unchanged(key, version).await,
+            Self::Azure(keys) => keys.delete_if_unchanged(key, version).await,
+            Self::Gcs(keys) => keys.delete_if_unchanged(key, version).await,
+        }
+    }
+
     pub(crate) async fn delete(&self, key: &str) -> Result<bool, Error> {
         match self {
             Self::S3(keys) => keys.delete(key).await,
@@ -236,6 +261,30 @@ pub(crate) async fn expect_success(
         "the object store refused a {what} with {status}: {}",
         detail.trim()
     ))))
+}
+
+pub(crate) async fn versioned(
+    response: reqwest::Response,
+    header: &str,
+) -> Result<Versioned, Error> {
+    let version = response
+        .headers()
+        .get(header)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            Error::Storage(std::io::Error::other(
+                "the object store gave no object version",
+            ))
+        })?;
+
+    let body = response
+        .bytes()
+        .await
+        .map_err(|_| unreachable_store())?
+        .to_vec();
+
+    Ok(Versioned { body, version })
 }
 
 pub(crate) fn content_length(response: &reqwest::Response) -> Result<u64, Error> {

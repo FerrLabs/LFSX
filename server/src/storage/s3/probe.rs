@@ -156,6 +156,69 @@ pub(crate) async fn conditional_writes(keys: &Keyspace) -> Conditional {
     verdict
 }
 
+// Does this store refuse to delete an object that is no longer the one that was
+// read?
+//
+// A takeover reads a stale lock and removes it; an unlock reads the owner and
+// removes. Between the read and the delete another replica can take the lock
+// over, and an unconditional delete then removes the fresh lock and tells both
+// callers the path is theirs. `If-Match`, `ifGenerationMatch` and `If-Match` on
+// the three stores close that, but only where they are honoured.
+pub(crate) async fn conditional_deletes(keys: &Keyspace) -> Conditional {
+    let key = probe_key("delete");
+
+    let verdict = verdict_for_deletes(keys, &key).await;
+    discard(keys, &key).await;
+
+    verdict
+}
+
+async fn verdict_for_deletes(keys: &Keyspace, key: &str) -> Conditional {
+    match keys.put_if_absent(key, BODY.to_vec()).await {
+        Ok(true) => {}
+        Ok(false) | Err(_) => return unestablished("created"),
+    }
+
+    let Ok(Some(first)) = keys.get_versioned(key).await else {
+        return unestablished("read back");
+    };
+
+    if keys
+        .put(key, b"lfsx probe, replaced".to_vec())
+        .await
+        .is_err()
+    {
+        return unestablished("replaced");
+    }
+
+    match keys.delete_if_unchanged(key, &first.version).await {
+        Ok(false) => {}
+        Ok(true) => return Conditional::Ignored,
+        Err(error) => {
+            tracing::warn!(%error, "the object store gave no usable answer to a conditional delete");
+            return Conditional::Unknown;
+        }
+    }
+
+    let Ok(Some(current)) = keys.get_versioned(key).await else {
+        return Conditional::Ignored;
+    };
+
+    match keys.delete_if_unchanged(key, &current.version).await {
+        Ok(true) => Conditional::Enforced,
+        Ok(false) | Err(_) => unestablished("deleted by its current version"),
+    }
+}
+
+fn unestablished(step: &str) -> Conditional {
+    tracing::warn!(
+        step,
+        "the probe object could not be {step}, so whether the object store refuses a conditional \
+         delete was not established"
+    );
+    Conditional::Unknown
+}
+
 async fn discard(keys: &Keyspace, key: &str) {
     if let Err(error) = keys.delete(key).await {
         tracing::warn!(
