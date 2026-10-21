@@ -205,8 +205,10 @@ async fn verdict_for_deletes(keys: &Keyspace, key: &str) -> Conditional {
         }
     }
 
-    let Ok(Some(current)) = keys.get_versioned(key).await else {
-        return Conditional::Ignored;
+    let current = match keys.get_versioned(key).await {
+        Ok(Some(current)) => current,
+        Ok(None) => return Conditional::Ignored,
+        Err(_) => return unestablished("read back after the refused delete"),
     };
 
     match keys.delete_if_unchanged(key, &current.version).await {
