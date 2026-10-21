@@ -8,6 +8,7 @@ use time::format_description::well_known::Rfc3339;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
+use crate::auth::Actor;
 use crate::error::Error;
 use crate::namespace::Namespace;
 use crate::storage::s3::Keyspace;
@@ -23,6 +24,17 @@ pub struct Lock {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Owner {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+impl Owner {
+    pub fn is(&self, actor: &Actor) -> bool {
+        match &self.id {
+            Some(id) => *id == actor.id,
+            None => self.name == actor.login,
+        }
+    }
 }
 
 // Locks live wherever the objects do. On a volume that is a file per lock; in a
@@ -139,7 +151,7 @@ impl LockStore {
         format!("{}{id}.json", Self::prefix(ns))
     }
 
-    pub async fn create(&self, ns: &Namespace, path: &str, owner: &str) -> Result<Lock, Error> {
+    pub async fn create(&self, ns: &Namespace, path: &str, owner: &Actor) -> Result<Lock, Error> {
         if path.is_empty() {
             return Err(Error::MalformedLockPath);
         }
@@ -160,7 +172,8 @@ impl LockStore {
                 .format(&Rfc3339)
                 .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned()),
             owner: Owner {
-                name: owner.to_owned(),
+                name: owner.login.clone(),
+                id: Some(owner.id.clone()),
             },
         };
         let encoded = serde_json::to_vec(&lock)?;
@@ -207,7 +220,7 @@ impl LockStore {
         }
 
         crate::audit::audit_log!(
-            actor = lock.owner.name,
+            actor = owner.login,
             namespace = %ns,
             path = lock.path,
             previous_owner = held.owner.name,

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
 
-use super::Permission;
+use super::{Actor, Permission};
 use crate::error::Error;
 use crate::namespace::Namespace;
 
@@ -90,7 +90,7 @@ fn key(caller: Caller<'_>, ns: &Namespace) -> Key {
 
 pub struct IdentityCache {
     ttl: Duration,
-    entries: Mutex<HashMap<[u8; 32], (String, Instant)>>,
+    entries: Mutex<HashMap<[u8; 32], (Actor, Instant)>>,
 }
 
 impl IdentityCache {
@@ -101,21 +101,21 @@ impl IdentityCache {
         }
     }
 
-    pub fn get(&self, token: &str) -> Option<String> {
+    pub fn get(&self, token: &str) -> Option<Actor> {
         let entries = self.entries.lock().expect("identity cache");
-        let (login, expires_at) = entries.get(&fingerprint(Caller::Token(token)))?;
+        let (actor, expires_at) = entries.get(&fingerprint(Caller::Token(token)))?;
 
-        (*expires_at > Instant::now()).then(|| login.clone())
+        (*expires_at > Instant::now()).then(|| actor.clone())
     }
 
-    pub fn insert(&self, token: &str, login: &str) {
+    pub fn insert(&self, token: &str, actor: &Actor) {
         let now = Instant::now();
         let mut entries = self.entries.lock().expect("identity cache");
 
         entries.retain(|_, (_, expires_at)| *expires_at > now);
         entries.insert(
             fingerprint(Caller::Token(token)),
-            (login.to_owned(), now + self.ttl),
+            (actor.clone(), now + self.ttl),
         );
     }
 }

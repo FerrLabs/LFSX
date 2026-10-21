@@ -23,6 +23,7 @@ fn lock(path: &str, owner: &str) -> Lock {
         locked_at: "2026-08-14T15:00:00Z".to_owned(),
         owner: Owner {
             name: owner.to_owned(),
+            id: None,
         },
     }
 }

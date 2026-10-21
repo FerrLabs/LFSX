@@ -65,7 +65,7 @@ pub async fn repository(
         "reader" => Json(json!({ "permissions": { "pull": true, "push": false } })).into_response(),
         // A second person who can push and is nobody's administrator, which is
         // what "taking an abandoned lock needs no admin" has to be tested with.
-        "colleague" => {
+        "colleague" | "impostor" | "renamed" => {
             Json(json!({ "permissions": { "pull": true, "push": true } })).into_response()
         }
         "stranger" => (
@@ -296,6 +296,12 @@ pub async fn batch_at(app: Router, repository: &str, token: &str, operation: &st
     app.oneshot(request).await.unwrap().status()
 }
 
+fn forge_id(login: &str) -> u64 {
+    login
+        .bytes()
+        .fold(0, |id, byte| id * 31 + u64::from(byte) % 1_000_003)
+}
+
 pub async fn user(headers: HeaderMap) -> Response {
     let token = headers
         .get("authorization")
@@ -309,7 +315,9 @@ pub async fn user(headers: HeaderMap) -> Response {
             Json(json!({ "message": "Bad credentials" })),
         )
             .into_response(),
-        login => Json(json!({ "login": login })).into_response(),
+        "impostor" => Json(json!({ "id": 9001, "login": "writer" })).into_response(),
+        "renamed" => Json(json!({ "id": forge_id("writer"), "login": "renamed" })).into_response(),
+        login => Json(json!({ "id": forge_id(login), "login": login })).into_response(),
     }
 }
 

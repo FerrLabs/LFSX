@@ -128,6 +128,50 @@ async fn a_third_party_cannot_unlock_what_they_do_not_hold() {
 }
 
 #[tokio::test]
+async fn someone_who_took_over_the_login_does_not_inherit_its_locks() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let id = read_json(lock(app.clone(), "writer", SCENE).await).await["lock"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    assert_eq!(
+        unlock(app.clone(), "impostor", &id, false).await,
+        StatusCode::FORBIDDEN,
+        "the same login on a different forge account is somebody else"
+    );
+    let verified = post(
+        app.clone(),
+        "impostor",
+        "/FerrLabs/Blastlands/locks/verify",
+        json!({}),
+    )
+    .await;
+    let body = read_json(verified).await;
+    assert_eq!(body["ours"].as_array().unwrap().len(), 0);
+    assert_eq!(body["theirs"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn an_owner_who_renamed_their_account_still_holds_their_locks() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    let id = read_json(lock(app.clone(), "writer", SCENE).await).await["lock"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    assert_eq!(
+        unlock(app, "renamed", &id, false).await,
+        StatusCode::OK,
+        "the forge id is what ties the lock to its owner, not the login"
+    );
+}
+
+#[tokio::test]
 async fn only_an_administrator_can_force_a_lock_open() {
     let root = tempfile::tempdir().unwrap();
     let (api_url, _forge) = forge().await;

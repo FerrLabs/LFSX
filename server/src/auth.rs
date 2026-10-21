@@ -32,7 +32,10 @@ pub enum Permission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Actor(pub String);
+pub struct Actor {
+    pub login: String,
+    pub id: String,
+}
 
 impl Permission {
     pub fn require_write(self) -> Result<(), Error> {
@@ -288,24 +291,27 @@ impl Authorizer {
             ..
         } = self
         else {
-            return Ok(Actor("anonymous".to_owned()));
+            return Ok(Actor {
+                login: "anonymous".to_owned(),
+                id: "anonymous".to_owned(),
+            });
         };
 
         let token = credentials::token(headers).ok_or(Error::Unauthenticated)?;
-        if let Some(login) = identities.get(&token) {
-            return Ok(Actor(login));
+        if let Some(actor) = identities.get(&token) {
+            return Ok(actor);
         }
 
         budget.afford()?;
 
-        let login = match provider {
+        let actor = match provider {
             Provider::Github => github::login(client, api_url, &token).await?,
             Provider::Gitlab => gitlab::login(client, api_url, &token).await?,
             Provider::Gitea => gitea::login(client, api_url, &token).await?,
         };
-        identities.insert(&token, &login);
+        identities.insert(&token, &actor);
 
-        Ok(Actor(login))
+        Ok(actor)
     }
 }
 

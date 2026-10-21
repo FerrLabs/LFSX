@@ -62,7 +62,7 @@ pub(super) async fn retain(
         .sweep(&ns, &retained, state.config.gc_grace, request.dry_run)
         .await
         .inspect_err(|error| {
-            if let Some(Actor(actor)) = &actor {
+            if let Some(Actor { login: actor, .. }) = &actor {
                 audit_log!(
                     actor,
                     namespace = %ns,
@@ -72,7 +72,7 @@ pub(super) async fn retain(
             }
         })?;
 
-    if let Some(Actor(actor)) = actor {
+    if let Some(Actor { login: actor, .. }) = actor {
         audit_log!(
             actor,
             namespace = %ns,
@@ -100,7 +100,7 @@ pub(super) async fn dedupe(
 
     let report = state.store.dedupe(&ns, request.dry_run).await?;
 
-    if let Some(Actor(actor)) = actor {
+    if let Some(Actor { login: actor, .. }) = actor {
         audit_log!(
             actor,
             namespace = %ns,
@@ -127,7 +127,7 @@ pub(super) async fn compress(
 
     let report = state.store.compress(&ns, request.dry_run).await?;
 
-    if let Some(Actor(actor)) = actor {
+    if let Some(Actor { login: actor, .. }) = actor {
         audit_log!(
             actor,
             namespace = %ns,

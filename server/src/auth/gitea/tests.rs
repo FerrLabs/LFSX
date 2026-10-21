@@ -232,6 +232,9 @@ async fn a_login_is_read_from_the_field_gitea_sends() {
         login(&reqwest::Client::new(), &api, "a-token")
             .await
             .unwrap(),
-        "bryan"
+        Actor {
+            login: "bryan".to_owned(),
+            id: "1".to_owned(),
+        }
     );
 }

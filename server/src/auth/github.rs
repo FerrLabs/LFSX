@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 pub mod app;
 
-use super::Permission;
+use super::{Actor, Permission};
 use crate::error::Error;
 use crate::namespace::Namespace;
 
@@ -26,6 +26,7 @@ struct Permissions {
 
 #[derive(Deserialize)]
 struct User {
+    id: u64,
     login: String,
 }
 
@@ -189,7 +190,7 @@ pub async fn public(
     }
 }
 
-pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Result<String, Error> {
+pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Result<Actor, Error> {
     let url = format!("{api_url}/user");
 
     send(
@@ -201,7 +202,10 @@ pub async fn login(client: &reqwest::Client, api_url: &str, token: &str) -> Resu
     .await?
     .json::<User>()
     .await
-    .map(|user| user.login)
+    .map(|user| Actor {
+        id: user.id.to_string(),
+        login: user.login,
+    })
     .map_err(|error| {
         tracing::warn!(%error, %url, "forge response could not be parsed");
         Error::Forge

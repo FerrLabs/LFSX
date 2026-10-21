@@ -176,7 +176,7 @@ async fn a_project_that_declares_no_permissions_grants_nothing() {
 
 #[tokio::test]
 async fn a_user_answer_without_a_username_is_a_forge_failure() {
-    let (api, _) = forge(StatusCode::OK, Vec::new(), r#"{"login":"bryan"}"#).await;
+    let (api, _) = forge(StatusCode::OK, Vec::new(), r#"{"id":1,"login":"bryan"}"#).await;
 
     let identity = login(&reqwest::Client::new(), &api, "a-token").await;
 

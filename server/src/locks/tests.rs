@@ -1,5 +1,12 @@
 use super::*;
 
+fn actor(name: &str) -> Actor {
+    Actor {
+        login: name.to_owned(),
+        id: format!("id-{name}"),
+    }
+}
+
 fn namespace() -> Namespace {
     Namespace::new("FerrLabs", "Blastlands").unwrap()
 }
@@ -11,7 +18,7 @@ async fn a_lock_survives_a_round_trip_through_the_store() {
     let ns = namespace();
 
     let created = locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap();
 
@@ -26,12 +33,12 @@ async fn taking_a_held_lock_fails_and_reports_who_holds_it() {
     let locks = LockStore::local(root.path());
     let ns = namespace();
     locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap();
 
     let refused = locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "john")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("john"))
         .await
         .unwrap_err();
 
@@ -47,12 +54,12 @@ async fn locks_are_scoped_to_their_repository() {
     let locks = LockStore::local(root.path());
     let elsewhere = Namespace::new("FerrLabs", "RogueLite").unwrap();
     locks
-        .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
+        .create(&namespace(), "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap();
 
     locks
-        .create(&elsewhere, "Assets/Scenes/Arena.unity", "john")
+        .create(&elsewhere, "Assets/Scenes/Arena.unity", &actor("john"))
         .await
         .expect("the same path in another repository is a different file");
 
@@ -66,7 +73,7 @@ async fn removing_a_lock_frees_the_path() {
     let locks = LockStore::local(root.path());
     let ns = namespace();
     let lock = locks
-        .create(&ns, "Assets/Art/Hero.psd", "jane")
+        .create(&ns, "Assets/Art/Hero.psd", &actor("jane"))
         .await
         .unwrap();
 
@@ -74,7 +81,7 @@ async fn removing_a_lock_frees_the_path() {
 
     assert!(locks.list(&ns).await.unwrap().is_empty());
     locks
-        .create(&ns, "Assets/Art/Hero.psd", "john")
+        .create(&ns, "Assets/Art/Hero.psd", &actor("john"))
         .await
         .expect("the path is free once the lock is gone");
 }
@@ -106,6 +113,7 @@ async fn abandoned(locks: &LockStore, ns: &Namespace, path: &str, owner: &str, a
         locked_at: (OffsetDateTime::now_utc() - ago).format(&Rfc3339).unwrap(),
         owner: Owner {
             name: owner.to_owned(),
+            id: None,
         },
     };
 
@@ -131,7 +139,10 @@ async fn without_a_maximum_age_a_lock_is_never_stale() {
         "a team that has not configured an expiry keeps getting what it had"
     );
     assert!(
-        locks.create(&ns, "Arena.unity", "jane").await.is_err(),
+        locks
+            .create(&ns, "Arena.unity", &actor("jane"))
+            .await
+            .is_err(),
         "and nobody can take it from marie, however long she has been gone"
     );
 }
@@ -143,7 +154,10 @@ async fn a_lock_past_the_maximum_age_can_be_taken_without_admin() {
     let ns = namespace();
     abandoned(&locks, &ns, "Arena.unity", "marie", 3 * WEEK).await;
 
-    let taken = locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+    let taken = locks
+        .create(&ns, "Arena.unity", &actor("jane"))
+        .await
+        .unwrap();
 
     assert_eq!(taken.owner.name, "jane");
     assert_eq!(
@@ -164,7 +178,7 @@ async fn a_lock_inside_the_maximum_age_is_still_hers() {
     let ns = namespace();
     abandoned(&locks, &ns, "Arena.unity", "marie", WEEK).await;
 
-    let outcome = locks.create(&ns, "Arena.unity", "jane").await;
+    let outcome = locks.create(&ns, "Arena.unity", &actor("jane")).await;
 
     match outcome {
         Err(Error::LockHeld(held)) => assert_eq!(held.owner.name, "marie"),
@@ -202,6 +216,7 @@ async fn a_timestamp_this_server_cannot_read_is_not_treated_as_ancient() {
         locked_at: "whenever".to_owned(),
         owner: Owner {
             name: "marie".to_owned(),
+            id: None,
         },
     };
 
@@ -225,6 +240,7 @@ async fn a_clock_that_moved_backwards_does_not_make_a_lock_stale() {
             .unwrap(),
         owner: Owner {
             name: "marie".to_owned(),
+            id: None,
         },
     };
 
@@ -243,12 +259,12 @@ async fn a_bucket_lets_exactly_one_of_two_callers_take_a_lock() {
     let ns = namespace();
 
     locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap();
 
     let refused = locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "john")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("john"))
         .await
         .unwrap_err();
 
@@ -270,7 +286,7 @@ async fn a_bucket_that_cannot_arbitrate_refuses_to_take_a_lock_at_all() {
         .with_conditional_writes(false);
 
     let refused = locks
-        .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
+        .create(&namespace(), "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap_err();
 
@@ -290,7 +306,7 @@ async fn a_volume_is_never_held_back_by_what_a_bucket_could_not_prove() {
 
     assert!(
         locks
-            .create(&namespace(), "Assets/Scenes/Arena.unity", "jane")
+            .create(&namespace(), "Assets/Scenes/Arena.unity", &actor("jane"))
             .await
             .is_ok()
     );
@@ -310,11 +326,11 @@ async fn without_the_guard_that_store_hands_the_same_lock_to_both() {
     let ns = namespace();
 
     let jane = locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "jane")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("jane"))
         .await
         .unwrap();
     let john = locks
-        .create(&ns, "Assets/Scenes/Arena.unity", "john")
+        .create(&ns, "Assets/Scenes/Arena.unity", &actor("john"))
         .await
         .expect("this store refuses nothing, which is the whole problem");
 
@@ -336,7 +352,7 @@ async fn a_path_longer_than_any_real_one_is_refused_and_the_longest_real_one_is_
     let ns = namespace();
 
     let refused = locks
-        .create(&ns, &"a/".repeat(2049), "jane")
+        .create(&ns, &"a/".repeat(2049), &actor("jane"))
         .await
         .unwrap_err();
     assert!(
@@ -351,7 +367,7 @@ async fn a_path_longer_than_any_real_one_is_refused_and_the_longest_real_one_is_
     );
 
     locks
-        .create(&ns, &"a/".repeat(2048), "jane")
+        .create(&ns, &"a/".repeat(2048), &actor("jane"))
         .await
         .expect("a path at the limit is a real path");
 }
@@ -361,10 +377,13 @@ async fn a_full_repository_refuses_a_new_lock_and_not_a_retry_of_a_held_one() {
     let root = tempfile::tempdir().unwrap();
     let locks = LockStore::local(root.path()).with_capacity(2);
     let ns = namespace();
-    locks.create(&ns, "a.unity", "jane").await.unwrap();
-    locks.create(&ns, "b.unity", "jane").await.unwrap();
+    locks.create(&ns, "a.unity", &actor("jane")).await.unwrap();
+    locks.create(&ns, "b.unity", &actor("jane")).await.unwrap();
 
-    let refused = locks.create(&ns, "c.unity", "jane").await.unwrap_err();
+    let refused = locks
+        .create(&ns, "c.unity", &actor("jane"))
+        .await
+        .unwrap_err();
     assert!(
         matches!(refused, Error::LockLimitReached { limit: 2 }),
         "{refused:?}"
@@ -373,7 +392,10 @@ async fn a_full_repository_refuses_a_new_lock_and_not_a_retry_of_a_held_one() {
     // The path already holds a lock, so this attempt adds nothing to the
     // count, and the caller deserves to be told who has it, not that the
     // repository is full.
-    let held = locks.create(&ns, "b.unity", "john").await.unwrap_err();
+    let held = locks
+        .create(&ns, "b.unity", &actor("john"))
+        .await
+        .unwrap_err();
     assert!(matches!(held, Error::LockHeld(_)), "{held:?}");
 }
 
@@ -386,9 +408,9 @@ async fn a_stale_lock_is_still_takeable_in_a_full_repository() {
         .with_capacity(1)
         .with_max_age(Some(Duration::ZERO));
     let ns = namespace();
-    locks.create(&ns, "a.unity", "jane").await.unwrap();
+    locks.create(&ns, "a.unity", &actor("jane")).await.unwrap();
 
-    let taken = locks.create(&ns, "a.unity", "john").await.unwrap();
+    let taken = locks.create(&ns, "a.unity", &actor("john")).await.unwrap();
 
     assert_eq!(taken.owner.name, "john");
 }
@@ -405,13 +427,16 @@ async fn creating_a_lock_counts_the_others_and_reads_none_of_them() {
     let ns = namespace();
     for scene in 0..25 {
         locks
-            .create(&ns, &format!("Assets/{scene:02}.unity"), "jane")
+            .create(&ns, &format!("Assets/{scene:02}.unity"), &actor("jane"))
             .await
             .unwrap();
     }
 
     let before = reads.load(std::sync::atomic::Ordering::SeqCst);
-    locks.create(&ns, "Assets/new.unity", "jane").await.unwrap();
+    locks
+        .create(&ns, "Assets/new.unity", &actor("jane"))
+        .await
+        .unwrap();
     let cost = reads.load(std::sync::atomic::Ordering::SeqCst) - before;
 
     assert!(
@@ -466,7 +491,10 @@ async fn a_takeover_lands_on_the_audit_trail_naming_both_owners() {
             let locks = LockStore::local(root.path()).with_max_age(Some(WEEK));
             let ns = namespace();
             abandoned(&locks, &ns, "Arena.unity", "marie", 3 * WEEK).await;
-            locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+            locks
+                .create(&ns, "Arena.unity", &actor("jane"))
+                .await
+                .unwrap();
         }
 
         logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
@@ -499,7 +527,7 @@ async fn racing_takeovers_of_one_stale_lock_leave_exactly_one_holder() {
         let ns = ns.clone();
         tokio::spawn(async move {
             locks
-                .create(&ns, "Arena.unity", &format!("user-{attempt}"))
+                .create(&ns, "Arena.unity", &actor(&format!("user-{attempt}")))
                 .await
         })
     });
@@ -523,9 +551,12 @@ async fn a_lock_is_only_ever_written_whole_and_leaves_nothing_beside_it() {
     let locks = LockStore::local(root.path());
     let ns = namespace();
 
-    locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+    locks
+        .create(&ns, "Arena.unity", &actor("jane"))
+        .await
+        .unwrap();
     assert!(matches!(
-        locks.create(&ns, "Arena.unity", "marie").await,
+        locks.create(&ns, "Arena.unity", &actor("marie")).await,
         Err(Error::LockHeld(_))
     ));
 
@@ -543,7 +574,10 @@ async fn a_staged_file_left_by_a_crash_is_not_listed_as_a_lock() {
     let root = tempfile::tempdir().unwrap();
     let locks = LockStore::local(root.path());
     let ns = namespace();
-    let held = locks.create(&ns, "Arena.unity", "jane").await.unwrap();
+    let held = locks
+        .create(&ns, "Arena.unity", &actor("jane"))
+        .await
+        .unwrap();
 
     let directory = LockStore::directory_in(root.path(), &ns);
     std::fs::write(
@@ -553,4 +587,48 @@ async fn a_staged_file_left_by_a_crash_is_not_listed_as_a_lock() {
     .unwrap();
 
     assert_eq!(locks.list(&ns).await.unwrap(), vec![held]);
+}
+
+#[test]
+fn a_renamed_login_does_not_inherit_the_previous_owners_lock() {
+    let owner = Owner {
+        name: "jane".to_owned(),
+        id: Some("1".to_owned()),
+    };
+    let squatter = Actor {
+        login: "jane".to_owned(),
+        id: "2".to_owned(),
+    };
+    let renamed = Actor {
+        login: "jane-doe".to_owned(),
+        id: "1".to_owned(),
+    };
+
+    assert!(!owner.is(&squatter));
+    assert!(owner.is(&renamed));
+}
+
+#[test]
+fn a_lock_stored_without_an_id_is_matched_on_its_login() {
+    let owner: Owner = serde_json::from_str(r#"{"name":"jane"}"#).unwrap();
+
+    assert_eq!(owner.id, None);
+    assert!(owner.is(&actor("jane")));
+    assert!(!owner.is(&actor("john")));
+}
+
+#[tokio::test]
+async fn a_created_lock_records_the_forge_id_of_its_owner() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = LockStore::local(root.path());
+    let ns = namespace();
+
+    let created = locks
+        .create(&ns, "Arena.unity", &actor("jane"))
+        .await
+        .unwrap();
+
+    assert_eq!(created.owner.id.as_deref(), Some("id-jane"));
+    let stored = locks.get(&ns, &created.id).await.unwrap().unwrap();
+    assert_eq!(stored.owner, created.owner);
 }
