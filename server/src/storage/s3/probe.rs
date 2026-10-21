@@ -168,7 +168,6 @@ pub(crate) async fn conditional_deletes(keys: &Keyspace) -> Conditional {
     let key = probe_key("delete");
 
     let verdict = verdict_for_deletes(keys, &key).await;
-    eprintln!("DEBUGPROBE {verdict:?}");
     discard(keys, &key).await;
 
     verdict
@@ -194,12 +193,8 @@ async fn verdict_for_deletes(keys: &Keyspace, key: &str) -> Conditional {
 
     match keys.delete_if_unchanged(key, &first.version).await {
         Ok(false) => {}
-        Ok(true) => {
-            eprintln!("DEBUGPROBE stale delete succeeded");
-            return Conditional::Ignored;
-        }
+        Ok(true) => return Conditional::Ignored,
         Err(error) => {
-            eprintln!("DEBUGPROBE stale delete error {error}");
             tracing::warn!(%error, "the object store gave no usable answer to a conditional delete");
             return Conditional::Unknown;
         }
@@ -218,7 +213,6 @@ async fn verdict_for_deletes(keys: &Keyspace, key: &str) -> Conditional {
 }
 
 fn unestablished(step: &str) -> Conditional {
-    eprintln!("DEBUGPROBE unestablished {step}");
     tracing::warn!(
         step,
         "the probe object could not be {step}, so whether the object store refuses a conditional \
