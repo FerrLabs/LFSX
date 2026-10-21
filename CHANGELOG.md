@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.35] - 2026-10-21
+
+### Bug Fixes
+
+- fix(locks): tie lock ownership to the forge user id, not the login (#680)
+
 ## [1.26.34] - 2026-10-21
 
 ### Bug Fixes
