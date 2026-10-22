@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d AS dashboard
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS dashboard
 
 WORKDIR /src
 
@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile --filter @lfsx/app...
 COPY app ./app
 RUN pnpm --filter @lfsx/app build
 
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:5c1a1732ac3f77635b24d397ceb67b4d9ea61de348f68c0aa54a79fd01e65c69 AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:edaa2a8cc254d5936207af267114814c61cceea40b46eaa4e976068af55e20e7 AS builder
 
 ARG TARGETARCH
 
