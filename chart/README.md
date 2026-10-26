@@ -114,6 +114,8 @@ with `fsGroup: 65532` so the non-root user can write to it. Nothing else is writ
 | `compression` | `""` | `zstd` (or `zstd:1`…`zstd:19`) to store objects compressed; empty stores them as they arrive |
 | `encryption.existingSecret` | `""` | Secret holding the hex key file for encryption at rest; the chart never takes the key as a value |
 | `encryption.key` | `key` | key of the file inside that Secret |
+| `sessionKey.existingSecret` | `""` | Secret holding a 32-byte key as 64 hex characters; signs dashboard sessions, saved access settings and dashboard tokens so a bucket writer cannot forge them |
+| `sessionKey.key` | `key` | key of the file inside that Secret |
 | `persistence.enabled` | `true` | `false` uses an `emptyDir`, which loses every object on restart |
 | `persistence.existingClaim` | `""` | bring your own PVC |
 | `persistence.storageClass` | `""` | cluster default when empty |

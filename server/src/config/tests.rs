@@ -209,6 +209,7 @@ fn asked_from(host: &str, scheme: Option<&str>) -> String {
         repo_quota: None,
         compression: None,
         encryption_key: None,
+        session_key: None,
         storage: Storage::Local,
         auth: Auth::Disabled,
     }
@@ -289,6 +290,7 @@ fn a_configured_public_url_wins() {
         repo_quota: None,
         compression: None,
         encryption_key: None,
+        session_key: None,
         storage: Storage::Local,
         auth: Auth::Disabled,
     };
@@ -503,4 +505,29 @@ fn a_dashboard_forge_nobody_configured_refuses_to_start() {
         error.to_string(),
         "LFSX_DASHBOARD_FORGE=\"elsewhere\" is not a forge listed in LFSX_FORGES"
     );
+}
+
+#[test]
+fn a_session_key_is_read_from_its_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("key");
+    std::fs::write(&path, format!("{}\n", "ab".repeat(32))).unwrap();
+
+    let key = super::session_key::session_key(path.to_str())
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(key.as_bytes(), &[0xab; 32]);
+    assert_eq!(super::session_key::session_key(None).unwrap(), None);
+    assert_eq!(super::session_key::session_key(Some("")).unwrap(), None);
+}
+
+#[test]
+fn a_session_key_that_is_missing_or_the_wrong_size_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let short = dir.path().join("short");
+    std::fs::write(&short, "abcd").unwrap();
+
+    assert!(super::session_key::session_key(short.to_str()).is_err());
+    assert!(super::session_key::session_key(dir.path().join("none").to_str()).is_err());
 }

@@ -127,6 +127,13 @@ encryption:
   existingSecret: ""
   key: key
 
+sessionKey:
+  # Name of an existing Secret holding a 32-byte key as 64 hex characters. With
+  # it, dashboard sessions, the saved access settings and the dashboard tokens
+  # are signed with a key the storage provider never holds.
+  existingSecret: ""
+  key: key
+
 persistence:
   enabled: true
   existingClaim: ""

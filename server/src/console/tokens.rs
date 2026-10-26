@@ -45,7 +45,7 @@ fn readable(name: &str) -> bool {
 }
 
 pub async fn issued(store: &Store) -> Result<Vec<Issued>, Error> {
-    match store.read_meta(FILE).await? {
+    match store.read_signed(FILE).await? {
         Some(bytes) => Ok(serde_json::from_slice(&bytes)?),
         None => Ok(Vec::new()),
     }
@@ -53,7 +53,7 @@ pub async fn issued(store: &Store) -> Result<Vec<Issued>, Error> {
 
 async fn keep(store: &Store, issued: &[Issued]) -> Result<(), Error> {
     store
-        .write_meta(FILE, serde_json::to_vec_pretty(issued)?)
+        .write_signed(FILE, serde_json::to_vec_pretty(issued)?)
         .await
 }
 

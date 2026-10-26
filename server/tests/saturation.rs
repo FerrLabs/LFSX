@@ -29,6 +29,7 @@ fn app_idling(root: &tempfile::TempDir, cap: usize, idle: Duration) -> Router {
         repo_quota: None,
         compression: None,
         encryption_key: None,
+        session_key: None,
         storage: lfsx_server::config::Storage::Local,
         auth: Auth::Disabled,
     })
