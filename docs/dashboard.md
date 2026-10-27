@@ -52,6 +52,15 @@ holds that token in memory for the session's life, so a forge session ends on re
 works on the replica that opened it: route dashboard traffic with session affinity when running
 several.
 
+That key lives in the store, so whoever can read the bucket can mint sessions and whoever can write
+to it can rewrite the saved access settings and the dashboard tokens. Set `LFSX_SESSION_KEY_FILE` to
+a file holding a 32-byte key as 64 hex characters (on Kubernetes, `sessionKey.existingSecret`) and
+the key comes from there instead. `access*.json` and `dashboard-tokens.json` are then written signed
+with it, and an unsigned or altered copy is ignored: the environment's access settings apply and no
+dashboard token is valid. Turning it on therefore retires the files written before: save the access
+settings again and reissue the tokens. Turning it off again needs the same, because the signed
+files are not plain JSON. Every replica must hold the same key.
+
 Scripts can skip the cookie and send a forge admin's token as `Authorization: Bearer` on every call.
 
 ## What it shows

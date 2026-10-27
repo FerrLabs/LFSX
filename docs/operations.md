@@ -28,7 +28,7 @@ from a restore:
 |---|---|
 | `access.json`, `access-<forge>.json` | `LFSX_ALLOWED` and `LFSX_RESTRICTED` from the environment apply again, with no warning. If the dashboard had narrowed them, the restored server is more open than the one you lost. |
 | `dashboard-tokens.json` | No dashboard token exists any more and the sessions they opened end. Admins of `LFSX_DASHBOARD_REPO` can still sign in with a forge token; reissue the others with `lfsx-server dashboard token create`. With `LFSX_AUTH=disabled` nobody can sign in until you do. |
-| `session.key` | A new key is made on first use and every open dashboard session ends. Nothing else depends on it. |
+| `session.key` | A new key is made on first use and every open dashboard session ends. Nothing else depends on it. With `LFSX_SESSION_KEY_FILE` set the key is not in the store and this file is unused. |
 
 The reverse holds too: an `access.json` restored from last month brings last month's lists back, and
 what the dashboard saved takes precedence over the environment. The server rereads the file every 30

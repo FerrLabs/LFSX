@@ -11,16 +11,19 @@ mod auth;
 mod dashboard;
 mod error;
 mod forges;
+mod session_key;
 mod storage;
 
 pub use self::auth::{Auth, GithubApp, Provider};
 pub use self::dashboard::Dashboard;
 pub use self::error::ConfigError;
 pub use self::forges::Forge;
+pub use self::session_key::SessionKey;
 pub use self::storage::{AzureCredential, Dialect, DiskCache, GcsCredential, KeySource, Storage};
 
 use self::dashboard::dashboard;
 use self::error::parse;
+use self::session_key::session_key;
 use self::storage::encryption_key;
 
 #[derive(Debug, Clone)]
@@ -51,6 +54,7 @@ pub struct Config {
     // is the one interface every KMS, Vault and SOPS already speaks, for the
     // operator whose keys must never rest on disk at all.
     pub encryption_key: Option<KeySource>,
+    pub session_key: Option<SessionKey>,
     pub storage: Storage,
     pub auth: Auth,
     pub dashboard: Option<Dashboard>,
@@ -110,6 +114,7 @@ impl Config {
                 std::env::var("LFSX_ENCRYPTION_KEY_FILE").ok().as_deref(),
                 std::env::var("LFSX_ENCRYPTION_KEY_COMMAND").ok().as_deref(),
             )?,
+            session_key: session_key(std::env::var("LFSX_SESSION_KEY_FILE").ok().as_deref())?,
             storage: Storage::from_env(),
             dashboard: None,
             forges: Vec::new(),

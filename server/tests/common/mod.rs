@@ -134,6 +134,7 @@ pub fn config(root: &tempfile::TempDir, api_url: &str) -> Config {
         repo_quota: None,
         compression: None,
         encryption_key: None,
+        session_key: None,
         storage: lfsx_server::config::Storage::Local,
         auth: forge_auth(api_url, Duration::from_secs(60), Duration::from_secs(10)),
     }

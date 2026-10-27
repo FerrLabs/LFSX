@@ -1,7 +1,7 @@
 {
   "name": "@lfsx/site",
   "private": true,
-  "version": "2026.10.35",
+  "version": "2026.10.37",
   "type": "module",
   "engines": {
     "node": ">=22.0.0",
@@ -28,7 +28,7 @@
     "@angular/platform-server": "^22.0.0",
     "@angular/router": "^22.0.0",
     "@ferrlabs/ui-foundation": "^5.5.0",
-    "@ferrlabs/ui-ng": "^1.45.0",
+    "@ferrlabs/ui-ng": "^1.45.1",
     "@fontsource/archivo": "^5.3.0",
     "front-matter": "^4.0.2",
     "marked": "^18.0.0",

@@ -505,5 +505,6 @@ fn backends(config: &Config) -> (Store, LockStore) {
             )
         }
     };
+    let store = store.with_signing(config.session_key.as_ref().map(|key| *key.as_bytes()));
     (store, lock_backend.with_max_age(config.lock_max_age))
 }
