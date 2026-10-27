@@ -87,6 +87,7 @@ pub fn serve(config: Config) -> (Router, Option<Router>) {
         started: std::time::Instant::now(),
         tokens: console::tokens::Registry::default(),
         session_key: tokio::sync::OnceCell::new(),
+        forge_sessions: Default::default(),
     });
 
     if state.config.dashboard.is_some() && tokio::runtime::Handle::try_current().is_ok() {

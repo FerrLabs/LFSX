@@ -15,13 +15,30 @@ use tower::ServiceExt;
 struct Served {
     _root: tempfile::TempDir,
     _pages: tempfile::TempDir,
+    forge: std::sync::Arc<common::Forge>,
     store: Store,
     app: Router,
 }
 
 async fn served(auth: Option<Auth>) -> Served {
+    serve(|_, default| auth.unwrap_or(default)).await
+}
+
+async fn served_without_cache() -> Served {
+    serve(|api_url, _| {
+        common::anonymous_forge_auth(
+            api_url,
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+            false,
+        )
+    })
+    .await
+}
+
+async fn serve(auth: impl FnOnce(&str, Auth) -> Auth) -> Served {
     let root = tempfile::tempdir().unwrap();
-    let (api_url, _forge) = forge().await;
+    let (api_url, forge) = forge().await;
     let pages = tempfile::tempdir().unwrap();
     std::fs::write(pages.path().join("index.html"), "<lfsx-root></lfsx-root>").unwrap();
     let base = config(&root, &api_url);
@@ -30,13 +47,14 @@ async fn served(auth: Option<Auth>) -> Served {
             dir: pages.path().to_path_buf(),
             admins: Some(Namespace::new("FerrLabs", "Infra").unwrap()),
         }),
-        auth: auth.unwrap_or(base.auth.clone()),
+        auth: auth(&api_url, base.auth.clone()),
         ..base
     };
 
     Served {
         store: lfsx_server::store(&config),
         app: lfsx_server::app(config),
+        forge,
         _root: root,
         _pages: pages,
     }
@@ -333,5 +351,55 @@ async fn creating_and_revoking_a_token_land_on_the_audit_trail_without_the_secre
     assert!(
         revoked.contains("lfsx::audit") && revoked.contains(r#"name="alice""#),
         "{revoked}"
+    );
+}
+
+fn sign_out_request(session: &str) -> Request<Body> {
+    Request::builder()
+        .method(Method::DELETE)
+        .uri("/-/api/session")
+        .header("cookie", session)
+        .body(Body::empty())
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_forge_session_ends_when_the_admin_loses_admin_rights() {
+    let served = served_without_cache().await;
+    let session = session_of(&sign_in(served.app.clone(), "admin").await);
+    assert_eq!(
+        overview(served.app.clone(), Some(&session)).await,
+        StatusCode::OK
+    );
+
+    *served.forge.admin_is_admin.lock().unwrap() = false;
+
+    assert_eq!(
+        overview(served.app.clone(), Some(&session)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    *served.forge.admin_is_admin.lock().unwrap() = true;
+    assert_eq!(
+        overview(served.app, Some(&session)).await,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
+async fn a_signed_out_forge_session_cannot_be_replayed() {
+    let served = served(None).await;
+    let session = session_of(&sign_in(served.app.clone(), "admin").await);
+
+    let response = served
+        .app
+        .clone()
+        .oneshot(sign_out_request(&session))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        overview(served.app, Some(&session)).await,
+        StatusCode::UNAUTHORIZED
     );
 }

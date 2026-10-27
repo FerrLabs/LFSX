@@ -45,7 +45,12 @@ With `LFSX_AUTH=disabled` there is no forge to ask, and only dashboard tokens ge
 Signing in trades the token for a session cookie valid 12 hours, `HttpOnly` and `SameSite=Strict`,
 and `Secure` when `LFSX_PUBLIC_URL` is `https://`. The browser keeps the cookie, never the token.
 Sessions are signed with a key the server keeps at `.lfsx/session.key` and reads once; deleting it
-and restarting every replica ends every session.
+and restarting every replica ends every session. A session opened with a forge token is checked
+against the forge on every request, through the same cache as git traffic, so it ends within the
+cache lifetime of its owner losing admin rights, and signing out ends it on the server. The server
+holds that token in memory for the session's life, so a forge session ends on restart and only
+works on the replica that opened it: route dashboard traffic with session affinity when running
+several.
 
 That key lives in the store, so whoever can read the bucket can mint sessions and whoever can write
 to it can rewrite the saved access settings and the dashboard tokens. Set `LFSX_SESSION_KEY_FILE` to
@@ -54,8 +59,7 @@ the key comes from there instead. `access*.json` and `dashboard-tokens.json` are
 with it, and an unsigned or altered copy is ignored: the environment's access settings apply and no
 dashboard token is valid. Turning it on therefore retires the files written before: save the access
 settings again and reissue the tokens. Turning it off again needs the same, because the signed
-files are not plain JSON. Every replica must hold the same key. A session opened with a forge token lasts its 12 hours even if its owner stops being an
-admin, so revoke the forge token as well when someone leaves.
+files are not plain JSON. Every replica must hold the same key.
 
 Scripts can skip the cookie and send a forge admin's token as `Authorization: Bearer` on every call.
 
