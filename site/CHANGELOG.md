@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.38] - 2026-10-27
+
+### Bug Fixes
+
+- fix(console): recheck forge dashboard sessions and revoke them on sign-out (#703)
+
 ## [2026.10.37] - 2026-10-27
 
 ### Bug Fixes
