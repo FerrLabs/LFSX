@@ -22,12 +22,14 @@ use tower::ServiceExt;
 pub struct Forge {
     pub calls: AtomicUsize,
     pub writer_can_push: Mutex<bool>,
+    pub admin_is_admin: Mutex<bool>,
 }
 
 pub async fn forge() -> (String, Arc<Forge>) {
     let forge = Arc::new(Forge {
         calls: AtomicUsize::new(0),
         writer_can_push: Mutex::new(true),
+        admin_is_admin: Mutex::new(true),
     });
 
     let router = Router::new()
@@ -56,8 +58,11 @@ pub async fn repository(
         .unwrap_or_default();
 
     match token {
-        "admin" => Json(json!({ "permissions": { "pull": true, "push": true, "admin": true } }))
-            .into_response(),
+        "admin" => {
+            let admin = *forge.admin_is_admin.lock().unwrap();
+            Json(json!({ "permissions": { "pull": true, "push": true, "admin": admin } }))
+                .into_response()
+        }
         "writer" => {
             let push = *forge.writer_can_push.lock().unwrap();
             Json(json!({ "permissions": { "pull": true, "push": push } })).into_response()

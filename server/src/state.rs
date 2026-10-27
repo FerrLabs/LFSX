@@ -23,6 +23,7 @@ pub struct AppState {
     pub started: std::time::Instant,
     pub tokens: crate::console::tokens::Registry,
     pub session_key: tokio::sync::OnceCell<Vec<u8>>,
+    pub forge_sessions: crate::console::forge_sessions::ForgeSessions,
 }
 
 impl AppState {

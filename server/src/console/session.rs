@@ -133,11 +133,27 @@ pub(crate) async fn viewer(state: &Shared, headers: &HeaderMap) -> Result<Option
     };
 
     match (&claims.viewer, &claims.issued) {
-        (Viewer::Forge(_), _) => Ok(Some(claims.viewer)),
+        (Viewer::Forge(_), Some(id)) => still_admin(state, id, claims.viewer).await,
+        (Viewer::Forge(_), None) => Ok(None),
         (Viewer::Token(_), Some(hash)) if state.tokens.still_issued(&state.store, hash).await? => {
             Ok(Some(claims.viewer))
         }
         (Viewer::Token(_), _) => Ok(None),
+    }
+}
+
+async fn still_admin(state: &Shared, id: &str, viewer: Viewer) -> Result<Option<Viewer>, Error> {
+    let Some(token) = state.forge_sessions.token(id) else {
+        return Ok(None);
+    };
+
+    match forge_admin(state, &token).await {
+        Ok(current) if current == viewer => Ok(Some(viewer)),
+        Ok(_) | Err(Error::Forbidden | Error::Unauthenticated) => {
+            state.forge_sessions.close(id);
+            Ok(None)
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -161,6 +177,13 @@ async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>
         return Ok((Viewer::Token(issued.name), Some(hash)));
     }
 
+    let viewer = forge_admin(state, token).await?;
+    let id = state.forge_sessions.open(token.to_owned(), LIFETIME);
+
+    Ok((viewer, Some(id)))
+}
+
+async fn forge_admin(state: &Shared, token: &str) -> Result<Viewer, Error> {
     let (Auth::Forge { .. }, Some(admins)) = (
         &state.config.auth,
         state
@@ -183,7 +206,7 @@ async fn admitted(state: &Shared, token: &str) -> Result<(Viewer, Option<String>
         .await?
         .require_admin()?;
 
-    Ok((Viewer::Forge(authorizer.actor(&headers).await?.login), None))
+    Ok(Viewer::Forge(authorizer.actor(&headers).await?.login))
 }
 
 pub(crate) async fn sign_in(
@@ -220,7 +243,15 @@ pub(crate) async fn current(
     ))
 }
 
-pub(crate) async fn sign_out(State(state): State<Shared>) -> Response {
+pub(crate) async fn sign_out(State(state): State<Shared>, headers: HeaderMap) -> Response {
+    if let Some(claims) = presented(&headers)
+        .zip(key(&state).await.ok())
+        .and_then(|(sealed, key)| open(key, sealed))
+        && let (Viewer::Forge(_), Some(id)) = (&claims.viewer, &claims.issued)
+    {
+        state.forge_sessions.close(id);
+    }
+
     (
         StatusCode::NO_CONTENT,
         [(SET_COOKIE, cookie(&state, "", 0))],
