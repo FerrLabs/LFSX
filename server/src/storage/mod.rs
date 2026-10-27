@@ -37,25 +37,67 @@ pub use rewrite::CompressReport;
 pub use verify::VerifyReport;
 
 enum Sink {
+    Undecided {
+        file: Option<fs::File>,
+        held: Vec<u8>,
+        oid: Oid,
+    },
     Raw(fs::File),
     Framed(Box<codec::Writer>),
 }
 
 impl Sink {
+    fn raw(file: fs::File, oid: &Oid) -> Self {
+        Self::Undecided {
+            file: Some(file),
+            held: Vec::with_capacity(codec::SNIFF),
+            oid: oid.to_owned(),
+        }
+    }
+
     async fn write(&mut self, chunk: &[u8]) -> Result<(), Error> {
         match self {
+            Self::Undecided { held, .. } => {
+                held.extend_from_slice(chunk);
+                if held.len() >= codec::SNIFF {
+                    self.settle().await?;
+                }
+                Ok(())
+            }
             Self::Raw(file) => Ok(file.write_all(chunk).await?),
             Self::Framed(writer) => writer.push(chunk).await,
         }
     }
 
-    async fn finish(self) -> Result<(), Error> {
+    async fn settle(&mut self) -> Result<(), Error> {
+        let Self::Undecided { file, held, oid } = self else {
+            return Ok(());
+        };
+        let file = file.take().expect("an undecided sink holds its file");
+        let held = std::mem::take(held);
+
+        *self = if codec::collides(&held) {
+            let mut writer = codec::Writer::open(file, None, None, oid).await?;
+            writer.push(&held).await?;
+            Self::Framed(Box::new(writer))
+        } else {
+            let mut file = file;
+            file.write_all(&held).await?;
+            Self::Raw(file)
+        };
+
+        Ok(())
+    }
+
+    async fn finish(mut self) -> Result<(), Error> {
+        self.settle().await?;
         match self {
             Self::Raw(mut file) => {
                 file.flush().await?;
                 Ok(file.sync_all().await?)
             }
             Self::Framed(writer) => writer.finish().await,
+            Self::Undecided { .. } => unreachable!("settled above"),
         }
     }
 }
@@ -398,7 +440,7 @@ impl LocalStore {
         // plaintext going past, whatever the bytes look like once they land,
         // so compression is a different sink, not a different path.
         let mut sink = match (self.compression, self.keys.as_deref()) {
-            (None, None) => Sink::Raw(file),
+            (None, None) => Sink::raw(file, oid),
             (level, keys) => Sink::Framed(Box::new(
                 codec::Writer::open(file, level, keys.map(crypt::Keyring::writing), oid).await?,
             )),

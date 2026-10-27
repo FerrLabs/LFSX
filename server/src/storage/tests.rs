@@ -257,3 +257,68 @@ async fn content_collected_right_after_it_was_published_is_restored_from_the_sta
     assert!(content.exists());
     assert!(!staged.path.exists());
 }
+
+async fn container_around(inner: &[u8]) -> Vec<u8> {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("container");
+    let file = fs::File::create(&path).await.unwrap();
+    let mut writer = codec::Writer::open(file, Some(3), None, &OID)
+        .await
+        .unwrap();
+    writer.push(inner).await.unwrap();
+    writer.finish().await.unwrap();
+
+    std::fs::read(&path).unwrap()
+}
+
+async fn pushed_and_fetched(payload: &[u8], chunk: usize) -> (u64, Vec<u8>) {
+    let root = tempfile::tempdir().unwrap();
+    let store = LocalStore::new(root.path());
+    let ns = namespace();
+    let oid = crate::oid::Oid::parse(&hex::encode(Sha256::digest(payload))).unwrap();
+
+    let chunks: Vec<Result<Bytes, std::io::Error>> = payload
+        .chunks(chunk)
+        .map(|part| Ok(Bytes::copy_from_slice(part)))
+        .collect();
+    store
+        .write(&ns, &oid, None, None, stream::iter(chunks))
+        .await
+        .unwrap();
+
+    let object = store.open(&ns, &oid).await.unwrap();
+    let size = object.size();
+    let mut out = Vec::new();
+    let mut body = object.stream(0, size).await.unwrap();
+    while let Some(part) = body.next().await {
+        out.extend_from_slice(&part.unwrap());
+    }
+
+    (size, out)
+}
+
+#[tokio::test]
+async fn a_pushed_file_that_is_itself_a_container_is_served_back_byte_for_byte() {
+    let payload = container_around(&vec![b'x'; 200_000]).await;
+
+    for chunk in [payload.len(), 1, 3] {
+        let (size, served) = pushed_and_fetched(&payload, chunk).await;
+
+        assert_eq!(size, payload.len() as u64, "chunk size {chunk}");
+        assert!(
+            served == payload,
+            "an object is the bytes that hash to its name, not whatever a header inside them \
+             describes (chunk size {chunk})"
+        );
+    }
+}
+
+#[tokio::test]
+async fn objects_shorter_than_the_magic_are_stored_and_served_as_they_are() {
+    for payload in [&b""[..], b"L", b"LFZ"] {
+        let (size, served) = pushed_and_fetched(payload, 1).await;
+
+        assert_eq!(size, payload.len() as u64);
+        assert_eq!(served, payload);
+    }
+}
