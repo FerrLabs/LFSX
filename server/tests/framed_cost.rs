@@ -37,6 +37,7 @@ fn app(root: &tempfile::TempDir, endpoint: &str, compression: Option<i32>) -> Ro
         repo_quota: None,
         compression,
         encryption_key: None,
+        session_key: None,
         storage: Storage::Bucket {
             dialect: lfsx_server::config::Dialect::S3 {
                 endpoint: endpoint.to_owned(),

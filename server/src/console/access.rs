@@ -122,7 +122,7 @@ impl Saved {
 }
 
 async fn saved(state: &Shared, file: &str) -> Result<Option<Saved>, Error> {
-    let Some(bytes) = state.store.read_meta(file).await? else {
+    let Some(bytes) = state.store.read_signed(file).await? else {
         return Ok(None);
     };
 
@@ -250,7 +250,7 @@ pub(crate) async fn write(
     let before = shown(&state, &target).await?;
     state
         .store
-        .write_meta(
+        .write_signed(
             &target.file,
             serde_json::to_vec_pretty(&saved).map_err(Error::from)?,
         )

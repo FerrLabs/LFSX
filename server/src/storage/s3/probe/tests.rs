@@ -70,6 +70,7 @@ fn presigning(endpoint: &str) -> crate::config::Config {
         repo_quota: None,
         compression: None,
         encryption_key: None,
+        session_key: None,
         storage: crate::config::Storage::Bucket {
             dialect: crate::config::Dialect::S3 {
                 endpoint: endpoint.to_owned(),

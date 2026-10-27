@@ -252,6 +252,7 @@ async fn objects_written_before_the_key_existed_still_read_after_it() {
 
     let plain = lfsx_server::app(Config {
         encryption_key: None,
+        session_key: None,
         ..common::config(&root, &api_url)
     });
     assert_eq!(push(plain, &payload).await, StatusCode::OK);
@@ -275,6 +276,7 @@ async fn an_encrypted_object_is_refused_by_a_server_without_the_key() {
 
     let keyless = lfsx_server::app(Config {
         encryption_key: None,
+        session_key: None,
         ..common::config(&root, &api_url)
     });
     let (status, body, _) = download(keyless, &oid, None).await;

@@ -255,6 +255,10 @@ spec:
             - name: LFSX_ENCRYPTION_KEY_FILE
               value: /etc/lfsx/keys/{{ .Values.encryption.key }}
             {{- end }}
+            {{- if .Values.sessionKey.existingSecret }}
+            - name: LFSX_SESSION_KEY_FILE
+              value: /etc/lfsx/session/{{ .Values.sessionKey.key }}
+            {{- end }}
             {{- if .Values.auth.githubApp.appId }}
             - name: LFSX_GITHUB_APP_ID
               value: {{ include "lfsx.appId" .Values.auth.githubApp.appId | quote }}
@@ -305,6 +309,11 @@ spec:
               mountPath: /etc/lfsx/keys
               readOnly: true
             {{- end }}
+            {{- if .Values.sessionKey.existingSecret }}
+            - name: session-key
+              mountPath: /etc/lfsx/session
+              readOnly: true
+            {{- end }}
             {{- if .Values.auth.githubApp.appId }}
             - name: github-app-key
               mountPath: /etc/lfsx/github-app
@@ -337,6 +346,12 @@ spec:
             # 0440, not 0400. A projected secret is owned by root, and fsGroup
             # gives the group to 65532, the user this runs as. Owner-only read
             # looks tighter and leaves the server unable to open its own key.
+            defaultMode: 0440
+        {{- end }}
+        {{- if .Values.sessionKey.existingSecret }}
+        - name: session-key
+          secret:
+            secretName: {{ .Values.sessionKey.existingSecret }}
             defaultMode: 0440
         {{- end }}
         {{- if .Values.auth.githubApp.appId }}

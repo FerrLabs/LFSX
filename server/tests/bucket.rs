@@ -211,6 +211,7 @@ fn bucket_config(
         repo_quota: None,
         compression,
         encryption_key,
+        session_key: None,
         storage: Storage::Bucket {
             dialect: dialect(bucket),
             presign,

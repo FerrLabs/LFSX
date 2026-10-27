@@ -46,6 +46,7 @@ All configuration is by environment variable. A variable that is set but cannot 
 | `LFSX_GCS_ENDPOINT` | `https://storage.googleapis.com` | API endpoint, for an emulator or a private endpoint |
 | `LFSX_S3_CACHE_MAX_BYTES` | unset | bytes the cache may hold before the least recently used entries are dropped; required with the directory, which does nothing without it |
 | `LFSX_COMPRESSION` | `none` | `zstd`, or `zstd:1`…`zstd:19` to pick the level, to compress objects at rest |
+| `LFSX_SESSION_KEY_FILE` | unset | path to a file holding a 32-byte key as 64 hex characters. Signs dashboard sessions, `access*.json` and `dashboard-tokens.json`; without it the key is kept in the store and anyone who can write there can forge all three. See [Dashboard](dashboard.md) |
 | `LFSX_ENCRYPTION_KEY_FILE` | unset | path to a file holding one or more 32-byte keys as hex, to encrypt objects at rest |
 | `LFSX_ENCRYPTION_KEY_COMMAND` | unset | command whose stdout is read exactly like the key file, for keys that must never rest on disk; mutually exclusive with the file, setting both refuses to start |
 | `RUST_LOG` | `info` | log filter (`tracing_subscriber` syntax) |

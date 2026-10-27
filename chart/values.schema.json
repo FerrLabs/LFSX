@@ -447,6 +447,18 @@
       },
       "additionalProperties": false
     },
+    "sessionKey": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "persistence": {
       "type": "object",
       "properties": {

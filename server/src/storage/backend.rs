@@ -17,6 +17,7 @@ use std::time::Duration;
 pub struct Store {
     backend: Backend,
     usage: super::usage::Usage,
+    signing: Option<[u8; 32]>,
 }
 
 enum Backend {
@@ -112,6 +113,7 @@ impl Store {
         Self {
             backend,
             usage: super::usage::Usage::default(),
+            signing: None,
         }
     }
 
@@ -506,6 +508,7 @@ impl Store {
 }
 
 mod meta;
+mod signed;
 
 #[cfg(test)]
 mod tests;

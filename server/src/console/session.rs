@@ -45,6 +45,10 @@ pub struct SignIn {
 const KEY_LENGTH: usize = 32;
 
 async fn key(state: &Shared) -> Result<&[u8], Error> {
+    if let Some(key) = &state.config.session_key {
+        return Ok(key.as_bytes());
+    }
+
     state
         .session_key
         .get_or_try_init(|| kept_key(&state.store))
