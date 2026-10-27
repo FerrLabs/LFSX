@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.42] - 2026-10-27
+
+### Bug Fixes
+
+- fix(storage): frame pushed objects that open with the container magic (#704)
+
 ## [1.26.41] - 2026-10-27
 
 ### Bug Fixes
