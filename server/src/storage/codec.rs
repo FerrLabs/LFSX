@@ -25,6 +25,12 @@ const MAGIC: &[u8; 4] = b"LFZ1";
 const V_PLAIN: u8 = 1;
 const V_SEALED: u8 = 2;
 
+pub const SNIFF: usize = MAGIC.len();
+
+pub fn collides(head: &[u8]) -> bool {
+    head.starts_with(MAGIC)
+}
+
 const HEADER: u64 = 32;
 const SEALED_HEADER: u64 = 64;
 
