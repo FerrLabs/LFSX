@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.10.37] - 2026-10-27
+
+### Bug Fixes
+
+- fix(server): take the session key from a Secret and sign dashboard state (#702)
+
 ## [2026.10.36] - 2026-10-26
 
 ### Bug Fixes
