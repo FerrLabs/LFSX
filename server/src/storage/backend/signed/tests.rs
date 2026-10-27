@@ -26,7 +26,7 @@ async fn a_signed_file_reads_back_as_it_was_written() {
 }
 
 #[tokio::test]
-async fn a_signed_file_whose_payload_was_edited_in_the_store_is_refused() {
+async fn a_signed_file_whose_payload_was_edited_in_the_store_is_ignored() {
     let root = tempfile::tempdir().unwrap();
     let store = store(&root, Some(KEY));
     store
@@ -40,14 +40,11 @@ async fn a_signed_file_whose_payload_was_edited_in_the_store_is_refused() {
         .replace("false", "true");
     std::fs::write(&path, forged).unwrap();
 
-    assert!(matches!(
-        store.read_signed("access.json").await,
-        Err(Error::Tampered)
-    ));
+    assert_eq!(store.read_signed("access.json").await.unwrap(), None);
 }
 
 #[tokio::test]
-async fn a_file_signed_for_another_name_is_refused() {
+async fn a_file_signed_for_another_name_is_ignored() {
     let root = tempfile::tempdir().unwrap();
     let store = store(&root, Some(KEY));
     store
@@ -61,38 +58,41 @@ async fn a_file_signed_for_another_name_is_refused() {
     )
     .unwrap();
 
-    assert!(matches!(
-        store.read_signed("access.json").await,
-        Err(Error::Tampered)
-    ));
+    assert_eq!(store.read_signed("access.json").await.unwrap(), None);
 }
 
 #[tokio::test]
-async fn a_file_signed_with_another_key_is_refused() {
+async fn a_file_signed_with_another_key_is_ignored() {
     let root = tempfile::tempdir().unwrap();
     store(&root, Some([9; 32]))
         .write_signed("access.json", b"{}".to_vec())
         .await
         .unwrap();
 
-    assert!(matches!(
-        store(&root, Some(KEY)).read_signed("access.json").await,
-        Err(Error::Tampered)
-    ));
+    assert_eq!(
+        store(&root, Some(KEY))
+            .read_signed("access.json")
+            .await
+            .unwrap(),
+        None
+    );
 }
 
 #[tokio::test]
-async fn an_unsigned_file_is_refused_once_a_key_is_configured() {
+async fn an_unsigned_file_is_ignored_once_a_key_is_configured() {
     let root = tempfile::tempdir().unwrap();
     store(&root, None)
         .write_signed("access.json", br#"{"anonymous_read":true}"#.to_vec())
         .await
         .unwrap();
 
-    assert!(matches!(
-        store(&root, Some(KEY)).read_signed("access.json").await,
-        Err(Error::Misconfigured(_))
-    ));
+    assert_eq!(
+        store(&root, Some(KEY))
+            .read_signed("access.json")
+            .await
+            .unwrap(),
+        None
+    );
 }
 
 #[tokio::test]

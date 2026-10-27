@@ -33,19 +33,23 @@ impl Store {
             return Ok(Some(bytes));
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(|_| {
-            Error::Misconfigured(
+        let verified = serde_json::from_slice::<Envelope>(&bytes)
+            .ok()
+            .and_then(|envelope| {
+                let payload = serde_json::to_vec(&envelope.payload).ok()?;
+                let signature = hex::decode(&envelope.mac).ok()?;
+                mac(key, name, &payload).verify_slice(&signature).ok()?;
+                Some(payload)
+            });
+        if verified.is_none() {
+            tracing::warn!(
+                file = name,
                 "a file kept in the store is not signed with LFSX_SESSION_KEY_FILE: it was \
-                 written without that key or has been replaced, so it is ignored",
-            )
-        })?;
-        let payload = serde_json::to_vec(&envelope.payload)?;
-        let signature = hex::decode(&envelope.mac).map_err(|_| Error::Tampered)?;
-        mac(key, name, &payload)
-            .verify_slice(&signature)
-            .map_err(|_| Error::Tampered)?;
+                 written without that key or has been replaced, so it is ignored"
+            );
+        }
 
-        Ok(Some(payload))
+        Ok(verified)
     }
 
     pub async fn write_signed(&self, name: &str, bytes: Vec<u8>) -> Result<(), Error> {
