@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.45] - 2026-10-31
+
+### Bug Fixes
+
+- fix(deps): update rustls-webpki, webpki-roots, ctutils and yoke-derive (#717)
+
 ## [1.26.44] - 2026-10-30
 
 ### Bug Fixes
