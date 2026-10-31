@@ -1,20 +1,19 @@
 <div align="center">
 
-<img src=".github/logo.svg" width="96" alt="" />
-
-# LFSX
+<h1><img src=".github/logo.svg" alt="" width="48" height="48" align="absmiddle"> LFSX</h1>
 
 **Your assets. Your disk.**
 
 A fast, lightweight, secure Git LFS server.
 
+[![Latest release](https://img.shields.io/github/v/release/FerrLabs/LFSX)](https://github.com/FerrLabs/LFSX/releases/latest)
 [![CI](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/LFSX/actions/workflows/ci.yml)
-[![Coverage](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=coverage&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
 [![Quality Gate](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=alert_status&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
-[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
+[![Coverage](https://sonar.ferrlabs.com/api/project_badges/measure?project=lfsx&metric=coverage&token=sqb_623f2242cd5fcf0124a37f3be11f1bae955d2607)](https://sonar.ferrlabs.com/dashboard?id=lfsx)
+[![License](https://img.shields.io/github/license/FerrLabs/LFSX)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/FerrLabs/LFSX/badge)](https://scorecard.dev/viewer/?uri=github.com/FerrLabs/LFSX)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/lfsx)](https://artifacthub.io/packages/search?repo=lfsx)
 [![Socket Badge](https://badge.socket.dev/cargo/package/lfsx/latest)](https://socket.dev/cargo/package/lfsx)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/FerrLabs/LFSX/badge)](https://scorecard.dev/viewer/?uri=github.com/FerrLabs/LFSX)
 
 [Quick start](#quick-start) | [Documentation](https://lfsx.dev) | [Helm chart](chart/) | [Releases](https://github.com/FerrLabs/LFSX/releases)
 
