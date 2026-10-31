@@ -43,10 +43,10 @@ jobs:
         run: cargo install cargo-fuzz --locked
       - name: Fuzz
         env:
-          SECONDS: ${{ inputs.seconds || '600' }}
+          FUZZ_SECONDS: ${{ inputs.seconds || '600' }}
         run: |
           cargo fuzz run "${{ matrix.target }}" -- \
-            -max_total_time="$SECONDS" \
+            -max_total_time="$FUZZ_SECONDS" \
             -timeout=30 \
             -rss_limit_mb=4096
       - name: Keep the crashing input
