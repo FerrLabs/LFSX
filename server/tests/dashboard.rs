@@ -5,7 +5,8 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use common::{app, credentials, forge, put, read_json};
+use common::{app, credentials, forge, post, put, read_json};
+use serde_json::json;
 use tower::ServiceExt;
 
 async fn get(app: Router, path: &str, token: Option<&str>) -> axum::response::Response {
@@ -32,6 +33,27 @@ async fn stats_report_what_this_repository_holds() {
     assert_eq!(body["objects"], 1);
     assert_eq!(body["bytes"], payload.len());
     assert_eq!(body["locks"], 0);
+}
+
+#[tokio::test]
+async fn stats_count_the_locks_held() {
+    let root = tempfile::tempdir().unwrap();
+    let (api_url, _forge) = forge().await;
+    let app = app(&root, &api_url, Duration::from_secs(60));
+    for path in ["Assets/Arena.unity", "Assets/Hero.psd"] {
+        let taken = post(
+            app.clone(),
+            "writer",
+            "/FerrLabs/LFSX/locks",
+            json!({ "path": path }),
+        )
+        .await;
+        assert_eq!(taken.status(), StatusCode::CREATED);
+    }
+
+    let body = read_json(get(app, "/FerrLabs/LFSX/objects/stats", Some("reader")).await).await;
+
+    assert_eq!(body["locks"], 2);
 }
 
 #[tokio::test]

@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
@@ -56,6 +57,8 @@ const MAX_PATH_BYTES: usize = 4096;
 const DEFAULT_CAPACITY: usize = 10_000;
 
 const GATES: usize = 64;
+
+const READ_AT_ONCE: usize = 16;
 
 pub struct Held {
     pub lock: Lock,
@@ -343,7 +346,7 @@ impl LockStore {
     // every genuinely new create: routing it through `list` made taking one
     // lock cost a read of every lock already held. A count is a directory walk
     // or a key listing, and neither opens a single body.
-    async fn count(&self, ns: &Namespace) -> Result<usize, Error> {
+    pub async fn count(&self, ns: &Namespace) -> Result<usize, Error> {
         match &self.backend {
             Backend::Local { root } => {
                 let Ok(mut entries) = fs::read_dir(Self::directory_in(root, ns)).await else {
@@ -395,10 +398,14 @@ impl LockStore {
     // unhelpful; for locks it tells a client every file is free, which is the
     // one answer that loses somebody's work.
     async fn list_bucket(bucket: &Keyspace, ns: &Namespace) -> Result<Vec<Lock>, Error> {
-        let mut locks = Vec::new();
+        let keys = bucket.keys(&Self::prefix(ns)).await?;
+        let mut locks = Vec::with_capacity(keys.len());
+        let mut bodies = futures_util::stream::iter(keys)
+            .map(|key| async move { bucket.get_bytes(&key).await })
+            .buffer_unordered(READ_AT_ONCE);
 
-        for key in bucket.keys(&Self::prefix(ns)).await? {
-            if let Some(bytes) = bucket.get_bytes(&key).await?
+        while let Some(body) = bodies.next().await {
+            if let Some(bytes) = body?
                 && let Ok(lock) = serde_json::from_slice(&bytes)
             {
                 locks.push(lock);
