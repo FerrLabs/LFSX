@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.51] - 2026-11-07
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.50 (#740)
+
 ## [1.26.50] - 2026-11-06
 
 ### Bug Fixes
