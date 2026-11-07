@@ -224,10 +224,10 @@ importers:
     dependencies:
       '@analogjs/content':
         specifier: ^2.6.1
-        version: 2.9.5(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)
+        version: 2.9.6(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)
       '@analogjs/router':
         specifier: ^2.6.1
-        version: 2.9.5(5738244956d24fb4183d9fce98657a94)
+        version: 2.9.6(2809ec722b164ca4dcfe00c7f3e345a0)
       '@angular/common':
         specifier: ^22.0.0
         version: 22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -288,7 +288,7 @@ importers:
     devDependencies:
       '@analogjs/platform':
         specifier: ^2.6.1
-        version: 2.9.5(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
+        version: 2.9.6(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
       '@angular/build':
         specifier: ^22.0.0
         version: 22.2.5(c30372e4bd10c05b44bbb2fb2d792298)
@@ -314,8 +314,8 @@ packages:
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
 
-  '@analogjs/content@2.9.5':
-    resolution: {integrity: sha512-N5eepS7eW3lcq+Rrm78/2ctYBk1eCV97eNJQI6Nt5w+1PnygtYlWrDcQFvx0OoDLdP3YcVFvjojsFRK0nqbPpQ==}
+  '@analogjs/content@2.9.6':
+    resolution: {integrity: sha512-rgVdLuMl5nSgoYtbmfwJ59lgaFdE5+HDF18OriDJHPMO7SuOtVZ/ZS1n6qHxSfipXfzX8UvRzNVURAE7cujBOQ==}
     peerDependencies:
       '@angular/common': ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
       '@angular/core': ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
@@ -342,8 +342,8 @@ packages:
       sharp:
         optional: true
 
-  '@analogjs/platform@2.9.5':
-    resolution: {integrity: sha512-EJlUAvS0CBYc5MF7dquvQG8eYF4s0cINKhTf6YoPnU2q0/ANwhIbixPjBJMJFy6mQOF2g58iPC6JWWb+jrE1Gw==}
+  '@analogjs/platform@2.9.6':
+    resolution: {integrity: sha512-ed0GHxZ/hLUzfXTmFRg+MN5xfy9eKjuD3o8GUuvm59LhjwMeOOT2RoULaFkqt1VCOvYcvVd8EjdS0w5Pu1qlIg==}
     peerDependencies:
       '@nx/angular': ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0 || ^23.0.0 || ^23 || ^24.0.0
       '@nx/devkit': ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0 || ^23.0.0 || ^23 || ^24.0.0
@@ -372,10 +372,10 @@ packages:
       shiki:
         optional: true
 
-  '@analogjs/router@2.9.5':
-    resolution: {integrity: sha512-8fQH09qh5k6C/c44XVDkXMJ6z01JcEp8Sdgb6dPGhzcbh0wdyScBD1RbbjLFBKldgq8U9e3lngFJIQddDPWWxg==}
+  '@analogjs/router@2.9.6':
+    resolution: {integrity: sha512-5QqbJFLZ/PnKtGDDP7CRH/wHfyRc/YktlcTUZmQBg1UyYilRf5lPGm12/oA6cVPnVVxxKitRR5EvecfCuaG59Q==}
     peerDependencies:
-      '@analogjs/content': ^2.9.5
+      '@analogjs/content': ^2.9.6
       '@angular/core': ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
       '@angular/router': ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
       '@tanstack/angular-query-experimental': ^5.80.0
@@ -383,8 +383,8 @@ packages:
       '@tanstack/angular-query-experimental':
         optional: true
 
-  '@analogjs/vite-plugin-angular@2.9.5':
-    resolution: {integrity: sha512-iGhtiViuLMhQleH/MMeG1LXXmeWcDggf6OB6F17X8SbPsGKbjZPC8DrdJMAQ7lg1DaxqYsN0spu0oY6akZFJiQ==}
+  '@analogjs/vite-plugin-angular@2.9.6':
+    resolution: {integrity: sha512-mgFc3GdHWH1D4xpFn1N5R352Q/vwALkSt02s95pGRJw9lrt7MSH3w15+TDJjDxmsLCbe+/51usU6MMTVJz+79A==}
     peerDependencies:
       '@angular-devkit/build-angular': ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
       '@angular/build': ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0
@@ -397,8 +397,8 @@ packages:
       vite:
         optional: true
 
-  '@analogjs/vite-plugin-nitro@2.9.5':
-    resolution: {integrity: sha512-twiyjlu5+wbz1Q1Rt8hCFaPEg4fCvcCNz57hU99lupMzp+iKUJDpF94vN4QKAq8WpKUFzIQqaFeINh8+tbtRwg==}
+  '@analogjs/vite-plugin-nitro@2.9.6':
+    resolution: {integrity: sha512-6XR2GOMiozRZ1CAx6M7Jckkpns2eHXyGP7DWn5vBk53Aw37IYz/ZQ1Py4h/6ztWjbn24NC9Lz6IumojT8PBxyw==}
 
   '@angular-devkit/architect@0.2202.5':
     resolution: {integrity: sha512-VBkWJs44/5kexjCGOnazwmI0ZqKAJC0YJb4RjvE0JIm26jFp85VmzkeQeIYMY0Y04f4rQe4TdfHM3Tf2E6BzWw==}
@@ -4034,7 +4034,7 @@ snapshots:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
 
-  '@analogjs/content@2.9.5(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)':
+  '@analogjs/content@2.9.6(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)':
     dependencies:
       '@angular/common': 22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2)
       '@angular/core': 22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)
@@ -4049,10 +4049,10 @@ snapshots:
       rxjs: 7.8.2
       tslib: 2.9.1
 
-  '@analogjs/platform@2.9.5(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
+  '@analogjs/platform@2.9.6(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
     dependencies:
-      '@analogjs/vite-plugin-angular': 2.9.5(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
-      '@analogjs/vite-plugin-nitro': 2.9.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
+      '@analogjs/vite-plugin-angular': 2.9.6(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
+      '@analogjs/vite-plugin-nitro': 2.9.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))
       marked: 18.1.3
       marked-gfm-heading-id: 4.1.4(marked@18.1.3)
       marked-mangle: 1.1.14(marked@18.1.3)
@@ -4107,14 +4107,14 @@ snapshots:
       - webpack
       - xml2js
 
-  '@analogjs/router@2.9.5(5738244956d24fb4183d9fce98657a94)':
+  '@analogjs/router@2.9.6(2809ec722b164ca4dcfe00c7f3e345a0)':
     dependencies:
-      '@analogjs/content': 2.9.5(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)
+      '@analogjs/content': 2.9.6(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(@angular/router@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2))(front-matter@4.0.2)(marked-gfm-heading-id@4.1.4(marked@18.1.3))(marked-highlight@2.2.4(marked@18.1.3))(marked-mangle@1.1.14(marked@18.1.3))(marked@18.1.3)(prismjs@1.30.0)(rxjs@7.8.2)
       '@angular/core': 22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)
       '@angular/router': 22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)))(rxjs@7.8.2)
       tslib: 2.9.1
 
-  '@analogjs/vite-plugin-angular@2.9.5(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
+  '@analogjs/vite-plugin-angular@2.9.6(@angular/build@22.2.5(c30372e4bd10c05b44bbb2fb2d792298))(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
     dependencies:
       magic-string: 0.30.21
       obug: 2.2.1
@@ -4127,7 +4127,7 @@ snapshots:
       - '@emnapi/core'
       - '@emnapi/runtime'
 
-  '@analogjs/vite-plugin-nitro@2.9.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
+  '@analogjs/vite-plugin-nitro@2.9.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@parcel/watcher@2.6.0)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2))':
     dependencies:
       defu: 6.1.7
       esbuild: 0.28.2
