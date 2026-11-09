@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.53] - 2026-11-09
+
+### Bug Fixes
+
+- fix(storage): keep the bucket upload running when the request is dropped (#746)
+
 ## [1.26.52] - 2026-11-09
 
 ### Bug Fixes
