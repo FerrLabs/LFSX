@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.3] - 2026-11-09
+
+### Bug Fixes
+
+- perf(locks): read bucket lock bodies concurrently and count locks for stats (#728)
+
 ## [2026.11.1] - 2026-11-01
 
 ### Bug Fixes

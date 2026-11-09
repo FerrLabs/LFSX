@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.52] - 2026-11-09
+
+### Bug Fixes
+
+- perf(locks): read bucket lock bodies concurrently and count locks for stats (#728)
+
 ## [1.26.51] - 2026-11-07
 
 ### Bug Fixes
