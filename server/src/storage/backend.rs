@@ -364,12 +364,19 @@ impl Store {
                 let staged = staging
                     .stage(ns, oid, expected_size, budget, chunks)
                     .await?;
-                let outcome = bucket.store(ns, oid, &staged.path).await;
+                let bucket = S3Store::clone(bucket);
+                let (ns, oid, path) = (ns.clone(), oid.clone(), staged.path.clone());
 
-                // The staging file has served its purpose either way. Leaving it
-                // would be a leak the reclaimer only notices a day later.
-                let _ = tokio::fs::remove_file(&staged.path).await;
-                outcome?;
+                tokio::spawn(async move {
+                    let outcome = bucket.store(&ns, &oid, &path).await;
+
+                    // The staging file has served its purpose either way. Leaving it
+                    // would be a leak the reclaimer only notices a day later.
+                    let _ = tokio::fs::remove_file(&path).await;
+                    outcome
+                })
+                .await
+                .map_err(|error| Error::Storage(std::io::Error::other(error)))??;
 
                 super::Written {
                     bytes: staged.written,
