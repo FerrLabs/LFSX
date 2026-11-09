@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.4] - 2026-11-09
+
+### Refactoring
+
+- refactor(site): use top-level await in main (#747)
+
 ## [2026.11.3] - 2026-11-09
 
 ### Bug Fixes
