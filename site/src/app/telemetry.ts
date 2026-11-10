@@ -59,14 +59,18 @@ function dropPartialWord(text: string): string {
   return cut === -1 ? MASK : text.slice(0, cut);
 }
 
-export function redactText(value: string): string {
-  let text = value.length > MAX_INPUT_LENGTH ? dropPartialWord(value.slice(0, MAX_INPUT_LENGTH)) : value;
+function settle(text: string): string {
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const next = redactPass(text);
     if (next === text) break;
     text = next;
   }
-  return text.length > MAX_LENGTH ? dropPartialWord(text.slice(0, MAX_LENGTH + 1)) : text;
+  return text;
+}
+
+export function redactText(value: string): string {
+  const text = settle(value.length > MAX_INPUT_LENGTH ? dropPartialWord(value.slice(0, MAX_INPUT_LENGTH)) : value);
+  return text.length > MAX_LENGTH ? settle(dropPartialWord(text.slice(0, MAX_LENGTH + 1))) : text;
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
