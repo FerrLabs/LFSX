@@ -26,7 +26,7 @@ const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
 const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/:=])/g;
-const EMAIL = /[\w.!$%'*+=^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const EMAIL = /[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const USERINFO = /(\/\/)[^\s/?#@]*(?::(?!\d+[?#])[^\s/@]*)?@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
@@ -37,7 +37,7 @@ const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
 const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*${BREAKS}(?:${SEGMENT})?`;
 const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:=+${TOKEN_CHARS}*)*))\\3)`, 'gi');
-const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*${BREAKS})(?!(?:bearer|basic)(?:[ \\t]+(?:\\*|\\S{8})|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
+const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*${BREAKS})(?!(?:bearer|basic)(?:[ \\t]+(?:\\*|[^\\s"',;:\\\\]{8})|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
@@ -56,6 +56,7 @@ function redactPass(text: string): string {
     .replace(JWT, MASK)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
+    .replace(/\S+/g, redactWord)
     .replace(EMAIL, MASK)
     .replace(SENSITIVE_COLON, `$1${MASK}`)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)
