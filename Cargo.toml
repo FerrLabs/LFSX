@@ -11,6 +11,7 @@ authors = ["FerrLabs"]
 repository = "https://github.com/FerrLabs/LFSX"
 
 [workspace.dependencies]
+proptest = "1"
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["io"] }
