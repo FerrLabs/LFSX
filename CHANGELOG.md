@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.54] - 2026-11-10
+
+### Bug Fixes
+
+- fix(telemetry): mask both values when two keys share a line (#753)
+
 ## [1.26.53] - 2026-11-09
 
 ### Bug Fixes
