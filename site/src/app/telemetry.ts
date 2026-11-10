@@ -17,26 +17,28 @@ export function environmentFor(hostname: string): TelemetryEnvironment {
 const MAX_LENGTH = 2048;
 const MAX_WORD_LENGTH = 512;
 const MARKERS = /[?#=@]/;
-const URL_TAIL =
-  /((?:[a-z][a-z0-9+.-]*:)?\/\/[^\s?#]*|\b[\w-]+(?:\.[\w-]+)+\/[^\s?#]*|(?<![\w/.])\/[^\s?#]*)[?#]\S*/gi;
+const AUTH_SCHEME = /\b(bearer)\s+[^\s"',;]+|\b(basic)\s+[A-Za-z0-9+/]{8,}={0,2}/gi;
+const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
+const USERINFO = /(\/\/)[^\s/?#]*@/g;
+const PATH_TAIL = /[?#].*$/;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]*/g;
 const SENSITIVE_PARAM =
-  /(\b(?:[\w-]*token|code|state|secret|password|passwd|pwd|key|api_key|apikey|sig|signature|session|auth)=)[^\s&#;"'<>]*/gi;
-const USERINFO = /(\/\/)[^\s/?#@]+@/g;
+  /([\w-]*(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\w*|sig(?:nature)?|code|state)=)[^\s&#;"'<>]*/gi;
 
 function redactWord(word: string): string {
   if (!MARKERS.test(word)) return word;
   if (word.length > MAX_WORD_LENGTH) return ':redacted';
-  return word
-    .replace(USERINFO, '$1')
-    .replace(URL_TAIL, '$1')
-    .replace(PARAM_VALUE, '$1:redacted')
-    .replace(SENSITIVE_PARAM, '$1:redacted');
+  const scrubbed = word.replace(USERINFO, '$1');
+  const cut = scrubbed.includes('/') ? scrubbed.replace(PATH_TAIL, '') : scrubbed;
+  return cut.replace(PARAM_VALUE, '$1:redacted').replace(SENSITIVE_PARAM, '$1:redacted');
 }
 
 export function redactText(value: string): string {
   const text = value.length > MAX_LENGTH ? value.slice(0, MAX_LENGTH) : value;
-  return text.replace(/\S+/g, redactWord);
+  return text
+    .replace(AUTH_SCHEME, (_match: string, bearer?: string, basic?: string) => `${bearer ?? basic} :redacted`)
+    .replace(JWT, ':redacted')
+    .replace(/\S+/g, redactWord);
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
