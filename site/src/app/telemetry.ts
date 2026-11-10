@@ -16,29 +16,48 @@ export function environmentFor(hostname: string): TelemetryEnvironment {
 
 const MAX_LENGTH = 2048;
 const MAX_WORD_LENGTH = 512;
+const MAX_PASSES = 4;
+const MASK = '*';
 const MARKERS = /[?#=@]/;
-const AUTH_SCHEME = /\b(bearer)\s+[^\s"',;]+|\b(basic)\s+[A-Za-z0-9+/]{8,}={0,2}/gi;
+const VALUE = `(?:"[^"]*"?|'[^']*'?|[^\\s&#;"'<>]+)`;
+const BEARER = /\b([Bb]earer)(?:\s+[Bb]earer)*\s+(?:"[^"]*"?|'[^']*'?|[^\s"',;]{8,})/g;
+const BASIC = /\b([Bb]asic)\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/])/g;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
+const SENSITIVE_PARAM = new RegExp(
+  `([\\w-]*(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w*|sig(?:nature)?|code|state)=)${VALUE}`,
+  'gi',
+);
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
+const HOST_TAIL =
+  /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
-const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]*/g;
-const SENSITIVE_PARAM =
-  /([\w-]*(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\w*|sig(?:nature)?|code|state)=)[^\s&#;"'<>]*/gi;
+const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]+/g;
 
 function redactWord(word: string): string {
   if (!MARKERS.test(word)) return word;
-  if (word.length > MAX_WORD_LENGTH) return ':redacted';
-  const scrubbed = word.replace(USERINFO, '$1');
+  if (word.length > MAX_WORD_LENGTH) return MASK;
+  const scrubbed = word.replace(USERINFO, '$1').replace(HOST_TAIL, '$1');
   const cut = scrubbed.includes('/') ? scrubbed.replace(PATH_TAIL, '') : scrubbed;
-  return cut.replace(PARAM_VALUE, '$1:redacted').replace(SENSITIVE_PARAM, '$1:redacted');
+  return cut.replace(PARAM_VALUE, `$1${MASK}`);
+}
+
+function redactPass(text: string): string {
+  return text
+    .replace(SENSITIVE_PARAM, `$1${MASK}`)
+    .replace(/\S+/g, redactWord)
+    .replace(BEARER, `$1 ${MASK}`)
+    .replace(BASIC, `$1 ${MASK}`)
+    .replace(JWT, MASK);
 }
 
 export function redactText(value: string): string {
-  const text = value.length > MAX_LENGTH ? value.slice(0, MAX_LENGTH) : value;
-  return text
-    .replace(AUTH_SCHEME, (_match: string, bearer?: string, basic?: string) => `${bearer ?? basic} :redacted`)
-    .replace(JWT, ':redacted')
-    .replace(/\S+/g, redactWord);
+  let text = value.length > MAX_LENGTH ? value.slice(0, MAX_LENGTH) : value;
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const next = redactPass(text);
+    if (next === text) return text;
+    text = next;
+  }
+  return text;
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
