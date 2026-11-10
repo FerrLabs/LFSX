@@ -27,7 +27,7 @@ const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/:=])/g;
 const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const USERINFO = /(\/\/)[^\s/?#@]*(?::[^\s/@]*)?@/g;
+const USERINFO = /(\/\/)[^\s/?#@]*(?::(?!\d+[?#])[^\s/@]*)?@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
 const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?[^\\s"'<>]+)`;
