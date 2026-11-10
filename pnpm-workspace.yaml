@@ -3,6 +3,7 @@ overrides:
   # it downloads (GHSA-gv7w-rqvm-qjhr), so a hostile registry turns an install
   # into code execution. 0.27.7 arrives through @analogjs/vite-plugin-nitro.
   esbuild: '>=0.28.1'
+  '@opentelemetry/api': '~1.9.0'
 
 packages:
   - 'app'
