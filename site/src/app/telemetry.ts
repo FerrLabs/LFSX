@@ -104,13 +104,17 @@ export function isOptedOut(): boolean {
 
 export function initTelemetry(): void {
   if (typeof window === 'undefined' || localHostnames.includes(window.location.hostname) || isOptedOut()) return;
-  initializeFaro({
-    url: collectorUrl,
-    app: { name: appName, environment: environmentFor(window.location.hostname) },
-    instrumentations: getWebInstrumentations({ captureConsole: false }),
-    beforeSend: sanitizeItem,
-    sessionTracking: { enabled: false },
-  });
+  try {
+    initializeFaro({
+      url: collectorUrl,
+      app: { name: appName, environment: environmentFor(window.location.hostname) },
+      instrumentations: getWebInstrumentations({ captureConsole: false }),
+      beforeSend: sanitizeItem,
+      sessionTracking: { enabled: false },
+    });
+  } catch {
+    return;
+  }
 }
 
 function toError(value: unknown): Error {
