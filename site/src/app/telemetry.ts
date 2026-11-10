@@ -3,7 +3,6 @@ import { type TransportItem, faro, getWebInstrumentations, initializeFaro } from
 
 const collectorUrl = 'https://rum.ferrlabs.com/collect';
 const appName = 'lfsx-site';
-const localHostnames = ['localhost', '127.0.0.1'];
 
 export type TelemetryEnvironment = 'dev' | 'interne' | 'home' | 'prod';
 
@@ -32,7 +31,7 @@ const SENSITIVE_COLON = new RegExp(
   `(${QUOTE}${COLON_KEYS}${QUOTE}\\s*:\\s*)(?!(?:bearer|basic)\\s)(?:\\\\{0,4}"[^"]*"?|'[^']*'?|[a-z][\\w-]{0,20}\\s+[^\\s,;"'<>{}\\]\\\\]{8,}|[^\\s,;"'<>{}\\]\\\\]+)`,
   'gi',
 );
-const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}=)${VALUE}`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}\\s*=(?!=)\\s*)${VALUE}`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
@@ -69,7 +68,7 @@ export function redactText(value: string): string {
     if (next === text) break;
     text = next;
   }
-  return text.length > MAX_LENGTH ? text.slice(0, MAX_LENGTH) : text;
+  return text.length > MAX_LENGTH ? dropPartialWord(text.slice(0, MAX_LENGTH + 1)) : text;
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
@@ -106,8 +105,13 @@ export function isOptedOut(): boolean {
   return globalPrivacyControl === true || doNotTrack === '1';
 }
 
+export function isLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '');
+  return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
 export function initTelemetry(): void {
-  if (typeof window === 'undefined' || localHostnames.includes(window.location.hostname) || isOptedOut()) return;
+  if (typeof window === 'undefined' || isLocalHost(window.location.hostname) || isOptedOut()) return;
   try {
     initializeFaro({
       url: collectorUrl,
