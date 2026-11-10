@@ -27,7 +27,11 @@ const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BEARER = /\b(bearer)(?:\s+bearer)*\s+(?:"[^"]*"?|'[^']*'?|[^\s"',;]{8,})/gi;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/])/g;
 const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const SENSITIVE_COLON = new RegExp(`(("?)${COLON_KEYS}\\2\\s*:\\s*)(?!(?:bearer|basic)\\s)(?:"[^"]*"?|'[^']*'?|[^\\s,;"'<>{}\\]]+)`, 'gi');
+const QUOTE = `(?:\\\\{0,4}["'])?`;
+const SENSITIVE_COLON = new RegExp(
+  `(${QUOTE}${COLON_KEYS}${QUOTE}\\s*:\\s*)(?!(?:bearer|basic)\\s)(?:\\\\{0,4}"[^"]*"?|'[^']*'?|[a-z][\\w-]{0,20}\\s+[^\\s,;"'<>{}\\]\\\\]{8,}|[^\\s,;"'<>{}\\]\\\\]+)`,
+  'gi',
+);
 const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}=)${VALUE}`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
