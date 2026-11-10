@@ -20,17 +20,17 @@ const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
-const VALUE = `(?:"[^"]*"?|'[^']*'?|[^\\s&#;"'<>]+)`;
-const BEARER = /\b([Bb]earer)(?:\s+[Bb]earer)*\s+(?:"[^"]*"?|'[^']*'?|[^\s"',;]{8,})/g;
-const BASIC = /\b([Bb]asic)\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/])/g;
+const VALUE = `(?:"[^"]*"?|'[^']*'?|[^\\s"'<>]+)`;
+const PARAM_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)`;
+const COLON_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?)`;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
-const SENSITIVE_PARAM = new RegExp(
-  `([\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)=)${VALUE}`,
-  'gi',
-);
+const BEARER = /\b(bearer)(?:\s+bearer)*\s+(?:"[^"]*"?|'[^']*'?|[^\s"',;]{8,})/gi;
+const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/])/g;
+const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const SENSITIVE_COLON = new RegExp(`(("?)${COLON_KEYS}\\2\\s*:\\s*)(?!(?:bearer|basic)\\s)(?:"[^"]*"?|'[^']*'?|[^\\s,;"'<>{}\\]]+)`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}=)${VALUE}`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
-const HOST_TAIL =
-  /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
+const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]+/g;
 
@@ -45,10 +45,12 @@ function redactWord(word: string): string {
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
-    .replace(SENSITIVE_PARAM, `$1${MASK}`)
-    .replace(/\S+/g, redactWord)
     .replace(BEARER, `$1 ${MASK}`)
-    .replace(BASIC, `$1 ${MASK}`);
+    .replace(BASIC, `$1 ${MASK}`)
+    .replace(EMAIL, MASK)
+    .replace(SENSITIVE_COLON, `$1${MASK}`)
+    .replace(SENSITIVE_PARAM, `$1${MASK}`)
+    .replace(/\S+/g, redactWord);
 }
 
 export function redactText(value: string): string {
