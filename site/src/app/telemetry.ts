@@ -27,7 +27,10 @@ const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9
 const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?!\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=])(?!${KEY_AHEAD})(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?=([^\\s"',;:=\\\\]{8,}=*))\\2(?![\\w:=]))`, 'gi');
+const KEY_WORDS = `(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)`;
+const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
+const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}{8,}))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?:\\r?\\n[ \\t]*)?(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>]+)?`;
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?!\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=])(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}))\\3=*)`, 'gi');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)?)(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD})(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>{}\\]\\\\][^\\r\\n,;"'<>{}\\]\\\\]*)`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}\\s*=(?!=)\\s*)(?!${KEY_AHEAD})${VALUE}`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
