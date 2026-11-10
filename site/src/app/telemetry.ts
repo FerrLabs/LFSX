@@ -15,6 +15,7 @@ export function environmentFor(hostname: string): TelemetryEnvironment {
 }
 
 const MAX_LENGTH = 2048;
+const MAX_INPUT_LENGTH = 16384;
 const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
@@ -24,7 +25,7 @@ const BEARER = /\b([Bb]earer)(?:\s+[Bb]earer)*\s+(?:"[^"]*"?|'[^']*'?|[^\s"',;]{
 const BASIC = /\b([Bb]asic)\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/])/g;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const SENSITIVE_PARAM = new RegExp(
-  `([\\w-]*(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w*|sig(?:nature)?|code|state)=)${VALUE}`,
+  `([\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)=)${VALUE}`,
   'gi',
 );
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
@@ -43,21 +44,21 @@ function redactWord(word: string): string {
 
 function redactPass(text: string): string {
   return text
+    .replace(JWT, MASK)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)
     .replace(/\S+/g, redactWord)
     .replace(BEARER, `$1 ${MASK}`)
-    .replace(BASIC, `$1 ${MASK}`)
-    .replace(JWT, MASK);
+    .replace(BASIC, `$1 ${MASK}`);
 }
 
 export function redactText(value: string): string {
-  let text = value.length > MAX_LENGTH ? value.slice(0, MAX_LENGTH) : value;
+  let text = value.length > MAX_INPUT_LENGTH ? value.slice(0, MAX_INPUT_LENGTH) : value;
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const next = redactPass(text);
-    if (next === text) return text;
+    if (next === text) break;
     text = next;
   }
-  return text;
+  return text.length > MAX_LENGTH ? text.slice(0, MAX_LENGTH) : text;
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
