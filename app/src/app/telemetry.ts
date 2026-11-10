@@ -52,7 +52,8 @@ function redactWord(word: string): string {
 }
 
 function maskColon(match: string, key: string, offset: number, text: string): string {
-  return HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
+  const port = /^\d{1,5}(?:[/?#]|$)/.test(match.slice(key.length));
+  return port && HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
 }
 
 function redactPass(text: string): string {
