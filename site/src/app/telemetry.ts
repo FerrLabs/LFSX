@@ -14,15 +14,23 @@ export function environmentFor(hostname: string): TelemetryEnvironment {
   return 'prod';
 }
 
-const urlWithSecrets =
+const URL_TAIL =
   /((?:[a-z][a-z0-9+.-]*:)?\/\/[^\s?#]*|\b[\w-]+(?:\.[\w-]+)+\/[^\s?#]*|(?<![\w/.])\/[^\s?#]*)[?#]\S*/gi;
+const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]*/g;
+const SENSITIVE_PARAM =
+  /(\b(?:[\w-]*token|code|state|secret|password|passwd|pwd|key|api_key|apikey|sig|signature|session|auth)=)[^\s&#;"'<>]*/gi;
+const USERINFO = /(\/\/)[^\s/?#@]+@/g;
 
-export function redactUrl(text: string): string {
-  return text.replace(urlWithSecrets, '$1');
+export function redactText(value: string): string {
+  return value
+    .replace(USERINFO, '$1')
+    .replace(URL_TAIL, '$1')
+    .replace(PARAM_VALUE, '$1:redacted')
+    .replace(SENSITIVE_PARAM, '$1:redacted');
 }
 
 function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
-  if (typeof value === 'string') return redactUrl(value);
+  if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
   if (Array.isArray(value)) {
