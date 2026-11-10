@@ -31,8 +31,8 @@ const KEY_WORDS = `(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
 const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?:\\r?\\n[ \\t]*)?(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>]+)?`;
 const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?!\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=])(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}))\\3=*)`, 'gi');
-const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)?)(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD})(?![a-z][\\w-]{0,20}[ \\t]+${KEY_AHEAD})(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>{}\\]\\\\](?:[^\\r\\n,;"'<>{}\\]\\\\]|\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)*)`, 'gi');
-const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?!${KEY_AHEAD})${VALUE}`, 'gi');
+const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)?)(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?))*`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
