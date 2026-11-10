@@ -53,8 +53,13 @@ function redactPass(text: string): string {
     .replace(/\S+/g, redactWord);
 }
 
+function dropPartialWord(text: string): string {
+  const cut = text.search(/\s\S*$/);
+  return cut === -1 ? MASK : text.slice(0, cut);
+}
+
 export function redactText(value: string): string {
-  let text = value.length > MAX_INPUT_LENGTH ? value.slice(0, MAX_INPUT_LENGTH) : value;
+  let text = value.length > MAX_INPUT_LENGTH ? dropPartialWord(value.slice(0, MAX_INPUT_LENGTH)) : value;
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const next = redactPass(text);
     if (next === text) break;
