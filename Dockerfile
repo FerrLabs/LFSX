@@ -11,7 +11,8 @@ COPY app/package.json ./app/
 RUN pnpm install --frozen-lockfile --filter @lfsx/app...
 
 COPY app ./app
-RUN pnpm --filter @lfsx/app build
+ARG LFSX_TELEMETRY_URL=""
+RUN pnpm --filter @lfsx/app build --define LFSX_TELEMETRY_URL="'${LFSX_TELEMETRY_URL}'"
 
 FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c AS builder
 
