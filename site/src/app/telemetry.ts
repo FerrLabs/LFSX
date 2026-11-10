@@ -14,23 +14,36 @@ export function environmentFor(hostname: string): TelemetryEnvironment {
   return 'prod';
 }
 
+const urlWithSecrets =
+  /((?:[a-z][a-z0-9+.-]*:)?\/\/[^\s?#]*|\b[\w-]+(?:\.[\w-]+)+\/[^\s?#]*|(?<![\w/.])\/[^\s?#]*)[?#]\S*/gi;
+
 export function redactUrl(text: string): string {
-  return text.replace(/(https?:\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/g, '$1');
+  return text.replace(urlWithSecrets, '$1');
 }
 
-function redactDeep(value: unknown): unknown {
+function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
   if (typeof value === 'string') return redactUrl(value);
-  if (Array.isArray(value)) return value.map(redactDeep);
-  if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redactDeep(entry)]));
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  if (Array.isArray(value)) {
+    const copy: unknown[] = [];
+    seen.set(value, copy);
+    for (const entry of value) copy.push(redactDeep(entry, seen));
+    return copy;
   }
-  return value;
+  if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+  const copy: Record<string, unknown> = {};
+  seen.set(value, copy);
+  for (const [key, entry] of Object.entries(value)) copy[key] = redactDeep(entry, seen);
+  return copy;
 }
 
 export function sanitizeItem(item: TransportItem): TransportItem {
-  const { page } = item.meta;
-  const meta = page?.url ? { ...item.meta, page: { ...page, url: redactUrl(page.url) } } : item.meta;
-  return { ...item, meta, payload: redactDeep(item.payload) as TransportItem['payload'] };
+  return {
+    ...item,
+    meta: redactDeep(item.meta) as TransportItem['meta'],
+    payload: redactDeep(item.payload) as TransportItem['payload'],
+  };
 }
 
 export function isOptedOut(): boolean {
@@ -45,6 +58,7 @@ export function initTelemetry(): void {
     app: { name: appName, environment: environmentFor(window.location.hostname) },
     instrumentations: getWebInstrumentations({ captureConsole: false }),
     beforeSend: sanitizeItem,
+    sessionTracking: { enabled: false },
   });
 }
 
