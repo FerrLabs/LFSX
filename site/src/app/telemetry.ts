@@ -19,21 +19,25 @@ const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
-const PARAM_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)`;
-const COLON_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?)`;
+const COLON_WORDS = `(?:token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth\\w{0,32}|sig(?:nature)?)`;
+const KEY_WORDS = `(?:${COLON_WORDS.slice(3, -1)}|code|state)`;
+const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
+const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/:=])/g;
 const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const USERINFO = /(\/\/)[^\s/]*@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
-const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
+const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
 const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?[^\\s"'<>]+)`;
-const KEY_WORDS = `(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)`;
+const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
+const SEGMENT = `(?:${QUOTED}|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|${QUOTED}))*`;
+const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
-const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?:\\r?\\n[ \\t]*)?(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>]+)?`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?!\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=])(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}))\\3=*)`, 'gi');
-const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)?)(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?))*`, 'gi');
+const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*${BREAKS}(?:${SEGMENT})?`;
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:=+${TOKEN_CHARS}*)*))\\3)`, 'gi');
+const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*${BREAKS})(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
-const USERINFO = /(\/\/)[^\s/?#]*@/g;
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]+/g;
@@ -49,6 +53,7 @@ function redactWord(word: string): string {
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
+    .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
     .replace(EMAIL, MASK)
     .replace(SENSITIVE_COLON, `$1${MASK}`)
@@ -86,7 +91,8 @@ function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unkn
     for (const entry of value) copy.push(redactDeep(entry, seen));
     return copy;
   }
-  if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
   seen.set(value, copy);
   for (const [key, entry] of Object.entries(value)) copy[key] = redactDeep(entry, seen);
@@ -133,7 +139,9 @@ export function initTelemetry(): void {
 function toError(value: unknown): Error {
   if (value instanceof Error) return value;
   if (typeof value === 'object' && value !== null && 'message' in value && typeof value.message === 'string') {
-    return new Error(value.message);
+    const error = new Error(value.message);
+    if ('stack' in value && typeof value.stack === 'string') error.stack = value.stack;
+    return error;
   }
   try {
     return new Error(String(value));
