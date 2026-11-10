@@ -29,7 +29,7 @@ const EMAIL = /[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const USERINFO = /(\/\/)[^\s/?#@]*(?::(?!\d+[?#])[^\s/@]*)?@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
-const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?[^\\s"'<>]+)`;
+const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'<>])+)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
 const SEGMENT = `(?:${QUOTED}|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|${QUOTED}))*`;
 const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
@@ -40,7 +40,7 @@ const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
-const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)[^\s&#;"'<>]+/g;
+const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
 function redactWord(word: string): string {
   if (!MARKERS.test(word)) return word;
