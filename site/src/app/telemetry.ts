@@ -23,11 +23,11 @@ const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:[a-z][\\w-]{0,20}[ \\t]
 const PARAM_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)`;
 const COLON_KEYS = `[\\w-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?)`;
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
-const BEARER = /\b(bearer)(?:\s+bearer){0,3}\s+(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|(?=([^\s"',;:=\\]{8,}=*))\2(?![\w:=]))/gi;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}(?![\w+/:=])/g;
 const EMAIL = /[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}(?:token|secret|passw(?:or)?d|pwd|key|session(?:id)?|auth\\w{0,32}|sig(?:nature)?|code|state)[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?!\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=])(?!${KEY_AHEAD})(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?=([^\\s"',;:=\\\\]{8,}=*))\\2(?![\\w:=]))`, 'gi');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)?)(?!(?:bearer|basic)(?:\\s|$))(?!${KEY_AHEAD})(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s,;"'<>{}\\]\\\\][^\\r\\n,;"'<>{}\\]\\\\]*)`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${PARAM_KEYS}\\s*=(?!=)\\s*)(?!${KEY_AHEAD})${VALUE}`, 'gi');
 const USERINFO = /(\/\/)[^\s/?#]*@/g;
@@ -47,10 +47,10 @@ function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
     .replace(BEARER, `$1 ${MASK}`)
-    .replace(BASIC, `$1 ${MASK}`)
     .replace(EMAIL, MASK)
     .replace(SENSITIVE_COLON, `$1${MASK}`)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)
+    .replace(BASIC, `$1 ${MASK}`)
     .replace(/\S+/g, redactWord);
 }
 
