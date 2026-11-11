@@ -779,3 +779,30 @@ describe('field names: primary and query keys, narrowed state words', () => {
     });
   });
 });
+
+describe('bearer tail stops before a following secret key v6.44', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    [
+      'Authorization: Bearer abcdefgh&user=passwd: ZqSECRET9',
+      'Authorization: Bearer *=passwd: *',
+    ],
+    [
+      'Authorization: Bearer abcdefgh&id=password: ZqSECRET9',
+      'Authorization: Bearer *=password: *',
+    ],
+    [
+      'Authorization: Bearer abcdefgh:token: ZqSECRET9',
+      'Authorization: Bearer *:token: *',
+    ],
+    [
+      'Authorization: Bearer abcdefgh=otp_code: ZqSECRET9',
+      'Authorization: Bearer *=otp_code: *',
+    ],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+});
