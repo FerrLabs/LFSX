@@ -572,3 +572,139 @@ describe('sanitizeItem keys under secret fields', () => {
     assert.deepEqual(payload, before);
   });
 });
+
+describe('credential hosts, cookies, bearer chains and code words', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['//password:12345/next', '//password:*'],
+    ['see //token:8342/x', 'see //token:*'],
+    ['//auth:8080/x', '//auth:8080/x'],
+    ['//db.internal:5432/app', '//db.internal:5432/app'],
+    ['Cookie: theme=dark; sid=abc123', 'Cookie: *'],
+    ['Set-Cookie: sid=abc123; Path=/', 'Set-Cookie: *'],
+    ['cookie=abc123', 'cookie=*'],
+    ['cookie_consent=accepted', 'cookie_consent=accepted'],
+    ['cookieConsent: yes', 'cookieConsent: yes'],
+    ['a'.repeat(60) + '_monkey=3', 'a'.repeat(60) + '_monkey=3'],
+    ['a'.repeat(317) + '_monkey=3', 'a'.repeat(317) + '_monkey=3'],
+    ['a'.repeat(300) + '_password=hunter2abc', 'a'.repeat(300) + '_password=*'],
+    ['a'.repeat(300) + '_otp_code: 834201', 'a'.repeat(300) + '_otp_code: *'],
+    ['Authorization: Bearer abcdefgh&otp_code: 834201', 'Authorization: Bearer *&otp_code: *'],
+    [
+      'Authorization: Bearer abcdefgh&id=1&password=Basic ZqSECRET9',
+      'Authorization: Bearer *&password=*',
+    ],
+    ['password: correct\vhorse', 'password: *'],
+    ['password: correct\fhorse', 'password: *'],
+    ['versionCode=42', 'versionCode=42'],
+    ['roomCode=AB12', 'roomCode=AB12'],
+    ['combatState=idle', 'combatState=idle'],
+    ['boardState=x', 'boardState=x'],
+    ['team_code=x', 'team_code=*'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input.slice(0, 48))} to ${JSON.stringify(output.slice(-24))}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+});
+
+describe('secret reachability does not depend on key order', () => {
+  const MARKER = 'hunter2SECRETzq';
+
+  interface Walked {
+    meta: { session?: unknown };
+    payload: {
+      plain?: unknown;
+      secret?: unknown;
+      password?: object;
+      reversed?: object;
+      context?: { session?: unknown };
+    };
+  }
+
+  function walked(payload: object, meta: object = {}): Walked {
+    const out = sanitizeItem({ type: 'log', meta, payload } as unknown as TransportItem);
+    assert.ok(out);
+    return out as unknown as Walked;
+  }
+
+  function containsMarker(value: unknown, seen = new WeakSet<object>()): boolean {
+    if (typeof value === 'string') return value.includes(MARKER);
+    if (value === null || typeof value !== 'object') return false;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return Object.entries(value).some(
+      ([key, entry]) => key.includes(MARKER) || containsMarker(entry, seen),
+    );
+  }
+
+  for (const keys of [
+    ['password', 'reversed'],
+    ['reversed', 'password'],
+  ]) {
+    it(`masks a cycle through a secret field with keys in the order ${keys.join(', ')}`, () => {
+      const ring: { note: string; password?: unknown } = { note: MARKER };
+      ring.password = ring;
+      const payload: Record<string, unknown> = {};
+      for (const key of keys) payload[key] = ring;
+      const out = walked(payload).payload;
+      assert.equal(containsMarker(out), false);
+      assert.deepEqual(Object.keys(out.reversed ?? {}), Object.keys(out.password ?? {}));
+    });
+  }
+
+  for (const keys of [
+    ['token', 'loop'],
+    ['loop', 'token'],
+  ]) {
+    it(`masks a loop shared with a token field with keys in the order ${keys.join(', ')}`, () => {
+      const loop: { note: string; password?: unknown } = { note: MARKER };
+      loop.password = loop;
+      const payload: Record<string, unknown> = {};
+      for (const key of keys) payload[key] = loop;
+      assert.equal(containsMarker(walked(payload).payload), false);
+    });
+  }
+
+  for (const keys of [
+    ['plain', 'secret'],
+    ['secret', 'plain'],
+  ]) {
+    it(`masks a container shared between a plain and a secret field, order ${keys.join(', ')}`, () => {
+      const shared = { v: MARKER };
+      const payload: Record<string, unknown> = {};
+      for (const key of keys) payload[key] = shared;
+      const out = walked(payload).payload;
+      assert.deepEqual(out.plain, { '*': '*' });
+      assert.deepEqual(out.secret, { '*': '*' });
+    });
+  }
+
+  it('masks everything under a session key outside meta', () => {
+    const out = walked({ context: { session: { value: MARKER, cookie: MARKER } } }).payload;
+    assert.deepEqual(out.context?.session, { '*': '*', '*#2': '*' });
+  });
+
+  it('masks a session key nested in meta.session', () => {
+    const out = walked({}, { session: { id: 's1', nested: { session: { value: MARKER } } } }).meta;
+    assert.equal(containsMarker(out), false);
+  });
+
+  it('masks cookie fields', () => {
+    const out = walked({ cookie: MARKER, headers: { Cookie: 'a=' + MARKER } }).payload;
+    assert.deepEqual(out, { cookie: '*', headers: { Cookie: '*' } });
+  });
+
+  it('keeps meta.session and masks secrets inside it', () => {
+    const session = { id: 'sess-1', attributes: { a: 'b' }, token: MARKER };
+    const out = walked({}, { session }).meta;
+    assert.deepEqual(out.session, { id: 'sess-1', attributes: { a: 'b' }, token: '*' });
+  });
+
+  it('masks meta.session when a secret field also reaches it', () => {
+    const session = { id: 'sess-1' };
+    const out = walked({ token: session }, { session }).meta;
+    assert.deepEqual(out.session, { '*': '*' });
+  });
+});

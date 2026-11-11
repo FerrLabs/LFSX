@@ -19,16 +19,16 @@ const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
-const WORDS = `token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
-const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char)[_.-]?codes?)`;
+const WORDS = `token|secret|cookie|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
+const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char|version|room|lobby|game|level|build|seat|table|zone|course)[_.-]?codes?)`;
 const BENIGN_SHORT_CODE = `(?:(?:err|resp|uni|en|de|op|key|qr|iso|src)[_.-]?codes?)`;
-const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|request|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|order|payment|account|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|server|client|worker|service|socket|stream|queue|match|lobby|round|level|room)[_.-]?states?)`;
+const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|request|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|order|payment|account|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|server|client|worker|service|socket|stream|queue|match|lobby|round|level|room|combat|board|turn|battle|world|scene|hand|deck|card)[_.-]?states?)`;
 const BENIGN = `(?!(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}${BENIGN_CODE}(?![\\w.$-]))`;
 const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]?`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
-const PARAM_KEYS = `\\b(?:\\w{64})*?${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
-const COLON_KEYS = `\\b(?:\\w{64})*?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]?`;
+const PARAM_KEYS = `\\b(?:\\w{64,512}?_)?${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
+const COLON_KEYS = `\\b(?:\\w{64,512}?_)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]?`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|primary|sort|foreign|partition|translation|route|object|query|lookup|group|unique|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
@@ -42,14 +42,18 @@ function isSecretName(key: string): boolean {
   return SENSITIVE_FIELD.test(tail.replace(/^[^_.$-]*[_.$-]/, '')) || SENSITIVE_FIELD.test(tail);
 }
 
-function isSecretField(key: string, value: unknown, inArray = false): boolean {
-  if (!isSecretName(key)) return false;
+function isSecretValue(value: unknown, metricKey?: string): boolean {
   if (value === null || value === undefined || typeof value === 'boolean') return false;
-  if (typeof value === 'number' || typeof value === 'bigint') return inArray || !METRIC_FIELD.test(key);
+  if (typeof value === 'number' || typeof value === 'bigint')
+    return metricKey === undefined || !METRIC_FIELD.test(metricKey);
   if (typeof value !== 'object') return true;
   if (Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype !== Object.prototype && prototype !== null;
+}
+
+function isSecretField(key: string, value: unknown): boolean {
+  return isSecretName(key) && isSecretValue(value, key);
 }
 
 function defineEntry(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -64,15 +68,15 @@ const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?[:=]`;
 const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s"',;&|])*`;
-const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\t\\n\\v\\f\\r "'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|][ \\t]*${KEY_AHEAD})[^\\t\\n\\v\\f\\r "'])*)`;
+const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\t\\n\\r "'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|][ \\t]*${KEY_AHEAD})[^\\t\\n\\r "'])*)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
 const CLOSE = `[}\\]>)](?=[\\s,;"']|$)`;
 const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
 const REAL_KEY_AHEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?(?::|=(?!=*(?:[\\s,;"']|$)))`;
 const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
-const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\v\\f\\r ,;"'])(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})[^\\t\\n\\v\\f\\r ,;"']|${QUOTED})*)`;
+const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"'])(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})[^\\t\\n\\r ,;"']|${QUOTED})*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
-const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
+const TOKEN_CHARS = `(?:(?!&${KEY_AHEAD})[^\\s"',;:=\\\\])`;
 const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
 const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:[:=]+${TOKEN_CHARS}*)*))\\3)`, 'gi');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
@@ -81,6 +85,8 @@ const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhos
 const PATH_TAIL = /[?#].*$/;
 const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
 const BARE_HOST_BEFORE = /(?:^|[^\w:/])\/\/[\w.-]*$/;
+const CREDENTIAL_HOST = /(?:passw(?:or)?d|pwd|secret|token|api[_-]?key|session(?:_?id)?|cookie):$/i;
+const COOKIE_HEADER = /\b((?:set-)?cookie[ \t]*:[ \t]*)(?![ \t]|\*$)[^\r\n]+/gi;
 const QUERY_QUOTED = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?)/g;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
@@ -93,20 +99,21 @@ function redactWord(word: string): string {
   return cut.replace(PARAM_VALUE, `$1${MASK}`);
 }
 
-function isHostPort(text: string, offset: number, rest: string): boolean {
+function isHostPort(text: string, offset: number, key: string, rest: string): boolean {
   const before = text.slice(Math.max(0, offset - 256), offset);
-  return HOST_BEFORE.test(before) || (BARE_HOST_BEFORE.test(before) && /^\d{1,5}\//.test(rest));
+  return HOST_BEFORE.test(before) || (BARE_HOST_BEFORE.test(before) && !CREDENTIAL_HOST.test(key) && /^\d{1,5}\//.test(rest));
 }
 
 function maskColon(match: string, key: string, offset: number, text: string): string {
   const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|:(?:\s|$)|$)/.test(match.slice(key.length));
-  return port && isHostPort(text, offset, match.slice(key.length)) ? match : key + MASK;
+  return port && isHostPort(text, offset, key, match.slice(key.length)) ? match : key + MASK;
 }
 
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
     .replace(QUOTED_EMAIL, MASK)
+    .replace(COOKIE_HEADER, `$1${MASK}`)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
@@ -136,69 +143,83 @@ export function redactText(value: string): string {
   return text.length > MAX_LENGTH ? settle(dropPartialWord(text.slice(0, MAX_LENGTH + 1))) : text;
 }
 
-interface Copies {
-  readonly plain: WeakMap<object, unknown>;
-  readonly secret: WeakMap<object, unknown>;
-  readonly active: WeakSet<object>;
-  readonly cyclic: WeakSet<object>;
+const SESSION_FIELD = /^session$/i;
+
+function isPlainObject(value: object): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === null || prototype === Object.prototype;
 }
 
-function newCopies(): Copies {
-  return { plain: new WeakMap(), secret: new WeakMap(), active: new WeakSet(), cyclic: new WeakSet() };
+interface Walk {
+  readonly secret: WeakSet<object>;
+  readonly copies: WeakMap<object, unknown>;
 }
 
-function opensSecretScope(field: string): boolean {
-  return isSecretName(field) && field.toLowerCase() !== 'session';
+function isTraversable(value: object): boolean {
+  return Array.isArray(value) || isPlainObject(value);
 }
 
-function maskedCopy(copy: unknown[] | Record<string, unknown>, masked: unknown): unknown {
-  if (Array.isArray(copy)) copy.splice(0, copy.length, ...(masked as unknown[]));
-  else {
-    for (const key of Object.keys(copy)) delete copy[key];
-    for (const [key, entry] of Object.entries(masked as Record<string, unknown>)) defineEntry(copy, key, entry);
-  }
-  return copy;
+function collectSecretContainers(meta: unknown, payload: unknown): WeakSet<object> {
+  const secret = new WeakSet<object>();
+  const seenPlain = new WeakSet<object>();
+  const visit = (value: unknown, inSecret: boolean, isMeta = false): void => {
+    if (value === null || typeof value !== 'object' || !isTraversable(value)) return;
+    const seen = inSecret ? secret : seenPlain;
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry, inSecret);
+      return;
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const exempt = isMeta && SESSION_FIELD.test(key) && !Array.isArray(entry);
+      visit(entry, inSecret || (isSecretName(key) && !exempt));
+    }
+  };
+  visit(meta, false, true);
+  visit(payload, false);
+  return secret;
 }
 
-function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
+function newWalk(meta: unknown, payload: unknown): Walk {
+  return { secret: collectSecretContainers(meta, payload), copies: new WeakMap() };
+}
+
+function redactDeep(value: unknown, walk: Walk): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  const inSecret = opensSecretScope(field);
-  const scope = inSecret ? seen.secret : seen.plain;
-  if (scope.has(value)) return scope.get(value);
-  if (inSecret && seen.active.has(value)) seen.cyclic.add(value);
+  if (!isTraversable(value)) return redactText(String(value));
+  const known = walk.copies.get(value);
+  if (known !== undefined) return known;
+  const inSecret = walk.secret.has(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
-    scope.set(value, copy);
-    if (!inSecret) seen.active.add(value);
-    for (const entry of value) copy.push(isSecretField(field, entry, true) ? MASK : redactDeep(entry, seen, field));
-    seen.active.delete(value);
-    return seen.cyclic.has(value) && !inSecret ? maskedCopy(copy, seen.secret.get(value)) : copy;
+    walk.copies.set(value, copy);
+    for (const entry of value)
+      copy.push(inSecret && isSecretValue(entry) ? MASK : redactDeep(entry, walk));
+    return copy;
   }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
-  scope.set(value, copy);
-  if (!inSecret) seen.active.add(value);
+  walk.copies.set(value, copy);
   const taken = new Set<string>();
   for (const [key, entry] of Object.entries(value)) {
-    const entryKey = inSecret ? field : key;
     const base = inSecret ? MASK : redactText(key);
     let target = base;
     for (let n = 2; taken.has(target); n++) target = `${base}#${n}`;
     taken.add(target);
-    defineEntry(copy, target, isSecretField(entryKey, entry, inSecret) ? MASK : redactDeep(entry, seen, entryKey));
+    const masked = inSecret ? isSecretValue(entry) : isSecretField(key, entry);
+    defineEntry(copy, target, masked ? MASK : redactDeep(entry, walk));
   }
-  seen.active.delete(value);
-  return seen.cyclic.has(value) && !inSecret ? maskedCopy(copy, seen.secret.get(value)) : copy;
+  return copy;
 }
 
 export function sanitizeItem(item: TransportItem): TransportItem | null {
   try {
+    const walk = newWalk(item.meta, item.payload);
     return {
       ...item,
-      meta: redactDeep(item.meta) as TransportItem['meta'],
-      payload: redactDeep(item.payload) as TransportItem['payload'],
+      meta: redactDeep(item.meta, walk) as TransportItem['meta'],
+      payload: redactDeep(item.payload, walk) as TransportItem['payload'],
     };
   } catch {
     return null;
