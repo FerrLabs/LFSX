@@ -31,11 +31,16 @@ const COLON_KEYS = `\\b${BENIGN}[\\w[\\]-]{0,64}${COLON_WORDS}\\]?`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|primary|sort|foreign|partition|translation|route|object|query|lookup|group|unique|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
-  /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?))$/;
+  /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?))$/;
 
 function isSecretName(key: string): boolean {
-  if (SENSITIVE_FIELD.test(key)) return true;
-  const lastSegment = key.split(/[[\]:/.]+/).filter(Boolean).pop();
+  const normalized = key.replace(/[[\]:/]+/g, '_').replace(/^_+|_+$/g, '');
+  if (SENSITIVE_FIELD.test(normalized)) return true;
+  if (normalized.length <= 64) return false;
+  const lastSegment = key
+    .split(/[[\]:/.]+/)
+    .filter(Boolean)
+    .pop();
   return lastSegment !== undefined && SENSITIVE_FIELD.test(lastSegment);
 }
 
@@ -76,7 +81,8 @@ const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
-const HOST_BEFORE = /(?:[a-z][\w+.-]*:|^|[^\w:/])\/\/[\w.-]*$/i;
+const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
+const BARE_HOST_BEFORE = /(?:^|[^\w:/])\/\/[\w.-]*$/;
 const QUERY_QUOTED = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?)/g;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
@@ -89,9 +95,14 @@ function redactWord(word: string): string {
   return cut.replace(PARAM_VALUE, `$1${MASK}`);
 }
 
+function isHostPort(text: string, offset: number, rest: string): boolean {
+  const before = text.slice(Math.max(0, offset - 256), offset);
+  return HOST_BEFORE.test(before) || (BARE_HOST_BEFORE.test(before) && /^\d{1,5}\//.test(rest));
+}
+
 function maskColon(match: string, key: string, offset: number, text: string): string {
   const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|:(?:\s|$)|$)/.test(match.slice(key.length));
-  return port && HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
+  return port && isHostPort(text, offset, match.slice(key.length)) ? match : key + MASK;
 }
 
 function redactPass(text: string): string {
@@ -151,13 +162,15 @@ function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
   scope.set(value, copy);
+  const inSecret = isSecretName(field);
   const taken = new Set<string>();
   for (const [key, entry] of Object.entries(value)) {
+    const entryKey = inSecret ? field : key;
     const base = redactText(key);
     let target = base;
     for (let n = 2; taken.has(target); n++) target = `${base}#${n}`;
     taken.add(target);
-    defineEntry(copy, target, isSecretField(key, entry) ? MASK : redactDeep(entry, seen, key));
+    defineEntry(copy, target, isSecretField(entryKey, entry, inSecret) ? MASK : redactDeep(entry, seen, entryKey));
   }
   return copy;
 }
