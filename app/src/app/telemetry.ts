@@ -18,50 +18,62 @@ const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
-const WORDS = `token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth\\w{0,32}|sig(?:nature)?`;
+const WORDS = `token|secret|passw(?:or)?d|pwd|(?<!hot|mon|tur|don|whis|jock|lac|mal)key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|(?<!de)sig(?:nature)?`;
 const COLON_WORDS = `(?:${WORDS})`;
-const KEY_WORDS = `(?:${WORDS}|code|state)`;
+const KEY_WORDS = `(?:${WORDS}|(?<![\\w.$-])(?:(?:o?auth|csrf|xsrf|otp|mfa|verification|reset|invite|recovery|grant|device)[_.-]?)?(?:code|state))`;
 const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
 const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
-const SENSITIVE_FIELD = new RegExp(`^${COLON_KEYS}$`, 'i');
+const SENSITIVE_FIELD = new RegExp(`^(?!(?:cache|i18n|primary|sort|foreign|partition|translation|route|list|row|map|object|storage|query|lookup|group|unique|react|track|idempotency)[-_]?key$|auth(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}$`, 'i');
+
+function isSecretField(key: string, value: unknown): boolean {
+  return (
+    (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint') &&
+    SENSITIVE_FIELD.test(key)
+  );
+}
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
-const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}|[A-Za-z0-9+/]{2,}={1,2})(?![\w+/:=])/g;
-const EMAIL = /[\w.!#$%&*+?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const USERINFO = /(\/\/)(?!\[|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?@/g;
+const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}|[A-Za-z0-9+/]{2,})={1,2}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}(?![\w+/:=]))/g;
+const EMAIL = /[\w.!#$%&*+?^`{|}~-][\w.!#$%&'*+?^`{|}~-]{0,63}=*@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const WORD_EMAIL = /(?!['/=])[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const QUOTED_EMAIL = /"[^"\s]{0,64}(?:\s[^"\s]{0,64}){0,4}"@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?|[^\s/?#@:]+:(?!\d+(?:[/?#]|$))[^\s@?#]*)@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
-const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'<>])+)`;
+const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)?)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
-const SEGMENT = `(?:${QUOTED}|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|${QUOTED}))*`;
+const CLOSE = `[}\\]>)](?=[\\s,;"'}\\]>)]|$)`;
+const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
+const SEGMENT = `(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)|(?:${QUOTED}|(?!${CLOSE})[^\\s,;"'])(?:(?![ \\t]+${KEY_AHEAD})(?:(?!${CLOSE})[^\\r\\n,;"']|${QUOTED}))*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
 const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*${BREAKS}(?:${SEGMENT})?`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:=+${TOKEN_CHARS}*)*))\\3)`, 'gi');
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:[:=]+${TOKEN_CHARS}*)*))\\3)`, 'gi');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
-const HOST_BEFORE = /(?:[a-z][\w+.-]*:|[\w.-])\/\/[\w.-]*$/i;
+const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
 const QUERY_QUOTED = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?)/g;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
 function redactWord(word: string): string {
   if (!MARKERS.test(word)) return word;
   if (word.length > MAX_WORD_LENGTH) return MASK;
-  const bare = word.includes('//') ? word : word.replace(EMAIL, MASK);
+  const bare = word.includes('//') ? word : word.replace(word.startsWith('/') ? EMAIL : WORD_EMAIL, MASK);
   const scrubbed = bare.replace(USERINFO, '$1').replace(HOST_TAIL, '$1');
   const cut = scrubbed.includes('/') ? scrubbed.replace(PATH_TAIL, '') : scrubbed;
   return cut.replace(PARAM_VALUE, `$1${MASK}`);
 }
 
 function maskColon(match: string, key: string, offset: number, text: string): string {
-  const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|$)/.test(match.slice(key.length));
+  const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|:(?:\s|$)|$)/.test(match.slice(key.length));
   return port && HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
 }
 
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
+    .replace(QUOTED_EMAIL, MASK)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
@@ -91,21 +103,21 @@ export function redactText(value: string): string {
   return text.length > MAX_LENGTH ? settle(dropPartialWord(text.slice(0, MAX_LENGTH + 1))) : text;
 }
 
-function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+function redactDeep(value: unknown, seen = new WeakMap<object, unknown>(), field = ''): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
     seen.set(value, copy);
-    for (const entry of value) copy.push(redactDeep(entry, seen));
+    for (const entry of value) copy.push(isSecretField(field, entry) ? MASK : redactDeep(entry, seen, field));
     return copy;
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
   seen.set(value, copy);
-  for (const [key, entry] of Object.entries(value)) copy[key] = typeof entry === 'string' && SENSITIVE_FIELD.test(key) ? MASK : redactDeep(entry, seen);
+  for (const [key, entry] of Object.entries(value)) copy[key] = isSecretField(key, entry) ? MASK : redactDeep(entry, seen, key);
   return copy;
 }
 
