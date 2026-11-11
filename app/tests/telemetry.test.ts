@@ -273,3 +273,66 @@ describe('secret subtrees, metric names and key normalization', () => {
     assert.equal(redactText('//auth:8080/x'), '//auth:8080/x');
   });
 });
+describe('redactText v6.37 code and state keys', () => {
+  const masked: ReadonlyArray<readonly [string, string]> = [
+    ['otp_code: 834201 sent', 'otp_code: *'],
+    ['{"mfa_code": "834201"}', '{"mfa_code": *}'],
+    ['user_code: WDJB-MJHT', 'user_code: *'],
+    ['relay_state: abc123xyz', 'relay_state: *'],
+  ];
+  const kept: readonly string[] = [
+    'Error code: 404',
+    'status code: 404',
+    'status_code: 200',
+    'code: ERR_NETWORK',
+    'state: open',
+    'readyState: complete',
+    'game_state: lobby',
+  ];
+
+  for (const [input, expected] of masked) {
+    it(`masks ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), expected);
+    });
+  }
+
+  for (const input of kept) {
+    it(`keeps ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), input);
+    });
+  }
+
+  it('stays under 250 ms on 16 KB of prefixed code keys', () => {
+    const input = 'x_code:'.repeat(2400);
+    assert.ok(input.length >= 16000);
+    const started = performance.now();
+    redactText(input);
+    assert.ok(performance.now() - started < 250);
+  });
+});
+
+describe('spaced field names v6.37', () => {
+  it('masks benign-looking prefixes before a secret word', () => {
+    assert.deepEqual(
+      sanitizePayload({
+        'Monkey api_key': 'v0',
+        'hotkey password': 'v1',
+        'turkey session_id': 'v2',
+        'donkey key': 'v3',
+        'Hotkey pwd': 'v4',
+      }),
+      {
+        'Monkey api_key': '*',
+        'hotkey password': '*',
+        'turkey session_id': '*',
+        'donkey key': '*',
+        'Hotkey pwd': '*',
+      },
+    );
+  });
+
+  it('keeps spaced names that are not secret', () => {
+    const payload = { 'cache key': 'ok', monkey: 'ok', hotkey: 'ok' };
+    assert.deepEqual(sanitizePayload(payload), { 'cache key': 'ok', monkey: 'ok', hotkey: 'ok' });
+  });
+});

@@ -28,14 +28,14 @@ const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]?`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
 const PARAM_KEYS = `\\b${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
-const COLON_KEYS = `\\b${BENIGN}[\\w[\\]-]{0,64}${COLON_WORDS}\\]?`;
+const COLON_KEYS = `\\b${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]?`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|primary|sort|foreign|partition|translation|route|object|query|lookup|group|unique|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
   /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?))$/;
 
 function isSecretName(key: string): boolean {
-  const normalized = key.replace(/[[\]:/]+/g, '_').replace(/^_+|_+$/g, '');
+  const normalized = key.replace(/[[\]:/\s]+/g, '_').replace(/^_+|_+$/g, '');
   if (SENSITIVE_FIELD.test(normalized)) return true;
   if (normalized.length <= 64) return false;
   const lastSegment = key
