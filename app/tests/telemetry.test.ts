@@ -708,3 +708,74 @@ describe('secret reachability does not depend on key order', () => {
     assert.deepEqual(out.session, { '*': '*' });
   });
 });
+
+describe('redactText v6.43 primary and query keys, narrowed state words', () => {
+  const masked: ReadonlyArray<readonly [string, string]> = [
+  ['auth_request_state=SECRET99', 'auth_request_state=*'],
+  ['oauth_client_state=SECRET99', 'oauth_client_state=*'],
+  ['api_key_code=SECRET99', 'api_key_code=*'],
+  ['orderState=paid', 'orderState=*'],
+  ['x_keycode=1', 'x_keycode=*'],
+  ['cosmosPrimaryKey=SECRET99', 'cosmosPrimaryKey=*'],
+  ['storageAccountPrimaryKey: SECRET99', 'storageAccountPrimaryKey: *'],
+  ['searchAdminQueryKey=SECRET99', 'searchAdminQueryKey=*'],
+  ['cosmos_primary_key=SECRET99', 'cosmos_primary_key=*'],
+  ['email=a@b.com', '*'],
+  ];
+  const kept: readonly string[] = [
+  'keyCode=13',
+  'key_code=13',
+  'readyState=complete',
+  'game_state=lobby',
+  ];
+
+  for (const [input, expected] of masked) {
+    it(`masks ${JSON.stringify(input)} as ${JSON.stringify(expected)}`, () => {
+      assert.equal(redactText(input), expected);
+    });
+  }
+
+  for (const input of kept) {
+    it(`keeps ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), input);
+    });
+  }
+
+  it('drops the password of a host-relative userinfo with a query', () => {
+    assert.ok(!redactText('//host:abc/path?email=a@b.com').includes('abc'));
+  });
+
+  for (const unit of ['x_request_state=', 'cosmosPrimaryKey=', 'x_client_state=', 'x_keycode=']) {
+    it(`stays under 250 ms on 16 KB of ${unit}`, () => {
+      const input = unit.repeat(Math.ceil(16384 / unit.length));
+      const started = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - started < 250);
+    });
+  }
+});
+
+describe('field names v6.43', () => {
+  const payloadOf = (payload: object): Record<string, unknown> => {
+    const out = sanitizeItem({ type: 'log', meta: {}, payload } as unknown as TransportItem);
+    return (out as unknown as { payload: Record<string, unknown> }).payload;
+  };
+
+  for (const name of ['auth_request_state', 'oauth_client_state', 'api_key_code', 'orderState', 'x_keycode', 'cosmosPrimaryKey', 'storageAccountPrimaryKey', 'searchAdminQueryKey', 'cosmos_primary_key']) {
+    it(`masks the field ${name}`, () => {
+      assert.deepEqual(payloadOf({ [name]: 'SECRET99' }), { [name]: '*' });
+    });
+  }
+
+  for (const name of ['primaryKey', 'primary_key', 'db.primaryKey', 'queryKey', 'keyCode', 'key_code', 'readyState', 'game_state']) {
+    it(`keeps the field ${name}`, () => {
+      assert.deepEqual(payloadOf({ [name]: 'ok' }), { [name]: 'ok' });
+    });
+  }
+
+  it('keeps a primaryKey nested under a plain parent', () => {
+    assert.deepEqual(payloadOf({ db: { primaryKey: 'ok', queryKey: 'ok' } }), {
+      db: { primaryKey: 'ok', queryKey: 'ok' },
+    });
+  });
+});
