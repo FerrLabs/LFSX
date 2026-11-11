@@ -182,7 +182,7 @@ describe('sanitizeItem field names', () => {
         apiKey: { note: 'x', url: 'https://a.com/x?code=S3CR3T' },
         list: ['ok'],
       }),
-      { token: ['*', ['*']], apiKey: { note: '*', url: '*' }, list: ['ok'] },
+      { token: ['*', ['*']], apiKey: { '*': '*', '*#2': '*' }, list: ['ok'] },
     );
   });
 
@@ -237,7 +237,7 @@ describe('secret subtrees, metric names and key normalization', () => {
 
   it('keeps shape, booleans and null under a secret field and leaves other fields alone', () => {
     assert.deepEqual(sanitizePayload({ password: { enabled: true, value: null, deep: { ok: false, v: 'x' } } }), {
-      password: { enabled: true, value: null, deep: { ok: false, v: '*' } },
+      password: { '*': true, '*#2': null, '*#3': { '*': false, '*#2': '*' } },
     });
     assert.deepEqual(sanitizePayload({ settings: { theme: 'dark' } }), { settings: { theme: 'dark' } });
   });
@@ -406,6 +406,25 @@ describe('field names with punctuation and long prefixes', () => {
   }
 });
 
+const textsOf = (root: unknown): string[] => {
+  const seen = new Set<unknown>();
+  const out: string[] = [];
+  const visit = (value: unknown): void => {
+    if (typeof value === 'string') {
+      out.push(value);
+      return;
+    }
+    if (typeof value !== 'object' || value === null || seen.has(value)) return;
+    seen.add(value);
+    for (const [key, inner] of Object.entries(value)) {
+      out.push(key);
+      visit(inner);
+    }
+  };
+  visit(root);
+  return out;
+};
+
 describe('sanitizeItem copies and the Faro session meta', () => {
   type Sanitized = { meta: Record<string, any>; payload: Record<string, any> };
   const run = (meta: object, payload: object): Sanitized => {
@@ -457,10 +476,10 @@ describe('sanitizeItem copies and the Faro session meta', () => {
     loop['password'] = loop;
     loop['note'] = 'hunter2SECRETzq';
     const { payload } = run({}, { loop });
-    assert.equal(payload['loop']['note'], '*');
+    assert.ok(textsOf(payload['loop']).every((text) => text.startsWith('*')));
     const reversed: Record<string, unknown> = { note: 'hunter2SECRETzq' };
     reversed['password'] = reversed;
-    assert.equal(run({}, { reversed }).payload['reversed']['note'], '*');
+    assert.ok(!textsOf(run({}, { reversed }).payload['reversed']).some((text) => text.includes('hunter2')));
   });
 
   it('keeps token counts and masks bare tokens', () => {
@@ -468,5 +487,88 @@ describe('sanitizeItem copies and the Faro session meta', () => {
     assert.deepEqual(payload['usage'], { inputTokens: 12, max_tokens: 100, total_tokens: 7, OUTPUT_TOKENS: 3, 'prompt-tokens': 5 });
     assert.deepEqual(payload['tokens'], ['*']);
     assert.equal(payload['token'], '*');
+  });
+});
+
+describe('redactText chained colon values, slashed passwords, nbsp values and quote chains', () => {
+  const exact: ReadonlyArray<readonly [string, string]> = [
+    ['client_secret: monkeySecret=\nfoo=1', 'client_secret: *'],
+    ['Error key: key: \n"Token X" end', 'Error key: * end'],
+    ['DATABASE_URL=postgres://app:pa/ss#1@db.internal:5432/app', 'DATABASE_URL=postgres://db.internal:5432/app'],
+    ['redis://default:ab/cd?ef@cache:6379/0', 'redis://cache:6379/0'],
+    ['https://u:123?x@h.com/a', 'https://u:123'],
+    ['password: correct horse', 'password: *'],
+    ['password=correct horse', 'password=*'],
+    ['password=a"b"c"d"e"f"g"h"hunter2abc', 'password=*'],
+    ["pwd=^\"\"\"\"''''k", 'pwd=*'],
+    ["auth=&\"\"''''\"\"'", 'auth=*'],
+  ];
+
+  for (const [input, expected] of exact) {
+    it(`turns ${JSON.stringify(input)} into ${JSON.stringify(expected)}`, () => {
+      assert.equal(redactText(input), expected);
+    });
+  }
+
+  for (const input of ['password=a"b"c"d"e"f"g"h"hunter2abc', "pwd=^\"\"\"\"''''k", "auth=&\"\"''''\"\"'"]) {
+    it(`is idempotent on ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(redactText(input)), redactText(input));
+    });
+  }
+
+  for (let code = 0x2000; code <= 0x200a; code++) {
+    it(`masks a value split by U+${code.toString(16).toUpperCase()}`, () => {
+      assert.equal(redactText(`password: correct${String.fromCharCode(code)}horse`), 'password: *');
+    });
+  }
+
+  it('stays under 250 ms on unbalanced brackets', () => {
+    for (const input of ['x['.repeat(8000), 'a]'.repeat(8000)]) {
+      const started = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - started < 250);
+    }
+  });
+});
+
+describe('sanitizeItem keys under secret fields', () => {
+  const marker = 'ghp_Zq9realTokenValue';
+  const run = (payload: object): Record<string, any> => sanitizePayload(payload);
+
+  it('masks keys, values and shape under a secret field', () => {
+    const out = run({ token: { [marker]: { a: 1 } } });
+    assert.deepEqual(out, { token: { '*': { '*': '*' } } });
+    assert.ok(!JSON.stringify(out).includes(marker));
+  });
+
+  it('numbers colliding keys under a secret field', () => {
+    const out = run({ token: { 'ghp_Zq9realTokenValue1': 'x', 'ghp_Zq9realTokenValue2': 'y' } });
+    assert.deepEqual(Object.keys(out['token']), ['*', '*#2']);
+  });
+
+  it('keeps null and booleans under a secret subtree', () => {
+    assert.deepEqual(run({ password: { enabled: true, off: false, value: null } }), { password: { '*': true, '*#2': false, '*#3': null } });
+  });
+
+  it('leaves keys outside secret subtrees unchanged', () => {
+    const payload = { settings: { theme: 'dark', nested: { count: 3 } } };
+    assert.deepEqual(run(payload), payload);
+  });
+
+  it('masks every leaf and key of a self-referencing secret object', () => {
+    const b: Record<string, unknown> = {};
+    b['password'] = b;
+    b[marker] = 'x';
+    b['note'] = marker;
+    const out = run({ b });
+    assert.ok(!textsOf(out).some((text) => text.includes(marker)));
+    assert.deepEqual([...new Set(textsOf(out['b']))], ['*', '*#2', '*#3']);
+  });
+
+  it('does not mutate the input', () => {
+    const payload = { token: { [marker]: { a: 1 } } };
+    const before = structuredClone(payload);
+    run(payload);
+    assert.deepEqual(payload, before);
   });
 });
