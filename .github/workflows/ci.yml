@@ -40,6 +40,10 @@ jobs:
         working-directory: site
         run: pnpm typecheck
 
+      - name: Test
+        working-directory: site
+        run: pnpm test
+
       - name: Build
         working-directory: site
         env:
@@ -66,6 +70,10 @@ jobs:
       - name: Typecheck
         working-directory: app
         run: pnpm typecheck
+
+      - name: Test
+        working-directory: app
+        run: pnpm test
 
       - name: Build
         working-directory: app
