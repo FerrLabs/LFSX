@@ -19,50 +19,97 @@ const MAX_WORD_LENGTH = 512;
 const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
-const WORDS = `token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth\\w{0,32}|sig(?:nature)?`;
+const WORDS = `token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
+const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|phone|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char)[_.-]?codes?)`;
+const BENIGN_SHORT_CODE = `(?:(?:err|resp|uni|en|de|op|key|qr|iso|src)[_.-]?codes?)`;
+const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|request|signaling|ice|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|order|payment|account|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|server|client|worker|service|socket|stream|queue|match|lobby|round|level|room)[_.-]?states?)`;
+const BENIGN = `(?!(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}(?:${BENIGN_CODE}|${BENIGN_STATE})(?![\\w.$-]))`;
+const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]?`;
 const COLON_WORDS = `(?:${WORDS})`;
-const KEY_WORDS = `(?:${WORDS}|code|state)`;
-const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
-const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
-const SENSITIVE_FIELD = new RegExp(`^${COLON_KEYS}$`, 'i');
+const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
+const PARAM_KEYS = `\\b${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
+const COLON_KEYS = `\\b${BENIGN}[\\w[\\]-]{0,64}${COLON_WORDS}\\]?`;
+const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|primary|sort|foreign|partition|translation|route|object|query|lookup|group|unique|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
+
+const METRIC_FIELD =
+  /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?))$/;
+
+function isSecretName(key: string): boolean {
+  const normalized = key.replace(/[[\]:/]+/g, '_').replace(/^_+|_+$/g, '');
+  if (SENSITIVE_FIELD.test(normalized)) return true;
+  if (normalized.length <= 64) return false;
+  const lastSegment = key
+    .split(/[[\]:/.]+/)
+    .filter(Boolean)
+    .pop();
+  return lastSegment !== undefined && SENSITIVE_FIELD.test(lastSegment);
+}
+
+function isSecretField(key: string, value: unknown, inArray = false): boolean {
+  if (!isSecretName(key)) return false;
+  if (value === null || value === undefined || typeof value === 'boolean') return false;
+  if (typeof value === 'number' || typeof value === 'bigint') return inArray || !METRIC_FIELD.test(key);
+  if (typeof value !== 'object') return true;
+  if (Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype !== Object.prototype && prototype !== null;
+}
+
+function defineEntry(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
+}
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
-const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}|[A-Za-z0-9+/]{2,}={1,2})(?![\w+/:=])/g;
-const EMAIL = /[\w.!#$%&*+?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const USERINFO = /(\/\/)(?!\[|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?@/g;
+const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}|[A-Za-z0-9+/]{2,})={1,2}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}(?![\w+/:=]))/g;
+const EMAIL = /[\w.!#$%&*+?^`{|}~-][\w.!#$%&'*+?^`{|}~-]{0,63}=*@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const WORD_EMAIL = /(?!['/=])[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const QUOTED_EMAIL = /"[^"\s]{0,64}(?:\s[^"\s]{0,64}){0,4}"@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?|[^\s/?#@:[]+:(?!\d+(?:[/?#]|$))[^\s@?#]*)@(?=[\w[%~-]|[\s/?#]|$)/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
-const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
-const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'<>])+)`;
+const KEY_AHEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?[:=]`;
+const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s"',;&|])*`;
+const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)?)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
-const SEGMENT = `(?:${QUOTED}|[^\\s,;"'<>{}\\]\\\\])(?:(?![ \\t]+${KEY_AHEAD})(?:[^\\r\\n,;"'<>{}\\]\\\\]|${QUOTED}))*`;
-const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
+const CLOSE = `[}\\]>)](?=[\\s,;"']|$)`;
+const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
+const REAL_KEY_AHEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?(?::|=(?!=*(?:[\\s,;"']|$)))`;
+const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
+const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\s,;"'])(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})[^\\s,;"']|${QUOTED})*)`;
+const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
-const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*${BREAKS}(?:${SEGMENT})?`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:=+${TOKEN_CHARS}*)*))\\3)`, 'gi');
-const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
-const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=)\\s*)(?:(?:${KEY_AHEAD}=*[ \\t]*)+(?:${VALUE})?|${VALUE})`, 'gi');
+const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(${TOKEN_CHARS}{8,}(?:[:=]+${TOKEN_CHARS}*)*))\\3)`, 'gi');
+const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?!${KEY_AHEAD}[ \\t]*\\r?\\n)${SEGMENT}`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
-const HOST_BEFORE = /(?:[a-z][\w+.-]*:|[\w.-])\/\/[\w.-]*$/i;
+const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
+const BARE_HOST_BEFORE = /(?:^|[^\w:/])\/\/[\w.-]*$/;
 const QUERY_QUOTED = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?)/g;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
 function redactWord(word: string): string {
   if (!MARKERS.test(word)) return word;
   if (word.length > MAX_WORD_LENGTH) return MASK;
-  const bare = word.includes('//') ? word : word.replace(EMAIL, MASK);
+  const bare = word.includes('//') ? word : word.replace(word.startsWith('/') ? EMAIL : WORD_EMAIL, MASK);
   const scrubbed = bare.replace(USERINFO, '$1').replace(HOST_TAIL, '$1');
   const cut = scrubbed.includes('/') ? scrubbed.replace(PATH_TAIL, '') : scrubbed;
   return cut.replace(PARAM_VALUE, `$1${MASK}`);
 }
 
+function isHostPort(text: string, offset: number, rest: string): boolean {
+  const before = text.slice(Math.max(0, offset - 256), offset);
+  return HOST_BEFORE.test(before) || (BARE_HOST_BEFORE.test(before) && /^\d{1,5}\//.test(rest));
+}
+
 function maskColon(match: string, key: string, offset: number, text: string): string {
-  const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|$)/.test(match.slice(key.length));
-  return port && HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
+  const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|:(?:\s|$)|$)/.test(match.slice(key.length));
+  return port && isHostPort(text, offset, match.slice(key.length)) ? match : key + MASK;
 }
 
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
+    .replace(QUOTED_EMAIL, MASK)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
@@ -92,21 +139,40 @@ export function redactText(value: string): string {
   return text.length > MAX_LENGTH ? settle(dropPartialWord(text.slice(0, MAX_LENGTH + 1))) : text;
 }
 
-function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+interface Copies {
+  readonly plain: WeakMap<object, unknown>;
+  readonly secret: WeakMap<object, unknown>;
+}
+
+function newCopies(): Copies {
+  return { plain: new WeakMap(), secret: new WeakMap() };
+}
+
+function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  if (seen.has(value)) return seen.get(value);
+  const scope = isSecretName(field) ? seen.secret : seen.plain;
+  if (scope.has(value)) return scope.get(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
-    seen.set(value, copy);
-    for (const entry of value) copy.push(redactDeep(entry, seen));
+    scope.set(value, copy);
+    for (const entry of value) copy.push(isSecretField(field, entry, true) ? MASK : redactDeep(entry, seen, field));
     return copy;
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
-  seen.set(value, copy);
-  for (const [key, entry] of Object.entries(value)) copy[key] = typeof entry === 'string' && SENSITIVE_FIELD.test(key) ? MASK : redactDeep(entry, seen);
+  scope.set(value, copy);
+  const inSecret = isSecretName(field);
+  const taken = new Set<string>();
+  for (const [key, entry] of Object.entries(value)) {
+    const entryKey = inSecret ? field : key;
+    const base = redactText(key);
+    let target = base;
+    for (let n = 2; taken.has(target); n++) target = `${base}#${n}`;
+    taken.add(target);
+    defineEntry(copy, target, isSecretField(entryKey, entry, inSecret) ? MASK : redactDeep(entry, seen, entryKey));
+  }
   return copy;
 }
 
