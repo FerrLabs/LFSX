@@ -20,7 +20,7 @@ const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
 const WORDS = `token|secret|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
-const BENIGN = `(?![\\w.$-]*(?:(?:hot|mon|tur|don|whis|jock|lac|mal)key|desig(?:nature)?)(?![\\w.$-]))`;
+const BENIGN = `(?![\\w.$-]{0,64}(?:(?:hot|mon|tur|don|whis|jock|lac|mal)key|desig(?:nature)?)(?![\\w.$-]))`;
 const CODE_WORDS = `(?:(?:o?auth|csrf|xsrf|otp|mfa|verification|reset|invite|recovery|grant|device)[_.-]?)?(?:code|state)`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$-]{0,64}(?:${WORDS})|${CODE_WORDS})`;
