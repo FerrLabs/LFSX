@@ -31,7 +31,7 @@ const COLON_KEYS = `\\b(?:\\w{64})*?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|primary|sort|foreign|partition|translation|route|object|query|lookup|group|unique|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
-  /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?))$/;
+  /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?)|(?:^|[_. -])(?:input|output|total|max|prompt|completion|cached)[_-]?[Tt]okens?|(?:^|_)(?:INPUT|OUTPUT|TOTAL|MAX|PROMPT|COMPLETION|CACHED)[_-]?TOKENS?|(?:Input|Output|Total|Max|Prompt|Completion|Cached)Tokens?)$/;
 
 function isSecretName(key: string): boolean {
   const normalized = key.replace(/[^\w.$-]+/g, '_').replace(/^_+|_+$/g, '');
@@ -138,28 +138,44 @@ export function redactText(value: string): string {
 interface Copies {
   readonly plain: WeakMap<object, unknown>;
   readonly secret: WeakMap<object, unknown>;
+  readonly active: WeakSet<object>;
+  readonly cyclic: WeakSet<object>;
 }
 
 function newCopies(): Copies {
-  return { plain: new WeakMap(), secret: new WeakMap() };
+  return { plain: new WeakMap(), secret: new WeakMap(), active: new WeakSet(), cyclic: new WeakSet() };
+}
+
+function opensSecretScope(field: string): boolean {
+  return isSecretName(field) && field.toLowerCase() !== 'session';
+}
+
+function maskedCopy(copy: unknown[] | Record<string, unknown>, masked: unknown): unknown {
+  if (Array.isArray(copy)) copy.splice(0, copy.length, ...(masked as unknown[]));
+  else for (const key of Object.keys(copy)) defineEntry(copy, key, (masked as Record<string, unknown>)[key]);
+  return copy;
 }
 
 function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  const scope = isSecretName(field) ? seen.secret : seen.plain;
+  const inSecret = opensSecretScope(field);
+  const scope = inSecret ? seen.secret : seen.plain;
   if (scope.has(value)) return scope.get(value);
+  if (inSecret && seen.active.has(value)) seen.cyclic.add(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
     scope.set(value, copy);
+    if (!inSecret) seen.active.add(value);
     for (const entry of value) copy.push(isSecretField(field, entry, true) ? MASK : redactDeep(entry, seen, field));
-    return copy;
+    seen.active.delete(value);
+    return seen.cyclic.has(value) && !inSecret ? maskedCopy(copy, seen.secret.get(value)) : copy;
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
   scope.set(value, copy);
-  const inSecret = isSecretName(field);
+  if (!inSecret) seen.active.add(value);
   const taken = new Set<string>();
   for (const [key, entry] of Object.entries(value)) {
     const entryKey = inSecret ? field : key;
@@ -169,7 +185,8 @@ function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
     taken.add(target);
     defineEntry(copy, target, isSecretField(entryKey, entry, inSecret) ? MASK : redactDeep(entry, seen, entryKey));
   }
-  return copy;
+  seen.active.delete(value);
+  return seen.cyclic.has(value) && !inSecret ? maskedCopy(copy, seen.secret.get(value)) : copy;
 }
 
 export function sanitizeItem(item: TransportItem): TransportItem | null {

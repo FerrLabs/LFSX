@@ -405,3 +405,68 @@ describe('field names with punctuation and long prefixes', () => {
     });
   }
 });
+
+describe('sanitizeItem copies and the Faro session meta', () => {
+  type Sanitized = { meta: Record<string, any>; payload: Record<string, any> };
+  const run = (meta: object, payload: object): Sanitized => {
+    const out = sanitizeItem({ type: 'log', meta, payload } as never);
+    assert.ok(out);
+    return out as unknown as Sanitized;
+  };
+
+  it('does not mutate the item or anything reachable from it', () => {
+    const session = { id: 'sess-123', attributes: { plan: 'pro' } };
+    const meta = { session, user: { email: 'jane@corp.io' } };
+    const payload = { context: { password: 'hunter2SECRETzq', note: 'a@b.com' }, list: ['a@b.com'] };
+    const before = structuredClone({ meta, payload });
+    const out = run(meta, payload);
+    assert.deepEqual({ meta, payload }, before);
+    assert.notEqual(out.meta['session'], session);
+    assert.equal(out.payload['context']['password'], '*');
+  });
+
+  it('keeps the session id and attributes of the Faro meta', () => {
+    const { meta } = run({ session: { id: 'sess-123', attributes: { plan: 'pro' } } }, {});
+    assert.deepEqual(meta['session'], { id: 'sess-123', attributes: { plan: 'pro' } });
+  });
+
+  it('masks a string, number or bigint directly under session', () => {
+    const { payload } = run({}, { session: 'abc123SECRET' });
+    assert.equal(payload['session'], '*');
+    assert.equal(run({}, { Session: 48291234 }).payload['Session'], '*');
+    assert.equal(run({}, { session: 48291234n }).payload['session'], '*');
+  });
+
+  it('still masks the other session fields', () => {
+    const { payload } = run({}, { session_id: 'abc123SECRET', sessionId: 'abc123SECRET', session_token: 'abc123SECRET', sessionKey: 'abc123SECRET' });
+    assert.deepEqual(Object.values(payload), ['*', '*', '*', '*']);
+  });
+
+  it('walks a non-extensible object with a secret and colliding keys without touching it', () => {
+    const data = Object.preventExtensions({ password: 'hunter2SECRETzq', 'a@b.com': 1, 'c@d.com': 2, keep: 'ok' });
+    const before = structuredClone(data);
+    const { payload } = run({}, { data });
+    assert.deepEqual(data, before);
+    assert.equal(payload['data']['password'], '*');
+    assert.equal(payload['data']['keep'], 'ok');
+    assert.equal(Object.keys(payload['data']).length, 4);
+  });
+
+  it('masks every leaf of an object that holds itself under a secret field', () => {
+    const loop: Record<string, unknown> = {};
+    loop['password'] = loop;
+    loop['note'] = 'hunter2SECRETzq';
+    const { payload } = run({}, { loop });
+    assert.equal(payload['loop']['note'], '*');
+    const reversed: Record<string, unknown> = { note: 'hunter2SECRETzq' };
+    reversed['password'] = reversed;
+    assert.equal(run({}, { reversed }).payload['reversed']['note'], '*');
+  });
+
+  it('keeps token counts and masks bare tokens', () => {
+    const { payload } = run({}, { usage: { inputTokens: 12, max_tokens: 100, total_tokens: 7, OUTPUT_TOKENS: 3, 'prompt-tokens': 5 }, tokens: ['abc123SECRET'], token: 42 });
+    assert.deepEqual(payload['usage'], { inputTokens: 12, max_tokens: 100, total_tokens: 7, OUTPUT_TOKENS: 3, 'prompt-tokens': 5 });
+    assert.deepEqual(payload['tokens'], ['*']);
+    assert.equal(payload['token'], '*');
+  });
+});
