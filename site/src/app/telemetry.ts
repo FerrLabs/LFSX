@@ -39,12 +39,14 @@ const WORD_EMAIL = /(?!['/=])[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]
 const QUOTED_EMAIL = /"[^"\s]{0,64}(?:\s[^"\s]{0,64}){0,4}"@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?|[^\s/?#@:]+:(?!\d+(?:[/?#]|$))[^\s@?#]*)@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
-const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
+const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[([{<]?[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
 const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)?)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
 const CLOSE = `[}\\]>)](?=[\\s,;"']|$)`;
 const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
-const SEGMENT = `(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\s,;"'])(?:(?![ \\t]+${KEY_AHEAD})(?:(?!${CLOSE})[^\\r\\n,;"']|${QUOTED}))*)`;
+const REAL_KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[([{<]?[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*(?::|=(?!=*(?:[\\s,;"']|$)))`;
+const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
+const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\s,;"'])(?:(?![ \\t]+${KEY_AHEAD})(?:(?!${CLOSE})[^\\r\\n,;"']|${QUOTED}))*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*){0,4}`;
 const TOKEN_CHARS = `[^\\s"',;:=\\\\]`;
 const BEARER_KEYED = `(?=[^\\s"',;:=\\\\]{0,64}${KEY_WORDS}\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*${BREAKS}(?:${SEGMENT})?`;
