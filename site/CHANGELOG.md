@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.8] - 2026-11-11
+
+### Bug Fixes
+
+- fix(telemetry): bring redaction to v6.27 (#756)
+
 ## [2026.11.7] - 2026-11-11
 
 ### Bug Fixes
