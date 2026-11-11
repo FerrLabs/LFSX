@@ -26,11 +26,18 @@ const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
 const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
 const SENSITIVE_FIELD = new RegExp(`^(?!(?:cache|i18n|primary|sort|foreign|partition|translation|route|list|row|map|object|storage|query|lookup|group|unique|react|track|idempotency)[-_]?key$|auth(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}$`, 'i');
 
+const METRIC_FIELD =
+  /(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)$/i;
+
+function isSecretName(key: string): boolean {
+  return SENSITIVE_FIELD.test(key);
+}
+
 function isSecretField(key: string, value: unknown): boolean {
-  return (
-    (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint') &&
-    SENSITIVE_FIELD.test(key)
-  );
+  if (typeof value === 'string') return isSecretName(key);
+  if (typeof value === 'number' || typeof value === 'bigint')
+    return isSecretName(key) && !METRIC_FIELD.test(key);
+  return false;
 }
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}|[A-Za-z0-9+/]{2,})={1,2}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}(?![\w+/:=]))/g;
@@ -106,20 +113,30 @@ export function redactText(value: string): string {
   return text.length > MAX_LENGTH ? settle(dropPartialWord(text.slice(0, MAX_LENGTH + 1))) : text;
 }
 
-function redactDeep(value: unknown, seen = new WeakMap<object, unknown>(), field = ''): unknown {
+interface Copies {
+  readonly plain: WeakMap<object, unknown>;
+  readonly secret: WeakMap<object, unknown>;
+}
+
+function newCopies(): Copies {
+  return { plain: new WeakMap(), secret: new WeakMap() };
+}
+
+function redactDeep(value: unknown, seen = newCopies(), field = ''): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  if (seen.has(value)) return seen.get(value);
+  const scope = isSecretName(field) ? seen.secret : seen.plain;
+  if (scope.has(value)) return scope.get(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
-    seen.set(value, copy);
+    scope.set(value, copy);
     for (const entry of value) copy.push(isSecretField(field, entry) ? MASK : redactDeep(entry, seen, field));
     return copy;
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
-  seen.set(value, copy);
+  scope.set(value, copy);
   for (const [key, entry] of Object.entries(value)) copy[key] = isSecretField(key, entry) ? MASK : redactDeep(entry, seen, key);
   return copy;
 }
