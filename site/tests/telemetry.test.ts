@@ -806,3 +806,32 @@ describe('bearer tail stops before a following secret key v6.44', () => {
     });
   }
 });
+
+describe('secret words deep inside long keys v6.45', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['b'.repeat(100) + 'Password=hunter2', 'b'.repeat(100) + 'Password=*'],
+    ['x_' + 'c'.repeat(100) + 'Token: abc', 'x_' + 'c'.repeat(100) + 'Token: *'],
+    ['a'.repeat(317) + '_monkey=3', 'a'.repeat(317) + '_monkey=3'],
+    ['b'.repeat(100) + '_error_code=500', 'b'.repeat(100) + '_error_code=500'],
+    ['b'.repeat(100) + 'ErrorCode=500', 'b'.repeat(100) + 'ErrorCode=500'],
+  ];
+
+  rows.forEach(([input, output], index) => {
+    it(`redacts row ${index}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  });
+
+  const adversarial: ReadonlyArray<string> = [
+    '[a'.repeat(8000) + ':',
+    'a-'.repeat(8000) + ':',
+  ];
+
+  adversarial.forEach((input, index) => {
+    it(`stays under 250 ms on 16 KB of adversarial keys ${index}`, () => {
+      const started = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - started < 250);
+    });
+  });
+});
