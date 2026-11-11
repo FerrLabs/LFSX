@@ -27,7 +27,7 @@ const SENSITIVE_FIELD = new RegExp(`^${COLON_KEYS}$`, 'i');
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}|[A-Za-z0-9+/]{2,}={1,2})(?![\w+/:=])/g;
 const EMAIL = /[\w.!#$%&*+?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const USERINFO = /(\/\/)(?!(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]):\d+[?#])[^\s/?#@[]*(?::[^\s/@[]*)?@/gi;
+const USERINFO = /(\/\/)(?!\[|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?@/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_AHEAD = `\\\\{0,4}["']?[ \\t]*[\\w.$-]{0,64}${KEY_WORDS}[ \\t]*\\\\{0,4}["']?[ \\t]*[:=]`;
 const VALUE = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|][ \\t]*${KEY_AHEAD})[^\\s"'<>])+)`;
@@ -55,7 +55,7 @@ function redactWord(word: string): string {
 }
 
 function maskColon(match: string, key: string, offset: number, text: string): string {
-  const port = /^\d{1,5}(?:[/?#\s]|$)/.test(match.slice(key.length));
+  const port = /:$/.test(key) && /^\d{1,5}(?=[/?#\s"'<>),;\]}]|$)/.test(match.slice(key.length));
   return port && HOST_BEFORE.test(text.slice(Math.max(0, offset - 256), offset)) ? match : key + MASK;
 }
 
@@ -63,7 +63,8 @@ function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
     .replace(USERINFO, '$1')
-    .replace(BEARER, `$1 ${MASK}`)    .replace(SENSITIVE_COLON, maskColon)
+    .replace(BEARER, `$1 ${MASK}`)
+    .replace(SENSITIVE_COLON, maskColon)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)
     .replace(BASIC, `$1 ${MASK}`)
     .replace(QUERY_QUOTED, `$1${MASK}`)
