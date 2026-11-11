@@ -709,7 +709,7 @@ describe('secret reachability does not depend on key order', () => {
   });
 });
 
-describe('redactText v6.43 primary and query keys, narrowed state words', () => {
+describe('redactText primary and query keys, narrowed state words', () => {
   const masked: ReadonlyArray<readonly [string, string]> = [
   ['auth_request_state=SECRET99', 'auth_request_state=*'],
   ['oauth_client_state=SECRET99', 'oauth_client_state=*'],
@@ -755,7 +755,7 @@ describe('redactText v6.43 primary and query keys, narrowed state words', () => 
   }
 });
 
-describe('field names v6.43', () => {
+describe('field names: primary and query keys, narrowed state words', () => {
   const payloadOf = (payload: object): Record<string, unknown> => {
     const out = sanitizeItem({ type: 'log', meta: {}, payload } as unknown as TransportItem);
     return (out as unknown as { payload: Record<string, unknown> }).payload;
