@@ -24,6 +24,7 @@ const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `(?:${WORDS}|code|state)`;
 const PARAM_KEYS = `[\\w-]{0,64}${KEY_WORDS}`;
 const COLON_KEYS = `[\\w-]{0,64}${COLON_WORDS}`;
+const SENSITIVE_FIELD = new RegExp(`^${COLON_KEYS}$`, 'i');
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
 const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}={0,2}|[A-Za-z0-9+/]{2,}={1,2})(?![\w+/:=])/g;
 const EMAIL = /[\w.!#$%&*+?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
@@ -104,7 +105,7 @@ function redactDeep(value: unknown, seen = new WeakMap<object, unknown>()): unkn
   if (prototype !== Object.prototype && prototype !== null) return redactText(String(value));
   const copy: Record<string, unknown> = {};
   seen.set(value, copy);
-  for (const [key, entry] of Object.entries(value)) copy[key] = redactDeep(entry, seen);
+  for (const [key, entry] of Object.entries(value)) copy[key] = typeof entry === 'string' && SENSITIVE_FIELD.test(key) ? MASK : redactDeep(entry, seen);
   return copy;
 }
 
