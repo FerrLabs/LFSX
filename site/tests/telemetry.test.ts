@@ -1251,6 +1251,20 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['token=abc?pwd= hunter2secret', 'token=*?pwd= *'],
     ['password=correct horse', 'password=*'],
     ["code==''\"\"''\"\";", 'code==*;'],
+    ['password=correct horse:staple', 'password=*'],
+    ['password=correct horse:battery staple', 'password=*'],
+    ['password=x user: bob', 'password=* user: bob'],
+    ['error.code=3', 'error.code=3'],
+    ['error-code=3', 'error-code=3'],
+    ['loading-state=1', 'loading-state=1'],
+    ['zip-code=57', 'zip-code=57'],
+    ['user.password=x1abc', 'user.password=*'],
+    ['a.b.token=x1abc', 'a.b.token=*'],
+    ['x.code=1', 'x.code=*'],
+    ['password: abc?user[token] = ZqSECRET9x', 'password: *?user[token] = *'],
+    ['password : abc?[token] =ZqSECRET9x', 'password : *?[token] =*'],
+    ['Bearer abcdefgh?token=ZqSECRET9x', 'Bearer *?token=*'],
+    ['password: what?', 'password: *'],
   ];
 
   for (const [input, output] of rows) {
