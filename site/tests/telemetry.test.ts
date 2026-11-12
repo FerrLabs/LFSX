@@ -273,7 +273,7 @@ describe('secret subtrees, metric names and key normalization', () => {
     assert.equal(redactText('//auth:8080/x'), '//auth:8080/x');
   });
 });
-describe('redactText v6.37 code and state keys', () => {
+describe('redactText code and state keys', () => {
   const masked: ReadonlyArray<readonly [string, string]> = [
     ['otp_code: 834201 sent', 'otp_code: *'],
     ['{"mfa_code": "834201"}', '{"mfa_code": *}'],
@@ -311,7 +311,7 @@ describe('redactText v6.37 code and state keys', () => {
   });
 });
 
-describe('spaced field names v6.37', () => {
+describe('spaced field names', () => {
   it('masks benign-looking prefixes before a secret word', () => {
     assert.deepEqual(
       sanitizePayload({
@@ -780,7 +780,7 @@ describe('field names: primary and query keys, narrowed state words', () => {
   });
 });
 
-describe('bearer tail stops before a following secret key v6.44', () => {
+describe('bearer tail stops before a following secret key', () => {
   const rows: ReadonlyArray<readonly [string, string]> = [
     [
       'Authorization: Bearer abcdefgh&user=passwd: ZqSECRET9',
@@ -807,7 +807,7 @@ describe('bearer tail stops before a following secret key v6.44', () => {
   }
 });
 
-describe('secret words deep inside long keys v6.45', () => {
+describe('secret words deep inside long keys', () => {
   const rows: ReadonlyArray<readonly [string, string]> = [
     ['b'.repeat(100) + 'Password=hunter2', 'b'.repeat(100) + 'Password=*'],
     ['x_' + 'c'.repeat(100) + 'Token: abc', 'x_' + 'c'.repeat(100) + 'Token: *'],
@@ -836,7 +836,7 @@ describe('secret words deep inside long keys v6.45', () => {
   });
 });
 
-describe('field names: group, object and lookup keys v6.46', () => {
+describe('field names: group, object and lookup keys', () => {
   const payloadOf = (payload: object): Record<string, unknown> => {
     const out = sanitizeItem({ type: 'log', meta: {}, payload } as unknown as TransportItem);
     return (out as unknown as { payload: Record<string, unknown> }).payload;
