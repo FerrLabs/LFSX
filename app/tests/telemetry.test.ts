@@ -854,3 +854,36 @@ describe('field names: group, object and lookup keys v6.46', () => {
     });
   }
 });
+
+describe('a secret value stops before a following query key', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['token=abc?pwd= hunter2secret', 'token=*?pwd= *'],
+    ['token=abc#pwd= hunter2secret', 'token=*#pwd= *'],
+    ['token = abc?pwd = hunter2secret', 'token = *?pwd = *'],
+    ['password=x?api_key = hunter2secret', 'password=*?api_key = *'],
+    ['password=a?b', 'password=*'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  it('does not leak a secret behind a fragment key in a url', () => {
+    assert.ok(!redactText('https://x.com/cb?token=abc#pwd= hunter2secret').includes('hunter2secret'));
+  });
+
+  it('stays under 250 ms on 16 KB of long words', () => {
+    const started = performance.now();
+    redactText(('a'.repeat(100) + ' ').repeat(160));
+    assert.ok(performance.now() - started < 250);
+  });
+
+  it('stays under 250 ms and masks the value on repeated long-word keys', () => {
+    const started = performance.now();
+    const out = redactText(('a'.repeat(100) + 'Password=x ').repeat(140));
+    assert.ok(performance.now() - started < 250);
+    assert.ok(!out.includes('=x'));
+  });
+});
