@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.10] - 2026-11-12
+
+### Bug Fixes
+
+- fix(deps): update dependency @grafana/faro-web-sdk to ~2.14.0 (#762)
+
 ## [2026.11.8] - 2026-11-11
 
 ### Bug Fixes
