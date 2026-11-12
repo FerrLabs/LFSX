@@ -21,14 +21,14 @@ const MARKERS = /[?#=@]/;
 const WORDS = `token|secret|cookie|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
 const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char|version|room|lobby|game|level|build|seat|table|zone|course)[_.-]?codes?|(?:ready|visibility|loading|playback)[_.-]?states?)`;
 const BENIGN_SHORT_CODE = `(?:(?:err|resp|uni|en|de|op|qr|iso|src)[_.-]?codes?)`;
-const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|stream|queue|match|lobby|round|level|room|combat|board|turn|battle|world|scene|hand|deck|card)[_.-]?states?)`;
+const BENIGN_STATE = `(?:(?:ready|trace|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|stream|queue|match|lobby|round|level|room|combat|board|turn|battle|world|scene|hand|deck|card)[_.-]?states?)`;
 const BENIGN = `(?:(?=auth(?!or(?!i[sz]ation)))|(?!keys?[_.-]?codes?(?![\\w.$-])|(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}${BENIGN_CODE}(?![\\w.$-])))`;
 const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,2047}').replaceAll('{0,64}', '{0,2047}');
-const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]{0,4}`;
+const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)[\\])}>]{0,4}`;
 const COLON_WORDS = `(?:${WORDS})`;
-const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]{0,4}|${CODE_WORDS})`;
-const PARAM_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})\\]{0,4}|${CODE_WORDS})`;
-const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]{0,4}`;
+const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
+const PARAM_KEYS = `\\b(?:(?=[\\w.]{65})${BENIGN_LONG}(?:[\\w.]{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
+const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))[\\])}>]{0,4}`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$-]{0,64}[_.$-])?(?:list|row|map)[-_]?keys?$|(?:[\\w$-]{0,64}\\.)?(?:primary|query|object|foreign|lookup|group|unique)[-_]?keys?$|[\\w.$-]{0,64}(?:cache|i18n|sort|partition|translation|route|react|track|idempotency)[-_]?keys?$|[\\w.$-]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$-]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$-]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
@@ -60,32 +60,33 @@ function defineEntry(target: Record<string, unknown>, key: string, value: unknow
   Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
 }
 const JWT = /\beyJ[\w-]*\.[\w-]+\.[\w-]*/g;
-const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}|[A-Za-z0-9+/]{2,})={1,2}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}(?![\w+/:=]))(?:[,;](?![\w.$[\]-]+[ \t]*(?:=|:(?:[ \t]|$)))[^\s,;"']+)*/g;
+const BASIC = /\b([Bb][Aa][Ss][Ii][Cc])\s+(?:(?:(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}|[A-Za-z0-9+/]{2,})={1,2}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}(?![\w+/=])|(?=[A-Za-z0-9+/]*[0-9A-Z+/])[A-Za-z0-9+/]{8,}(?![\w+/:=]))(?:[,;](?![\w.$[\]-]+[ \t]*(?:=(?![=\s]|$)|:(?:[ \t]|$))|(?:[Bb][Aa][Ss][Ii][Cc]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Tt][Oo][Kk][Ee][Nn]|[Dd][Ii][Gg][Ee][Ss][Tt])[ \t])[^\s,;"']+)*/g;
 const EMAIL = /[\w.!#$%&*+?^`{|}~-][\w.!#$%&'*+?^`{|}~-]{0,63}=*@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
 const WORD_EMAIL = /(?!['/=])[\w.!#$%&'*+/=?^`{|}~-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const QUOTED_EMAIL = /"[^"\s]{0,64}(?:\s[^"\s]{0,64}){0,4}"@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
-const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?|[^\s/?#@:[]+:(?!\d+(?:[/?#]|$))[^\s@]*|[^\s/?#@:[]*:\d+\/[^\s/?#@]*)@(?![+!*'"(),;<>=])/g;
+const QUOTED_EMAIL = /(^|[\s<(,;:=[{])"[^"\s]{0,64}(?:\s[^"\s]{0,64}){0,4}"@[\w-]{1,63}(?:\.[\w-]{1,63})+/g;
+const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?#@]*(?::[^\s/@]*)?|[^\s/?#@:[]+:(?!\d+(?:[/?#]|$))[^\s@]*|[^\s/?#@:[.]*:\d+\/[^\s/?#@]+)@(?![+!*'"(),;<>=])/g;
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_HEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?`;
 const KEY_AHEAD = `${KEY_HEAD}[:=]`;
 const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![?#][ \\t]*${KEY_AHEAD})[^\\s"',;&|])*`;
-const VALUE_JOIN = `|[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\r\\n,;&|])`;
-const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$))))+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))${VALUE_JOIN})*)`;
+const VALUE_JOIN = `|[ \\t]+(?![ \\t-])(?!(?:basic|bearer|token|digest)[ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\r\\n,;&|])`;
+const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t]))+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])${VALUE_JOIN})*)`;
 const VALUE_WORD = VALUE.replace(VALUE_JOIN, '');
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
-const CLOSE = `[}\\]>)](?=[\\s,;"']|$)`;
+const CLOSE = `[}\\]>)](?=[\\s"']|$|[,;](?:[\\s"'{\\[]|$|[\\w.$[\\]-]+[ \\t]*[:=]))`;
 const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
 const REAL_KEY_AHEAD = `${KEY_HEAD}(?::|=(?!=*(?:[\\s,;"']|$)))`;
 const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
-const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$))))(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})(?![|&#?]${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))|${QUOTED})*)`;
+const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t]))(?:[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})(?![|&#?]${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])|${QUOTED})*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
 const TOKEN_CHARS = `(?:(?![&#|?{(\\[<]${KEY_AHEAD})[^\\s"',;:=\\\\])`;
 const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(?:[^\\s"',;]|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))){8})(?=((?:${TOKEN_CHARS}|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))|\\\\(?!\\\\{0,3}["'])|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
-const YAML_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)((?:-[ \\t]+)?${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]+[^\\r\\n]*))+)`, 'gim');
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(?:[^\\s"',;]|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])){8})(?=((?:${TOKEN_CHARS}|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])|\\\\(?!\\\\{0,3}["'])|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
+const YAML_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]+[^\\r\\n]*))+)`, 'gim');
+const YAML_LIST_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)(-[ \\t]+${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]{3,}[^\\r\\n]*))+)`, 'gim');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
-const SENSITIVE_QUERY_PARAM = new RegExp(`([?&#;]${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE_WORD})?|${VALUE_WORD})`, 'gi');
-const SENSITIVE_PARAM = new RegExp(`((?:^|[^\\w.?&#;-])-*${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
+const SENSITIVE_QUERY_PARAM = new RegExp(`([?#](?:[^\\s?#]{0,512}?[&;])?${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE_WORD})?|${VALUE_WORD})`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`((?:^|[^\\w.?#-])[-.]*${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?!=*\\*(?:[\\s,;&]|$))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
 const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
@@ -117,10 +118,11 @@ function maskColon(match: string, key: string, offset: number, text: string): st
 function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
-    .replace(QUOTED_EMAIL, MASK)
+    .replace(QUOTED_EMAIL, `$1${MASK}`)
     .replace(COOKIE_HEADER, `$1${MASK}`)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
+    .replace(YAML_LIST_BLOCK, `$1$2$3${MASK}`)
     .replace(YAML_BLOCK, `$1$2$3${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
     .replace(SENSITIVE_QUERY_PARAM, `$1${MASK}`)
