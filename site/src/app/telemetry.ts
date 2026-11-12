@@ -83,10 +83,10 @@ const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
 const TOKEN_CHARS = `(?:(?![&#|?{(\\[<]${KEY_AHEAD})[^\\s"',;:=\\\\])`;
 const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
 const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(?:[^\\s"',;]|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))){8})(?=((?:${TOKEN_CHARS}|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=|:(?:[ \\t]|$)))|\\\\(?!\\\\{0,3}["'])|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
-const YAML_BLOCK = new RegExp(`^([ \\t]*)(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\1[ \\t]+[^\\r\\n]*))+)`, 'gim');
+const YAML_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)((?:-[ \\t]+)?${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]+[^\\r\\n]*))+)`, 'gim');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
 const SENSITIVE_QUERY_PARAM = new RegExp(`([?&#;]${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE_WORD})?|${VALUE_WORD})`, 'gi');
-const SENSITIVE_PARAM = new RegExp(`((?:^|[^\\w.?&#;-])${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
+const SENSITIVE_PARAM = new RegExp(`((?:^|[^\\w.?&#;-])-*${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
 const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
@@ -122,7 +122,7 @@ function redactPass(text: string): string {
     .replace(COOKIE_HEADER, `$1${MASK}`)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
-    .replace(YAML_BLOCK, `$1$2${MASK}`)
+    .replace(YAML_BLOCK, `$1$2$3${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
     .replace(SENSITIVE_QUERY_PARAM, `$1${MASK}`)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)

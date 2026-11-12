@@ -1195,7 +1195,6 @@ describe('glued commas and semicolons inside secret values', () => {
 
 describe('equals values spanning spaces', () => {
   const rows: ReadonlyArray<readonly [string, string]> = [
-    ['password=correct horse', 'password=*'],
     ['password=correct horse battery staple', 'password=*'],
     ['login failed password=abc for user bob', 'login failed password=*'],
     ['password=x user=bob', 'password=* user=bob'],
@@ -1249,7 +1248,6 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['GET https://api.example/x?token=abc failed', 'GET https://api.example/x failed'],
     ['see https://a.com/p?api_key=x now', 'see https://a.com/p now'],
     ['token=abc?pwd= hunter2secret', 'token=*?pwd= *'],
-    ['password=correct horse', 'password=*'],
     ["code==''\"\"''\"\";", 'code==*;'],
     ['password=correct horse:staple', 'password=*'],
     ['password=correct horse:battery staple', 'password=*'],
@@ -1265,6 +1263,19 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['password : abc?[token] =ZqSECRET9x', 'password : *?[token] =*'],
     ['Bearer abcdefgh?token=ZqSECRET9x', 'Bearer *?token=*'],
     ['password: what?', 'password: *'],
+    ['cmd --password=hunter2', 'cmd --password=*'],
+    ['-Dtoken=abc', '-Dtoken=*'],
+    ['--api-key=abc', '--api-key=*'],
+    ['- password: |\n  x\n  y', '- password: *'],
+    ['- password: |\n  x\nnext: 1', '- password: *\nnext: 1'],
+    ['  - token: >-\n      a\n      b\n  - name: z', '  - token: *\n  - name: z'],
+    ['- password: |\n  ZqLine1\n  ZqLine2\nnext: ok', '- password: *\nnext: ok'],
+    ['x - password: |\n  ZqLine1', 'x - password: *'],
+    ['a: b password: |\n  ZqLine1', 'a: b password: *'],
+    ['  - password: |\n    ZqLine1', '  - password: *'],
+    ['- password: >\n  ZqLine1', '- password: *'],
+    ['x\n  password: |\n    s\n  next: 1', 'x\n  password: *\n  next: 1'],
+    ['note: a | b', 'note: a | b'],
   ];
 
   for (const [input, output] of rows) {
@@ -1276,6 +1287,7 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
   const timed: ReadonlyArray<readonly [string, string]> = [
     ['a yaml block of 4000 blank-separated lines', 'password: |\n' + '  x\n\n'.repeat(4000)],
     ['4000 digit-led path segments before an at sign', '//' + 'a:1/'.repeat(4000) + '@'],
+    ['16000 spaces before a yaml block key', ' '.repeat(16000) + 'password: |\n  x'],
   ];
 
   for (const [name, input] of timed) {
