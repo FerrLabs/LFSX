@@ -898,7 +898,7 @@ describe('auth prefixes, cookie headers and state words', () => {
     ['http_status_code=200', 'http_status_code=200'],
     ['Cookie: theme=dark; sid=abc123', 'Cookie: *'],
     ['x\nSet-Cookie: sid=abc; Path=/', 'x\nSet-Cookie: *'],
-    ['Error reading cookie: invalid header at line 3, user=bob', 'Error reading cookie: *, user=bob'],
+    ['Error reading cookie: invalid header at line 3, user=bob', 'Error reading cookie: *'],
     ['playerReadyState=1', 'playerReadyState=1'],
     ['orderState=paid', 'orderState=*'],
   ];
@@ -1131,4 +1131,64 @@ describe('meta.session exemption', () => {
   it('masks an array under meta.session', () => {
     assert.ok(!JSON.stringify(metaOf([SECRET])).includes(SECRET));
   });
+});
+
+describe('cookie headers anywhere and narrowed auth bypass', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['  Cookie: theme=dark; sid=abc123', '  Cookie: *'],
+    ['> Cookie: theme=dark; sid=abc123', '> Cookie: *'],
+    ['headers: Cookie: theme=dark; sid=abc123', 'headers: Cookie: *'],
+    ['req Cookie: theme=dark; connect.sid=s%3Aabc', 'req Cookie: *'],
+    ['GET /x failed Cookie: theme=dark; sid=abc123', 'GET /x failed Cookie: *'],
+    ['auth_hotkey=Zq9SECRET', 'auth_hotkey=*'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  for (const input of ['author_status_code=200']) {
+    it(`keeps ${JSON.stringify(input)}`, () => {
+      assert.equal(redactText(input), input);
+    });
+  }
+});
+
+describe('glued commas and semicolons inside secret values', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['password: p@ss;word123', 'password: *'],
+    ['password: hunter,2abcSecret', 'password: *'],
+    ['password: ;hunter2abc', 'password: *'],
+    ['Basic dXNlcjpw;ass12', 'Basic *'],
+    ['Bearer abc,defgh12345', 'Bearer *'],
+    ['password: x, user: bob', 'password: *, user: bob'],
+    ['password: x,user=bob', 'password: *,user=bob'],
+    ['password: x; y', 'password: *; y'],
+    ['{"password":"x","user":"bob"}', '{"password":*,"user":"bob"}'],
+    ['password=correct horse', 'password=* horse'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  const timed: ReadonlyArray<readonly [string, string]> = [
+    ['a run of glued commas', 'password: ' + 'a,'.repeat(8000)],
+    ['a run of glued semicolons', 'Basic dXNlcjpw' + ';a'.repeat(8000)],
+    ['long dotted words', ('a'.repeat(70) + '.').repeat(230)],
+    ['repeated key prefixes', ('x_'.repeat(40) + 'token=').repeat(150)],
+    ['a dotted run', 'a.'.repeat(8192)],
+  ];
+
+  for (const [name, input] of timed) {
+    it(`stays under 250 ms on ${name}`, () => {
+      const start = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - start < 250);
+    });
+  }
 });
