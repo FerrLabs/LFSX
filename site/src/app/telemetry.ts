@@ -28,7 +28,7 @@ const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,2047}').replaceAll('{0,64}',
 const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)[\\])}>]{0,4}`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
-const PARAM_KEYS = `\\b(?:(?=[\\w.]{65})${BENIGN_LONG}(?:[\\w.]{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
+const PARAM_KEYS = `\\b(?:(?=[\\w.-]{65})${BENIGN_LONG}(?:[\\w.-]{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
 const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))[\\])}>]{0,4}`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$-]{0,64}[_.$-])?(?:list|row|map)[-_]?keys?$|(?:[\\w$-]{0,64}\\.)?(?:primary|query|object|foreign|lookup|group|unique)[-_]?keys?$|[\\w.$-]{0,64}(?:cache|i18n|sort|partition|translation|route|react|track|idempotency)[-_]?keys?$|[\\w.$-]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$-]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$-]{1,64}(?:code|state)s?$`, 'i');
 
@@ -43,18 +43,16 @@ function isSecretName(key: string): boolean {
   return SENSITIVE_FIELD.test(tail.replace(/^[^_.$-]*[_.$-]/, '')) || SENSITIVE_FIELD.test(tail);
 }
 
-function isSecretValue(value: unknown, metricKey?: string): boolean {
+function isSecretValue(snapshot: Snapshot, value: unknown, metricKey?: string): boolean {
   if (value === null || value === undefined || typeof value === 'boolean') return false;
   if (typeof value === 'number' || typeof value === 'bigint')
     return metricKey === undefined || !METRIC_FIELD.test(metricKey);
   if (typeof value !== 'object') return true;
-  if (Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype !== Object.prototype && prototype !== null;
+  return !isTraversable(snapshot, value);
 }
 
-function isSecretField(key: string, value: unknown): boolean {
-  return isSecretName(key) && isSecretValue(value, key);
+function isSecretField(snapshot: Snapshot, key: string, value: unknown): boolean {
+  return isSecretName(key) && isSecretValue(snapshot, value, key);
 }
 
 function defineEntry(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -83,8 +81,9 @@ const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
 const TOKEN_CHARS = `(?:(?![&#|?{(\\[<]${KEY_AHEAD})[^\\s"',;:=\\\\])`;
 const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
 const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=(?:[^\\s"',;]|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])){8})(?=((?:${TOKEN_CHARS}|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])|\\\\(?!\\\\{0,3}["'])|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
-const YAML_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]+[^\\r\\n]*))+)`, 'gim');
-const YAML_LIST_BLOCK = new RegExp(`(^|[^ \\t\\r\\n])([ \\t]*)(-[ \\t]+${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]{3,}[^\\r\\n]*))+)`, 'gim');
+const YAML_BLOCK = new RegExp(`(^)([ \\t]*)(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]+[^\\r\\n]*))+)`, 'gim');
+const YAML_INLINE_BLOCK = new RegExp(`([^ \\t\\r\\n])([ \\t]+)((?:-[ \\t]+)?${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|[ \\t]+[^\\r\\n]*))+)`, 'gi');
+const YAML_LIST_BLOCK = new RegExp(`(^)([ \\t]*)(-[ \\t]+${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*)[|>][-+1-9]{0,2}[ \\t]*(?:#[^\\r\\n]*)?((?:\\r?\\n(?:[ \\t]*(?=\\r?\\n|$)|\\2[ \\t]{3,}[^\\r\\n]*))+)`, 'gim');
 const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
 const SENSITIVE_QUERY_PARAM = new RegExp(`([?#](?:[^\\s?#]{0,512}?[&;])?${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE_WORD})?|${VALUE_WORD})`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`((?:^|[^\\w.?#-])[-.]*${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?!=*\\*(?:[\\s,;&]|$))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
@@ -125,6 +124,7 @@ function redactPass(text: string): string {
     .replace(BEARER, `$1 ${MASK}`)
     .replace(YAML_LIST_BLOCK, `$1$2$3${MASK}`)
     .replace(YAML_BLOCK, `$1$2$3${MASK}`)
+    .replace(YAML_INLINE_BLOCK, `$1$2$3${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
     .replace(SENSITIVE_QUERY_PARAM, `$1${MASK}`)
     .replace(SENSITIVE_PARAM, `$1${MASK}`)
@@ -160,13 +160,19 @@ function isPlainObject(value: object): boolean {
   return prototype === null || prototype === Object.prototype;
 }
 
-function isPlainRecord(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && isPlainObject(value);
+function isPlainRecord(snapshot: Snapshot, value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    isTraversable(snapshot, value)
+  );
 }
 
 type Entry = readonly [string, unknown];
 
 interface Snapshot {
+  readonly plain: WeakMap<object, boolean>;
   readonly elements: WeakMap<readonly unknown[], readonly unknown[]>;
   readonly entries: WeakMap<object, readonly Entry[]>;
 }
@@ -192,8 +198,12 @@ function entriesOf(snapshot: Snapshot, container: object): readonly Entry[] {
   return taken;
 }
 
-function isTraversable(value: object): boolean {
-  return Array.isArray(value) || isPlainObject(value);
+function isTraversable(snapshot: Snapshot, value: object): boolean {
+  const known = snapshot.plain.get(value);
+  if (known !== undefined) return known;
+  const verdict = Array.isArray(value) || isPlainObject(value);
+  snapshot.plain.set(value, verdict);
+  return verdict;
 }
 
 function collectSecretContainers(
@@ -205,7 +215,7 @@ function collectSecretContainers(
   const seenPlain = new WeakSet<object>();
   const seenMetaRoot = new WeakSet<object>();
   const visit = (value: unknown, inSecret: boolean, isMetaRoot = false): void => {
-    if (value === null || typeof value !== 'object' || !isTraversable(value)) return;
+    if (value === null || typeof value !== 'object' || !isTraversable(snapshot, value)) return;
     const seen = inSecret ? secret : isMetaRoot ? seenMetaRoot : seenPlain;
     if (seen.has(value)) return;
     seen.add(value);
@@ -214,7 +224,7 @@ function collectSecretContainers(
       return;
     }
     for (const [key, entry] of entriesOf(snapshot, value)) {
-      const exempt = isMetaRoot && SESSION_FIELD.test(key) && isPlainRecord(entry);
+      const exempt = isMetaRoot && SESSION_FIELD.test(key) && isPlainRecord(snapshot, entry);
       visit(entry, inSecret || (isSecretName(key) && !exempt));
     }
   };
@@ -224,7 +234,7 @@ function collectSecretContainers(
 }
 
 function newWalk(meta: unknown, payload: unknown): Walk {
-  const snapshot: Snapshot = { elements: new WeakMap(), entries: new WeakMap() };
+  const snapshot: Snapshot = { plain: new WeakMap(), elements: new WeakMap(), entries: new WeakMap() };
   return {
     ...snapshot,
     secret: collectSecretContainers(meta, payload, snapshot),
@@ -235,7 +245,7 @@ function newWalk(meta: unknown, payload: unknown): Walk {
 function redactDeep(value: unknown, walk: Walk): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  if (!isTraversable(value)) return redactText(String(value));
+  if (!isTraversable(walk, value)) return redactText(String(value));
   const known = walk.copies.get(value);
   if (known !== undefined) return known;
   const inSecret = walk.secret.has(value);
@@ -243,7 +253,7 @@ function redactDeep(value: unknown, walk: Walk): unknown {
     const copy: unknown[] = [];
     walk.copies.set(value, copy);
     for (const entry of elementsOf(walk, value))
-      copy.push(inSecret && isSecretValue(entry) ? MASK : redactDeep(entry, walk));
+      copy.push(inSecret && isSecretValue(walk, entry) ? MASK : redactDeep(entry, walk));
     return copy;
   }
   const copy: Record<string, unknown> = {};
@@ -254,7 +264,7 @@ function redactDeep(value: unknown, walk: Walk): unknown {
     let target = base;
     for (let n = 2; taken.has(target); n++) target = `${base}#${n}`;
     taken.add(target);
-    const masked = inSecret ? isSecretValue(entry) : isSecretField(key, entry);
+    const masked = inSecret ? isSecretValue(walk, entry) : isSecretField(walk, key, entry);
     defineEntry(copy, target, masked ? MASK : redactDeep(entry, walk));
   }
   return copy;

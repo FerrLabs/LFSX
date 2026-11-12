@@ -961,6 +961,26 @@ describe('each property is read once', () => {
     assert.equal(containsMarker(walked(payload)), false);
   });
 
+  it('masks a proxy whose prototype alternates between Object.prototype and null under a secret key', () => {
+    let calls = 0;
+    const secret = new Proxy(
+      { value: MARKER, nested: { value: MARKER } },
+      { getPrototypeOf: () => (calls++ % 2 === 0 ? Object.prototype : null) },
+    );
+    const payload = { password: secret };
+    assert.equal(containsMarker(walked(payload)), false);
+  });
+
+  it('masks a proxy whose first prototype answer is not plain under a secret key', () => {
+    let calls = 0;
+    const secret = new Proxy(
+      { value: MARKER, nested: { value: MARKER } },
+      { getPrototypeOf: () => (calls++ === 0 ? Array.prototype : Object.prototype) },
+    );
+    const payload = { password: secret };
+    assert.equal(containsMarker(walked(payload)), false);
+  });
+
   it('masks a container reached through child.password back to itself', () => {
     const root: { child: { password?: unknown }; note: string } = { child: {}, note: MARKER };
     root.child.password = root;
@@ -1317,6 +1337,11 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['password: correct horse', 'password: *'],
     ['GET https://h.com/a?' + 'x'.repeat(200) + '&token=abc failed now', 'GET https://h.com/a failed now'],
     ['  password: |\n  s3cret', '  password: *\n  s3cret'],
+    ['app-config-service-database-primary-connection-settings-credentials-api-key=hunter2', 'app-config-service-database-primary-connection-settings-credentials-api-key=*'],
+    ['x-'.repeat(40) + 'password=hunter2', 'x-'.repeat(40) + 'password=*'],
+    ['a-'.repeat(40) + 'api-key=hunter2', 'a-'.repeat(40) + 'api-key=*'],
+    ['a: b password: |\n one\n two', 'a: b password: *'],
+    ['a: b password: |\n one\nnext: ok', 'a: b password: *\nnext: ok'],
   ];
 
   for (const [input, output] of rows) {
@@ -1332,6 +1357,9 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['8000 question marks before an ampersand', '?'.repeat(8000) + '&'],
     ['5000 query fragments of question mark, letter, ampersand', '?a&'.repeat(5000)],
     ['8000 dotted segments before an equals sign', 'a.'.repeat(8000) + '='],
+    ['8000 dashed segments before an equals sign', 'a-'.repeat(8000) + '='],
+    ['8000 dashed segments before a colon', 'a-'.repeat(8000) + ':'],
+    ['8000 spaced pairs before an inline yaml block key', 'x '.repeat(8000) + 'password: |\n x'],
   ];
 
   for (const [name, input] of timed) {
