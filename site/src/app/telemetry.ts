@@ -24,13 +24,13 @@ const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|
 const BENIGN_SHORT_CODE = `(?:(?:err|resp|uni|en|de|op|qr|iso|src)[_.-]?codes?)`;
 const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|stream|queue|match|lobby|round|level|room|combat|board|turn|battle|world|scene|hand|deck|card)[_.-]?states?)`;
 const BENIGN = `(?:(?=auth)|(?!keys?[_.-]?codes?(?![\\w.$-])|(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}${BENIGN_CODE}(?![\\w.$-])))`;
-const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,511}').replaceAll('{0,64}', '{0,511}');
-const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]?`;
+const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,2047}').replaceAll('{0,64}', '{0,2047}');
+const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]{0,4}`;
 const COLON_WORDS = `(?:${WORDS})`;
-const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
-const PARAM_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}\\w{64,512}?)?${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
-const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}\\w{64,512}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]?`;
-const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$ -]{0,64}[_.$ -])?(?:list|row|map)[-_]?keys?$|(?:[\\w$ -]{0,64}\\.)?(?:primary|query|object|foreign|lookup|group|unique)[-_]?keys?$|[\\w.$ -]{0,64}(?:cache|i18n|sort|partition|translation|route|react|track|idempotency)[-_]?keys?$|[\\w.$ -]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$ -]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$ -]{1,64}(?:code|state)s?$`, 'i');
+const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]{0,4}|${CODE_WORDS})`;
+const PARAM_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}(?:${WORDS})\\]{0,4}|${CODE_WORDS})`;
+const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))\\]{0,4}`;
+const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$-]{0,64}[_.$-])?(?:list|row|map)[-_]?keys?$|(?:[\\w$ -]{0,64}\\.)?(?:primary|query|object|foreign|lookup|group|unique)[-_]?keys?$|[\\w.$-]{0,64}(?:cache|i18n|sort|partition|translation|route|react|track|idempotency)[-_]?keys?$|[\\w.$-]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$-]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$-]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
   /(?:(?:^|[_. -])(?:duration|latency|ms|millis|seconds|secs|count|time|timestamp|size|bytes|ttl|age|attempts?|retries|expires(?:_?(?:in|at))?)|(?:^|_)(?:DURATION|LATENCY|MS|MILLIS|SECONDS|SECS|COUNT|TIME|TIMESTAMP|SIZE|BYTES|TTL|AGE|ATTEMPTS?|RETRIES|EXPIRES(?:_?(?:IN|AT))?)|(?:Duration|Latency|Ms|Millis|Seconds|Secs|Count|Time|Timestamp|Size|Bytes|Ttl|TTL|Age|Attempts?|Retries|Expires(?:In|At)?)|(?:^|[_. -])(?:input|output|total|max|prompt|completion|cached)[_-]?[Tt]okens?|(?:^|_)(?:INPUT|OUTPUT|TOTAL|MAX|PROMPT|COMPLETION|CACHED)[_-]?TOKENS?|(?:Input|Output|Total|Max|Prompt|Completion|Cached)Tokens?)$/;
@@ -69,19 +69,19 @@ const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_HEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?`;
 const KEY_AHEAD = `${KEY_HEAD}[:=]`;
-const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|[^\\s"',;&|])*`;
+const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![?#][ \\t]*${KEY_AHEAD})[^\\s"',;&|])*`;
 const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r "'])+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r "'])*)`;
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
 const CLOSE = `[}\\]>)](?=[\\s,;"']|$)`;
 const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
 const REAL_KEY_AHEAD = `${KEY_HEAD}(?::|=(?!=*(?:[\\s,;"']|$)))`;
 const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
-const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"'])(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})[^\\t\\n\\r ,;"']|${QUOTED})*)`;
+const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"'])(?:[ \\t]+(?![ \\t])(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})(?![|&#]${KEY_AHEAD})[^\\t\\n\\r ,;"']|${QUOTED})*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
-const TOKEN_CHARS = `(?:(?!&${KEY_AHEAD})[^\\s"',;:=\\\\])`;
+const TOKEN_CHARS = `(?:(?![&#|{(\\[<]${KEY_AHEAD})[^\\s"',;:=\\\\])`;
 const BEARER_KEYED = `(?=${BENIGN}(?:[^\\s"',;:=\\\\]{0,64}(?:${WORDS})|${CODE_WORDS})\\\\{0,4}["']?[ \\t]*[:=])(?=(${TOKEN_CHARS}+))\\2\\\\{0,4}["']?[ \\t]*[:=]+[ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?`;
-const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=[^\\s"',;]{8})(?=((?:${TOKEN_CHARS}|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
-const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
+const BEARER = new RegExp(`\\b(bearer)(?:\\s+bearer){0,3}\\s+(?:\\\\{0,4}["'][ \\t]*[\\w.$-]{0,64}\\\\{0,4}["']?[ \\t]*[:=][ \\t]*(?![ \\t])${BREAKS}(?:${SEGMENT})?|${QUOTED}|${BEARER_KEYED}|(?=[^\\s"',;]{8})(?=((?:${TOKEN_CHARS}|\\\\(?!\\\\{0,3}["'])|[:=]+(?!${KEY_AHEAD}))+))\\3)`, 'gi');
+const SENSITIVE_COLON = new RegExp(`(${QUOTE}${COLON_KEYS}${QUOTE}[ \\t]*:[ \\t]*(?![ \\t])${BREAKS})(?!bearer(?:[ \\t]+\\*|$))(?!\\*[}\\]>)]*(?:[\\s,;"']|$))(?:[|>][-+]?[ \\t]*(?:\\r?\\n[ \\t]+[^\\r\\n]*)+|(?:${KEY_AHEAD}[ \\t]*(?![ \\t])${BREAKS})+(?:${SEGMENT})?|${SEGMENT})`, 'gi');
 const SENSITIVE_PARAM = new RegExp(`(${QUOTE}${PARAM_KEYS}${QUOTE}\\s*=(?!=(?:[\\s=]|$))=*\\s*(?!\\s))(?:(?:${KEY_AHEAD}=*[ \\t]*(?![ \\t]))+(?:${VALUE})?|${VALUE})`, 'gi');
 const HOST_TAIL = /^((?:[a-z][\w+.-]*:)?(?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|localhost|\[[\da-f:.]+\]|[\w-]+(?=:\d))(?::\d+)?)[?#].*$/i;
 const PATH_TAIL = /[?#].*$/;
@@ -152,6 +152,10 @@ function isPlainObject(value: object): boolean {
   return prototype === null || prototype === Object.prototype;
 }
 
+function isPlainRecord(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && isPlainObject(value);
+}
+
 type Entry = readonly [string, unknown];
 
 interface Snapshot {
@@ -202,7 +206,7 @@ function collectSecretContainers(
       return;
     }
     for (const [key, entry] of entriesOf(snapshot, value)) {
-      const exempt = isMetaRoot && SESSION_FIELD.test(key) && !Array.isArray(entry);
+      const exempt = isMetaRoot && SESSION_FIELD.test(key) && isPlainRecord(entry);
       visit(entry, inSecret || (isSecretName(key) && !exempt));
     }
   };

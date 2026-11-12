@@ -1020,3 +1020,115 @@ describe('bearer tokens that start with a short chunk', () => {
     });
   }
 });
+
+describe('bearer and colon values stop before a separated key', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['Bearer abcdefgh#otp_code: 834201', 'Bearer *#otp_code: *'],
+    ['Bearer abcdefgh|otp_code: 834201', 'Bearer *|otp_code: *'],
+    ['Bearer {otp_code: ZqSecret9x}', 'Bearer {otp_code: *}'],
+    ['Bearer x|otp_code = ZqSecret9x', 'Bearer *|otp_code = *'],
+    ['password: x|token:\nZqSecret9x', 'password: *|token:\n*'],
+    ['password: |\n  ZqSecret9x\n  line2\nnext: ok', 'password: *\nnext: ok'],
+    ['password: >-\n  ZqSecret9x', 'password: *'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input.slice(0, 48))} to ${JSON.stringify(output.slice(-24))}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+});
+
+describe('nested bracket keys', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['filter[user[token]]=Zq1234567', 'filter[user[token]]=*'],
+    ['[params[api_key]]=Zq1234567', '[params[api_key]]=*'],
+    ['a[b[password]]=Zq1234567', 'a[b[password]]=*'],
+    ['[params[api_key]]: Zq1234567', '[params[api_key]]: *'],
+    ['a[b]=c', 'a[b]=c'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  it('stays under 250 ms on repeated closing brackets', () => {
+    const start = performance.now();
+    redactText('a]'.repeat(8000) + '=');
+    assert.ok(performance.now() - start < 250);
+  });
+});
+
+describe('backslashes inside bearer tokens', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['Bearer abcd\\/efgh1234ZZ', 'Bearer *'],
+    ['Bearer abc\\\\def12345', 'Bearer *'],
+    ['{"a":"Bearer abcdefgh123\\""}', '{"a":"Bearer *\\""}'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  it('stays under 250 ms on a run of backslashes', () => {
+    const start = performance.now();
+    redactText('Bearer ' + '\\'.repeat(16000));
+    assert.ok(performance.now() - start < 250);
+  });
+});
+
+describe('quoted values before a query key and keys behind long prefixes', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['token="abc"?pwd= hunter2secret', 'token=*?pwd= *'],
+    ['token="abc"#pwd= hunter2secret', 'token=*#pwd= *'],
+    ['a'.repeat(600) + '_password: hunter2', 'a'.repeat(600) + '_password: *'],
+    ['a'.repeat(317) + '_monkey=3', 'a'.repeat(317) + '_monkey=3'],
+    ['a'.repeat(61) + '_monkey=3', 'a'.repeat(61) + '_monkey=3'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input.slice(0, 48))} to ${JSON.stringify(output.slice(-24))}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  for (const [name, input] of [
+    ['long words around a password key', ('a'.repeat(2100) + ' ').repeat(7) + 'password: x'],
+    ['words at the longest skip length', ('a'.repeat(2047) + ' ').repeat(8)],
+  ] as const) {
+    it(`redacts ${name} within 250 ms`, () => {
+      const start = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - start < 250);
+    });
+  }
+});
+
+describe('meta.session exemption', () => {
+  const SECRET = 'sess-secret-1';
+
+  function metaOf(session: unknown): { session: unknown } {
+    const out = sanitizeItem({ type: 'log', meta: { session }, payload: {} } as unknown as TransportItem);
+    return (out as unknown as { meta: { session: unknown } }).meta;
+  }
+
+  it('keeps a plain object under meta.session', () => {
+    assert.deepEqual(metaOf({ id: 'sess-1' }).session, { id: 'sess-1' });
+  });
+
+  it('masks a string under meta.session', () => {
+    assert.equal(metaOf(SECRET).session, '*');
+  });
+
+  it('masks a number under meta.session', () => {
+    assert.equal(metaOf(48291234).session, '*');
+  });
+
+  it('masks an array under meta.session', () => {
+    assert.ok(!JSON.stringify(metaOf([SECRET])).includes(SECRET));
+  });
+});
