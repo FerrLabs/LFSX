@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.11] - 2026-11-12
+
+### Bug Fixes
+
+- fix(telemetry): mask code and state keys in colon form and spaced benign field names (#759)
+
 ## [2026.11.10] - 2026-11-12
 
 ### Bug Fixes
