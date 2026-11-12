@@ -340,7 +340,7 @@ describe('spaced field names', () => {
 describe('redactText doubled equals and long or punctuated prefixes', () => {
   const exact: ReadonlyArray<readonly [string, string]> = [
     ['password==""\'\'""\'\'ZqSecret123', 'password==*'],
-    ["code==''\"\"''\"\";", 'code==*'],
+    ["code==''\"\"''\"\";", 'code==*;'],
     ['pwd==abcRET1', 'pwd==*'],
     ['https://admin:hunter2@bücher.example/x', 'https://bücher.example/x'],
     ['see //password:aJ@+QvZ7 end', 'see //password:*'],
@@ -1167,7 +1167,7 @@ describe('glued commas and semicolons inside secret values', () => {
     ['password: x,user=bob', 'password: *,user=bob'],
     ['password: x; y', 'password: *; y'],
     ['{"password":"x","user":"bob"}', '{"password":*,"user":"bob"}'],
-    ['password=correct horse', 'password=* horse'],
+    ['password=correct horse', 'password=*'],
   ];
 
   for (const [input, output] of rows) {
@@ -1182,6 +1182,40 @@ describe('glued commas and semicolons inside secret values', () => {
     ['long dotted words', ('a'.repeat(70) + '.').repeat(230)],
     ['repeated key prefixes', ('x_'.repeat(40) + 'token=').repeat(150)],
     ['a dotted run', 'a.'.repeat(8192)],
+  ];
+
+  for (const [name, input] of timed) {
+    it(`stays under 250 ms on ${name}`, () => {
+      const start = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - start < 250);
+    });
+  }
+});
+
+describe('equals values spanning spaces', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['password=correct horse', 'password=*'],
+    ['password=correct horse battery staple', 'password=*'],
+    ['login failed password=abc for user bob', 'login failed password=*'],
+    ['password=x user=bob', 'password=* user=bob'],
+    ['password=correct horse; user=bob', 'password=*; user=bob'],
+    ['password=x user: bob', 'password=* user: bob'],
+    ['token=abc, next', 'token=*, next'],
+    ['token=abc def ghi=1', 'token=* ghi=1'],
+    ['password=hunter2\nnext line', 'password=*\nnext line'],
+    ['https://h.com/a?token=x&y=1', 'https://h.com/a'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  const timed: ReadonlyArray<readonly [string, string]> = [
+    ['a long run of spaced words after an equals sign', 'password=' + 'a '.repeat(8000)],
+    ['repeated spaced assignments', 'token=a b '.repeat(1600)],
   ];
 
   for (const [name, input] of timed) {
