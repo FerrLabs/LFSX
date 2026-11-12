@@ -1226,3 +1226,49 @@ describe('equals values spanning spaces', () => {
     });
   }
 });
+
+describe('userinfo, yaml blocks, glued separators and query values', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['postgres://u:2/XKGNxq6c9JxDvt@host/db', 'postgres://host/db'],
+    ['redis://:12/ab34cd56@cache:6379', 'redis://cache:6379'],
+    ['https://admin:2024/Summer!x@db.internal/x', 'https://db.internal/x'],
+    ['https://[::1]:8080/users/jane@corp.io', 'https://[::1]:8080/users/*'],
+    ['https://h.com:8080/a/b', 'https://h.com:8080/a/b'],
+    ['password: |\n  ZqLine1\n\n  ZqLine2\nnext: ok', 'password: *\nnext: ok'],
+    ['password: |\n\n  ZqLine1', 'password: *'],
+    ['password: |2\n  ZqLine1\nnext: ok', 'password: *\nnext: ok'],
+    ['password: | # pw\n  ZqLine1', 'password: *'],
+    ['  password: |\n    s3cret\n  user: bob', '  password: *\n  user: bob'],
+    ['password: Zq7x,K9m:P2wLr8', 'password: *'],
+    ['password: x,user=bob', 'password: *,user=bob'],
+    ['password: x, user: bob', 'password: *, user: bob'],
+    ['Basic dXNlcjpwYXNz,status=ok', 'Basic *,status=ok'],
+    ['Basic dXNlcjpw;ass12', 'Basic *'],
+    ['zip-code=57', 'zip-code=57'],
+    ['x-api-key=abc123', 'x-api-key=*'],
+    ['GET https://api.example/x?token=abc failed', 'GET https://api.example/x failed'],
+    ['see https://a.com/p?api_key=x now', 'see https://a.com/p now'],
+    ['token=abc?pwd= hunter2secret', 'token=*?pwd= *'],
+    ['password=correct horse', 'password=*'],
+    ["code==''\"\"''\"\";", 'code==*;'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input)} to ${JSON.stringify(output)}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  const timed: ReadonlyArray<readonly [string, string]> = [
+    ['a yaml block of 4000 blank-separated lines', 'password: |\n' + '  x\n\n'.repeat(4000)],
+    ['4000 digit-led path segments before an at sign', '//' + 'a:1/'.repeat(4000) + '@'],
+  ];
+
+  for (const [name, input] of timed) {
+    it(`stays under 250 ms on ${name}`, () => {
+      const start = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - start < 250);
+    });
+  }
+});
