@@ -27,8 +27,8 @@ const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,2047}').replaceAll('{0,64}',
 const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)[\\])}>]{0,4}`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
-const PARAM_KEYS = `\\b(?:(?=[\\w.-]{65})${BENIGN_LONG}(?:[\\w.-]{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
-const COLON_KEYS = `\\b(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))[\\])}>]{0,4}`;
+const PARAM_KEYS = `\\b(?=\\w)(?:(?=[\\w.-]{65})${BENIGN_LONG}(?:[\\w.-]{32}){2,64}?)?${BENIGN}(?:[\\w.[\\]-]{0,64}(?:${WORDS})[\\])}>]{0,4}|${CODE_WORDS})`;
+const COLON_KEYS = `\\b(?=\\w)(?:(?=\\w{65})${BENIGN_LONG}(?:\\w{32}){2,64}?)?${BENIGN}(?:[\\w[\\]-]{0,64}${COLON_WORDS}|[\\w[\\]-]{1,64}(?:code|state))[\\])}>]{0,4}`;
 const SENSITIVE_FIELD = new RegExp(`^${BENIGN}(?!(?:[\\w.$-]{0,64}[_.$-])?(?:list|row|map)[-_]?keys?$|(?:[\\w$-]{0,64}\\.)?(?:primary|query|object|foreign|lookup|group|unique)[-_]?keys?$|[\\w.$-]{0,64}(?:cache|i18n|sort|partition|translation|route|react|track|idempotency)[-_]?keys?$|[\\w.$-]{0,64}auth[-_]?(?:Method|Type|Provider|Mode|Status)$)[\\w.$-]{0,64}${COLON_WORDS}s?$|^${BENIGN}[\\w.$-]{1,64}(?:code|state)s?$`, 'i');
 
 const METRIC_FIELD =
@@ -244,7 +244,7 @@ function newWalk(meta: unknown, payload: unknown): Walk {
 function redactDeep(value: unknown, walk: Walk): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object') return value;
-  if (!isTraversable(walk, value)) return redactText(String(value));
+  if (!isTraversable(walk, value)) return value instanceof Date ? value : redactText(String(value));
   const known = walk.copies.get(value);
   if (known !== undefined) return known;
   const inSecret = walk.secret.has(value);

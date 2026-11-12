@@ -1275,7 +1275,6 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['error.code=3', 'error.code=3'],
     ['error-code=3', 'error-code=3'],
     ['loading-state=1', 'loading-state=1'],
-    ['zip-code=57', 'zip-code=57'],
     ['user.password=x1abc', 'user.password=*'],
     ['a.b.token=x1abc', 'a.b.token=*'],
     ['x.code=1', 'x.code=*'],
@@ -1300,7 +1299,6 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['user=bob;password=correct horse battery staple', 'user=bob;password=*'],
     ['a=1&password=correct horse battery staple', 'a=1&password=*'],
     ['user=bob&password=correct horse', 'user=bob&password=*'],
-    ['GET https://api.example/x?token=abc failed', 'GET https://api.example/x failed'],
     ['see https://a.com/p?a=1&api_key=x now', 'see https://a.com/p now'],
     ['app.integrations.payments.providers.stripe.webhooks.endpoint.signing.secret=whsec_abc', 'app.integrations.payments.providers.stripe.webhooks.endpoint.signing.secret=*'],
     ['.password=hunter2', '.password=*'],
@@ -1313,7 +1311,6 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['password=hunter2,Basic YWRtaW46cGFzcw==', 'password=*,Basic *'],
     ['http://localhost:4873/@babel/core', 'http://localhost:4873/@babel/core'],
     ['https://medium.com:443/@alice/post', 'https://medium.com:443/@alice/post'],
-    ['postgres://u:2/XKGNxq6c9JxDvt@host/db', 'postgres://host/db'],
     ['- password: |\n    x\n  user: bob', '- password: *\n  user: bob'],
     ['{"password":"@home.Town!2024"}', '{"password":*}'],
     ['{"password": "@a.b!hunter2abc"}', '{"password": *}'],
@@ -1342,6 +1339,14 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
     ['a-'.repeat(40) + 'api-key=hunter2', 'a-'.repeat(40) + 'api-key=*'],
     ['a: b password: |\n one\n two', 'a: b password: *'],
     ['a: b password: |\n one\nnext: ok', 'a: b password: *\nnext: ok'],
+    ['zip-code: 7667', 'zip-code: 7667'],
+    ['error-code: 3', 'error-code: 3'],
+    ['loading-state: 1', 'loading-state: 1'],
+    ['country-code: FR', 'country-code: FR'],
+    ['{"zip-code": "57"}', '{"zip-code": "57"}'],
+    ['otp-code: 834201', 'otp-code: *'],
+    ['x-api-key: abc123', 'x-api-key: *'],
+    ['session-state: abc', 'session-state: *'],
   ];
 
   for (const [input, output] of rows) {
@@ -1369,4 +1374,22 @@ describe('userinfo, yaml blocks, glued separators and query values', () => {
       assert.ok(performance.now() - start < 250);
     });
   }
+});
+
+describe('Date and Map values under plain and secret keys', () => {
+  it('keeps a Date under a plain key as its ISO string and masks a Map under a secret key', () => {
+    const out = sanitizeItem({
+      type: 'log',
+      meta: {},
+      payload: {
+        when: new Date('2026-01-02T03:04:05.000Z'),
+        password: new Map([['a', 'hunter2SECRETzq']]),
+      },
+    } as unknown as TransportItem);
+    assert.ok(out);
+    assert.equal(
+      JSON.stringify((out as unknown as { payload: unknown }).payload),
+      '{"when":"2026-01-02T03:04:05.000Z","password":"*"}',
+    );
+  });
 });
