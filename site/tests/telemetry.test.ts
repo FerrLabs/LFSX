@@ -1000,3 +1000,23 @@ describe('each property is read once', () => {
     });
   }
 });
+
+describe('bearer tokens that start with a short chunk', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['Bearer abc=defghijklmnopqrst', 'Bearer *'],
+    ['Bearer abcd:efghijklmnopqr', 'Bearer *'],
+    ['Bearer dGVzdA==', 'Bearer *'],
+    ['Authorization: Bearer abcdefgh&user=passwd: ZqSECRET9', 'Authorization: Bearer *=passwd: *'],
+    ['Authorization: Bearer abcdefgh&id=password: ZqSECRET9', 'Authorization: Bearer *=password: *'],
+    ['Authorization: Bearer abcdefgh:token: ZqSECRET9', 'Authorization: Bearer *:token: *'],
+    ['Authorization: Bearer abcdefgh=otp_code: ZqSECRET9', 'Authorization: Bearer *=otp_code: *'],
+    ['Bearer short', 'Bearer short'],
+    ['the bearer of bad news', 'the bearer of bad news'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input.slice(0, 48))} to ${JSON.stringify(output.slice(-24))}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+});
