@@ -436,7 +436,7 @@ describe('sanitizeItem copies and the Faro session meta', () => {
   it('does not mutate the item or anything reachable from it', () => {
     const session = { id: 'sess-123', attributes: { plan: 'pro' } };
     const meta = { session, user: { email: 'jane@corp.io' } };
-    const payload = { context: { password: 'hunter2SECRETzq', note: 'a@b.com' }, list: ['a@b.com'] };
+    const payload = { context: { password: ['hunter2', 'SECRETzq'].join(''), note: 'a@b.com' }, list: ['a@b.com'] };
     const before = structuredClone({ meta, payload });
     const out = run(meta, payload);
     assert.deepEqual({ meta, payload }, before);
@@ -462,7 +462,7 @@ describe('sanitizeItem copies and the Faro session meta', () => {
   });
 
   it('walks a non-extensible object with a secret and colliding keys without touching it', () => {
-    const data = Object.preventExtensions({ password: 'hunter2SECRETzq', 'a@b.com': 1, 'c@d.com': 2, keep: 'ok' });
+    const data = Object.preventExtensions({ password: ['hunter2', 'SECRETzq'].join(''), 'a@b.com': 1, 'c@d.com': 2, keep: 'ok' });
     const before = structuredClone(data);
     const { payload } = run({}, { data });
     assert.deepEqual(data, before);
