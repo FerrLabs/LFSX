@@ -887,3 +887,116 @@ describe('a secret value stops before a following query key', () => {
     assert.ok(!out.includes('=x'));
   });
 });
+
+describe('auth prefixes, cookie headers and state words', () => {
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ['auth_hotkey=Zq9SECRET', 'auth_hotkey=*'],
+    ['authdesig=Zq9SECRET', 'authdesig=*'],
+    ['my_hotkey=3', 'my_hotkey=3'],
+    ['hotkey=3', 'hotkey=3'],
+    ['author=jane', 'author=jane'],
+    ['http_status_code=200', 'http_status_code=200'],
+    ['Cookie: theme=dark; sid=abc123', 'Cookie: *'],
+    ['x\nSet-Cookie: sid=abc; Path=/', 'x\nSet-Cookie: *'],
+    ['Error reading cookie: invalid header at line 3, user=bob', 'Error reading cookie: *, user=bob'],
+    ['playerReadyState=1', 'playerReadyState=1'],
+    ['orderState=paid', 'orderState=*'],
+  ];
+
+  for (const [input, output] of rows) {
+    it(`redacts ${JSON.stringify(input.slice(0, 48))} to ${JSON.stringify(output.slice(-24))}`, () => {
+      assert.equal(redactText(input), output);
+    });
+  }
+
+  it('redacts an auth_hotkey field', () => {
+    const out = sanitizeItem({ type: 'log', meta: {}, payload: { auth_hotkey: 'Zq9SECRET' } } as unknown as TransportItem);
+    assert.ok(out);
+    assert.ok(!JSON.stringify(out).includes('Zq9SECRET'));
+  });
+});
+
+describe('each property is read once', () => {
+  const MARKER = 'hunter2SECRETzq';
+
+  function walked(payload: unknown, meta: object = {}): unknown {
+    const out = sanitizeItem({ type: 'log', meta, payload } as unknown as TransportItem);
+    assert.ok(out);
+    return out;
+  }
+
+  function containsMarker(value: unknown, seen = new WeakSet<object>()): boolean {
+    if (typeof value === 'string') return value.includes(MARKER);
+    if (value === null || typeof value !== 'object') return false;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return Object.entries(value).some(
+      ([key, entry]) => key.includes(MARKER) || containsMarker(entry, seen),
+    );
+  }
+
+  it('masks an object returned by a getter under a secret key', () => {
+    const payload = {
+      get password() {
+        return { value: MARKER };
+      },
+    };
+    assert.equal(containsMarker(walked(payload)), false);
+  });
+
+  it('masks an array returned by a getter under a secret key', () => {
+    const payload = Object.defineProperty({}, 'token', {
+      enumerable: true,
+      get: () => [{ v: MARKER }],
+    });
+    assert.equal(containsMarker(walked(payload)), false);
+  });
+
+  it('masks fresh objects returned by a proxy under a secret key', () => {
+    const inner = { value: MARKER };
+    const payload = new Proxy(
+      { password: inner },
+      { get: (target, key) => (key === 'password' ? { ...inner } : Reflect.get(target, key)) },
+    );
+    assert.equal(containsMarker(walked(payload)), false);
+  });
+
+  it('masks a container reached through child.password back to itself', () => {
+    const root: { child: { password?: unknown }; note: string } = { child: {}, note: MARKER };
+    root.child.password = root;
+    assert.equal(containsMarker(walked(root)), false);
+  });
+
+  const meta = (): { session: { id: string } } => ({ session: { id: MARKER } });
+
+  it('masks meta.session when the payload is the meta object', () => {
+    const shared = meta();
+    assert.equal(containsMarker(walked(shared, shared)), false);
+  });
+
+  it('masks meta.session when the payload holds the meta object in a field', () => {
+    const shared = meta();
+    assert.equal(containsMarker(walked({ ctx: shared }, shared)), false);
+  });
+
+  it('masks meta.session when the payload holds the meta object in an array', () => {
+    const shared = meta();
+    assert.equal(containsMarker(walked([shared], shared)), false);
+  });
+
+  it('keeps meta.session when the payload does not reach it', () => {
+    const out = walked({}, { session: { id: 'sess-1' } }) as { meta: { session: unknown } };
+    assert.deepEqual(out.meta.session, { id: 'sess-1' });
+  });
+
+  for (const [name, input] of [
+    ['words separated by spaces', ('a'.repeat(512) + ' ').repeat(31)],
+    ['words separated by dashes', ('a'.repeat(511) + '-').repeat(32)],
+  ] as const) {
+    it(`redacts ${name} within 250 ms`, () => {
+      const start = performance.now();
+      redactText(input);
+      assert.ok(performance.now() - start < 250);
+    });
+  }
+});

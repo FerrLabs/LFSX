@@ -20,11 +20,11 @@ const MAX_PASSES = 4;
 const MASK = '*';
 const MARKERS = /[?#=@]/;
 const WORDS = `token|secret|cookie|passw(?:or)?d|pwd|key|session(?:_?id)?|auth(?!or(?!i[sz]ation))\\w{0,32}|sig(?:nature)?`;
-const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char|version|room|lobby|game|level|build|seat|table|zone|course)[_.-]?codes?)`;
+const BENIGN_CODE = `(?:(?:error|status|response|http|exit|return|result|reason|country|zip|postal|post|currency|lang(?:uage)?|locale|region|area|promo|scan|colou?r|event|product|item|sku|font|short|source|geo|trans|hash|dial|tax|class|airport|iata|icao|type|kind|category|state|bar|micro|char|version|room|lobby|game|level|build|seat|table|zone|course)[_.-]?codes?|(?:ready|visibility|loading|playback)[_.-]?states?)`;
 const BENIGN_SHORT_CODE = `(?:(?:err|resp|uni|en|de|op|qr|iso|src)[_.-]?codes?)`;
 const BENIGN_STATE = `(?:(?:ready|visibility|ui|app|view|page|form|nav(?:igation)?|router?|connection|network|player|game|load(?:ing)?|render|component|store|signaling|ice(?:[_.-]?(?:gathering|connection))?|gathering|lifecycle|button|toggle|menu|modal|sort|filter|scroll|focus|hover|play(?:back)?|media|audio|video|animation|transition|editor|selection|document|window|sync|job|task|machine|initial|current|prev(?:ious)?|next|error|status|search|query|cache|billing|shipping|address|delivery|workflow|build|deploy(?:ment)?|pipeline|cart|checkout|upload|download|online|offline|power|battery|health|stream|queue|match|lobby|round|level|room|combat|board|turn|battle|world|scene|hand|deck|card)[_.-]?states?)`;
-const BENIGN = `(?!keys?[_.-]?codes?(?![\\w.$-])|(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}${BENIGN_CODE}(?![\\w.$-]))`;
-const BENIGN_LONG = `(?!keys?[_.-]?codes?(?![\\w.$-])|(?:[\\w.$[\\]-]{0,511}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,511}${BENIGN_CODE}(?![\\w.$-]))`;
+const BENIGN = `(?:(?=auth)|(?!keys?[_.-]?codes?(?![\\w.$-])|(?:[\\w.$[\\]-]{0,63}[_.$[\\]-])?(?:(?:dic|don|doohic|flu|flun|hic|hoc|ho|hoo|hot|joc|lac|malar|mic|mon|po|ric|smo|tur|turn|whis)keys?|desig(?:nature)?|${BENIGN_SHORT_CODE}|${BENIGN_STATE})(?![\\w.$-])|[\\w.$[\\]-]{0,64}${BENIGN_CODE}(?![\\w.$-])))`;
+const BENIGN_LONG = BENIGN.replaceAll('{0,63}', '{0,511}').replaceAll('{0,64}', '{0,511}');
 const CODE_WORDS = `[\\w.$[\\]-]{0,64}(?:code|state)\\]?`;
 const COLON_WORDS = `(?:${WORDS})`;
 const KEY_WORDS = `${BENIGN}(?:[\\w.$[\\]-]{0,64}(?:${WORDS})\\]?|${CODE_WORDS})`;
@@ -87,7 +87,7 @@ const PATH_TAIL = /[?#].*$/;
 const HOST_BEFORE = /[a-z][\w+.-]*:\/\/[\w.-]*$/i;
 const BARE_HOST_BEFORE = /(?:^|[^\w:/])\/\/[\w.-]*$/;
 const CREDENTIAL_HOST = /(?:passw(?:or)?d|pwd|secret|token|api[_-]?key|session(?:_?id)?|cookie):$/i;
-const COOKIE_HEADER = /\b((?:set-)?cookie[ \t]*:[ \t]*)(?![ \t]|\*$)[^\r\n]+/gi;
+const COOKIE_HEADER = /(^|[\r\n{,;"'][ \t]*)((?:set-)?cookie[ \t]*:[ \t]*)(?![ \t]|\*$)[^\r\n]+/gim;
 const QUERY_QUOTED = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?)/g;
 const PARAM_VALUE = /([?#&;][^\s=&#?;"'<>]+=)(?:\\{0,4}"[^"]*"?|\\{0,4}'[^']*'?|[^\s&#;"'<>]+)/g;
 
@@ -114,7 +114,7 @@ function redactPass(text: string): string {
   return text
     .replace(JWT, MASK)
     .replace(QUOTED_EMAIL, MASK)
-    .replace(COOKIE_HEADER, `$1${MASK}`)
+    .replace(COOKIE_HEADER, `$1$2${MASK}`)
     .replace(USERINFO, '$1')
     .replace(BEARER, `$1 ${MASK}`)
     .replace(SENSITIVE_COLON, maskColon)
@@ -151,29 +151,57 @@ function isPlainObject(value: object): boolean {
   return prototype === null || prototype === Object.prototype;
 }
 
-interface Walk {
+type Entry = readonly [string, unknown];
+
+interface Snapshot {
+  readonly elements: WeakMap<readonly unknown[], readonly unknown[]>;
+  readonly entries: WeakMap<object, readonly Entry[]>;
+}
+
+interface Walk extends Snapshot {
   readonly secret: WeakSet<object>;
   readonly copies: WeakMap<object, unknown>;
+}
+
+function elementsOf(snapshot: Snapshot, array: readonly unknown[]): readonly unknown[] {
+  const known = snapshot.elements.get(array);
+  if (known !== undefined) return known;
+  const taken = Array.from(array);
+  snapshot.elements.set(array, taken);
+  return taken;
+}
+
+function entriesOf(snapshot: Snapshot, container: object): readonly Entry[] {
+  const known = snapshot.entries.get(container);
+  if (known !== undefined) return known;
+  const taken = Object.entries(container);
+  snapshot.entries.set(container, taken);
+  return taken;
 }
 
 function isTraversable(value: object): boolean {
   return Array.isArray(value) || isPlainObject(value);
 }
 
-function collectSecretContainers(meta: unknown, payload: unknown): WeakSet<object> {
+function collectSecretContainers(
+  meta: unknown,
+  payload: unknown,
+  snapshot: Snapshot,
+): WeakSet<object> {
   const secret = new WeakSet<object>();
   const seenPlain = new WeakSet<object>();
-  const visit = (value: unknown, inSecret: boolean, isMeta = false): void => {
+  const seenMetaRoot = new WeakSet<object>();
+  const visit = (value: unknown, inSecret: boolean, isMetaRoot = false): void => {
     if (value === null || typeof value !== 'object' || !isTraversable(value)) return;
-    const seen = inSecret ? secret : seenPlain;
+    const seen = inSecret ? secret : isMetaRoot ? seenMetaRoot : seenPlain;
     if (seen.has(value)) return;
     seen.add(value);
     if (Array.isArray(value)) {
-      for (const entry of value) visit(entry, inSecret);
+      for (const entry of elementsOf(snapshot, value)) visit(entry, inSecret);
       return;
     }
-    for (const [key, entry] of Object.entries(value)) {
-      const exempt = isMeta && SESSION_FIELD.test(key) && !Array.isArray(entry);
+    for (const [key, entry] of entriesOf(snapshot, value)) {
+      const exempt = isMetaRoot && SESSION_FIELD.test(key) && !Array.isArray(entry);
       visit(entry, inSecret || (isSecretName(key) && !exempt));
     }
   };
@@ -183,7 +211,12 @@ function collectSecretContainers(meta: unknown, payload: unknown): WeakSet<objec
 }
 
 function newWalk(meta: unknown, payload: unknown): Walk {
-  return { secret: collectSecretContainers(meta, payload), copies: new WeakMap() };
+  const snapshot: Snapshot = { elements: new WeakMap(), entries: new WeakMap() };
+  return {
+    ...snapshot,
+    secret: collectSecretContainers(meta, payload, snapshot),
+    copies: new WeakMap(),
+  };
 }
 
 function redactDeep(value: unknown, walk: Walk): unknown {
@@ -196,14 +229,14 @@ function redactDeep(value: unknown, walk: Walk): unknown {
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
     walk.copies.set(value, copy);
-    for (const entry of value)
+    for (const entry of elementsOf(walk, value))
       copy.push(inSecret && isSecretValue(entry) ? MASK : redactDeep(entry, walk));
     return copy;
   }
   const copy: Record<string, unknown> = {};
   walk.copies.set(value, copy);
   const taken = new Set<string>();
-  for (const [key, entry] of Object.entries(value)) {
+  for (const [key, entry] of entriesOf(walk, value)) {
     const base = inSecret ? MASK : redactText(key);
     let target = base;
     for (let n = 2; taken.has(target); n++) target = `${base}#${n}`;
@@ -216,11 +249,12 @@ function redactDeep(value: unknown, walk: Walk): unknown {
 
 export function sanitizeItem(item: TransportItem): TransportItem | null {
   try {
-    const walk = newWalk(item.meta, item.payload);
+    const { meta, payload } = item;
+    const walk = newWalk(meta, payload);
     return {
       ...item,
-      meta: redactDeep(item.meta, walk) as TransportItem['meta'],
-      payload: redactDeep(item.payload, walk) as TransportItem['payload'],
+      meta: redactDeep(meta, walk) as TransportItem['meta'],
+      payload: redactDeep(payload, walk) as TransportItem['payload'],
     };
   } catch {
     return null;
