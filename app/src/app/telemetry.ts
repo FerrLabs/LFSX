@@ -66,14 +66,14 @@ const USERINFO = /(\/\/)(?:(?!\[[\da-f:.]+\](?::\d+)?[?#]|[\w.-]+:\d+[?#])[^\s/?
 const QUOTE = `(?:\\\\{0,4}["'])?`;
 const KEY_HEAD = `(?:\\\\{0,4}["'][ \\t]*)?[([{<]?${KEY_WORDS}[ \\t]*(?:\\\\{0,4}["'][ \\t]*)?`;
 const KEY_AHEAD = `${KEY_HEAD}[:=]`;
+const REAL_KEY_AHEAD = `${KEY_HEAD}(?::|=(?!=*(?:[\\s,;"']|$)))`;
 const QVAL = `(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?)(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![?#][ \\t]*${KEY_AHEAD})[^\\s"',;&|])*`;
 const VALUE_JOIN = `|[ \\t]+(?![ \\t-])(?!(?:basic|bearer|token|digest)[ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\r\\n,;&|])`;
-const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t]))+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])${VALUE_JOIN})*)`;
+const VALUE = `(?:${QVAL}|(?:(?:bearer|basic|token|digest|apikey|bot)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})|[a-z][\\w-]{0,20}[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${REAL_KEY_AHEAD})(?=[^\\s"'<>&;,]{8}))?(?:(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t]))+(?:\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?|(?![,;&|?#][ \\t]*${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])${VALUE_JOIN})*)`;
 const VALUE_WORD = VALUE.replace(VALUE_JOIN, '');
 const QUOTED = `\\\\{0,4}"[^"]*"?|\\\\{0,4}'[^']*'?`;
 const CLOSE = `[}\\]>)](?=[\\s"']|$|[,;](?:[\\s"'{\\[]|$|[\\w.$[\\]-]+[ \\t]*[:=]))`;
 const CLOSED = `\\\\{0,4}"[^"]*"|\\\\{0,4}'[^']*'`;
-const REAL_KEY_AHEAD = `${KEY_HEAD}(?::|=(?!=*(?:[\\s,;"']|$)))`;
 const SCHEME_LEAD = `(?:(?:bearer|basic|token|digest|apikey|api-key|bot|hmac|negotiate|ntlm)[ \\t]+(?![ \\t])(?!${REAL_KEY_AHEAD})(?=[^\\s,;"']))?`;
 const SEGMENT = `${SCHEME_LEAD}(?:(?:${CLOSED})(?=[\\s,;}\\]>)]|$)(?![ \\t]*[:=])|(?:${QUOTED}|(?!${CLOSE})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t]))(?:[ \\t]+(?![ \\t])(?![\\w.$[\\]-]{1,64}[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$)))(?!${KEY_AHEAD})(?=[^\\r\\n,;])|(?!${CLOSE})(?![|&#?]${KEY_AHEAD})[^\\t\\n\\r ,;"']|[,;](?![ \\t\\r\\n]|$|[\\w.$[\\]-]+[ \\t]*(?:=(?![=\\s]|$)|:(?:[ \\t]|$))|(?:basic|bearer|token|digest)[ \\t])|${QUOTED})*)`;
 const BREAKS = `(?:\\r?\\n[ \\t]*(?![ \\t])){0,4}`;
