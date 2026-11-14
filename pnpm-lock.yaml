@@ -193,11 +193,11 @@ importers:
         specifier: ^22.0.0
         version: 22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(@angular/platform-browser@22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/ui-foundation':
-        specifier: ^5.5.0
-        version: 5.5.0(tailwindcss@4.3.5)
+        specifier: ^5.8.0
+        version: 5.8.0(tailwindcss@4.3.5)
       '@ferrlabs/ui-ng':
-        specifier: ^1.46.1
-        version: 1.46.1(271a3a3fc2d8dd0aa5f2127bd2765d76)
+        specifier: ^1.52.0
+        version: 1.52.0(007bcb2224a4e15e66eaa2c023a59e0f)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -257,11 +257,11 @@ importers:
         specifier: ^22.0.0
         version: 22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(@angular/platform-browser@22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/ui-foundation':
-        specifier: ^5.5.0
-        version: 5.5.0(tailwindcss@4.3.5)
+        specifier: ^5.8.0
+        version: 5.8.0(tailwindcss@4.3.5)
       '@ferrlabs/ui-ng':
-        specifier: ^1.46.1
-        version: 1.46.1(271a3a3fc2d8dd0aa5f2127bd2765d76)
+        specifier: ^1.52.0
+        version: 1.52.0(007bcb2224a4e15e66eaa2c023a59e0f)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -829,22 +829,31 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ferrlabs/ui-foundation@5.5.0':
-    resolution: {integrity: sha512-A+toHoXZqZZkUHnTLdhvlHXVvvw30U1m2Tbr8fsCjdCXuyRxPM4L1OY9+GQtcUeqC7Oxlz1OEVsW/yGtSnFyxg==}
+  '@ferrlabs/ui-foundation@5.8.0':
+    resolution: {integrity: sha512-P7bUTgOCV4JLWrSfxLvDqipBuJvdgdEiD1LzqWfLf8/b621uIWB+qbJqDIopFhTOJj8VChpHLoVTt4O20dItBw==}
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@ferrlabs/ui-ng@1.46.1':
-    resolution: {integrity: sha512-eacgfdY2UruJLtCjxh7oJOoqRHlaxUVEWnmtqrAFBXdcPwWMVD1bstexZUfvBylCbjyibM56fLOakX+fu4GOWg==}
+  '@ferrlabs/ui-ng@1.52.0':
+    resolution: {integrity: sha512-wR5XVf4qTUgPzjYeznypgSTtB1VBNJF0iJqrhihNWbOpiT8dAeb9HnxOBIQCbuZVml+4nBlzIaonWB89OUmn1Q==}
     peerDependencies:
       '@angular/cdk': ^22.0.0
       '@angular/common': ^22.0.0
       '@angular/core': ^22.0.0
       '@angular/forms': ^22.0.0
       '@angular/platform-browser': ^22.0.0
-      '@ferrlabs/ui-foundation': ^5.5.0
+      '@ferrlabs/ui-foundation': ^5.8.0
+      marked: ^18.0.0
+      marked-highlight: ^2.2.0
+      prismjs: ^1.29.0
     peerDependenciesMeta:
       '@ferrlabs/ui-foundation':
+        optional: true
+      marked:
+        optional: true
+      marked-highlight:
+        optional: true
+      prismjs:
         optional: true
 
   '@fontsource/archivo@5.3.0':
@@ -4921,13 +4930,13 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@ferrlabs/ui-foundation@5.5.0(tailwindcss@4.3.5)':
+  '@ferrlabs/ui-foundation@5.8.0(tailwindcss@4.3.5)':
     dependencies:
       '@fontsource/dm-mono': 5.3.0
       '@fontsource/fraunces': 5.3.0
       tailwindcss: 4.3.5
 
-  '@ferrlabs/ui-ng@1.46.1(271a3a3fc2d8dd0aa5f2127bd2765d76)':
+  '@ferrlabs/ui-ng@1.52.0(007bcb2224a4e15e66eaa2c023a59e0f)':
     dependencies:
       '@angular/cdk': 22.1.7(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(@angular/forms@22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(@angular/platform-browser@22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -4936,7 +4945,10 @@ snapshots:
       '@angular/platform-browser': 22.2.5(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))
       tslib: 2.9.1
     optionalDependencies:
-      '@ferrlabs/ui-foundation': 5.5.0(tailwindcss@4.3.5)
+      '@ferrlabs/ui-foundation': 5.8.0(tailwindcss@4.3.5)
+      marked: 18.2.0
+      marked-highlight: 2.2.4(marked@18.2.0)
+      prismjs: 1.30.0
 
   '@fontsource/archivo@5.3.0': {}
 
