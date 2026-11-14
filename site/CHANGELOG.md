@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.12] - 2026-11-14
+
+### Bug Fixes
+
+- fix(telemetry): stop quoted values before a query key and reach keys behind long prefixes (#763)
+
 ## [2026.11.11] - 2026-11-12
 
 ### Bug Fixes
