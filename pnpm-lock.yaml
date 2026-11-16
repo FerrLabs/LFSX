@@ -202,14 +202,14 @@ importers:
         specifier: ^22.0.0
         version: 22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(@angular/platform-browser@22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/telemetry':
-        specifier: ^0.3.0
-        version: 0.3.0(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))
+        specifier: ^0.5.1
+        version: 0.5.1(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))
       '@ferrlabs/ui-foundation':
-        specifier: ^5.5.0
-        version: 5.5.0(tailwindcss@4.3.5)
+        specifier: ^5.8.0
+        version: 5.8.0(tailwindcss@4.3.5)
       '@ferrlabs/ui-ng':
-        specifier: ^1.46.1
-        version: 1.46.1(9f4f81e8b36dfed9c20d91c47fcb9ef4)
+        specifier: ^1.52.1
+        version: 1.52.1(9d4e8a124ad53d4e63a9cd2f379be272)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -266,14 +266,14 @@ importers:
         specifier: ^22.0.0
         version: 22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(@angular/platform-browser@22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@ferrlabs/telemetry':
-        specifier: ^0.3.0
-        version: 0.3.0(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))
+        specifier: ^0.5.1
+        version: 0.5.1(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))
       '@ferrlabs/ui-foundation':
-        specifier: ^5.5.0
-        version: 5.5.0(tailwindcss@4.3.5)
+        specifier: ^5.8.0
+        version: 5.8.0(tailwindcss@4.3.5)
       '@ferrlabs/ui-ng':
-        specifier: ^1.46.1
-        version: 1.46.1(9f4f81e8b36dfed9c20d91c47fcb9ef4)
+        specifier: ^1.52.1
+        version: 1.52.1(9d4e8a124ad53d4e63a9cd2f379be272)
       '@fontsource/archivo':
         specifier: ^5.3.0
         version: 5.3.0
@@ -838,30 +838,39 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ferrlabs/telemetry@0.3.0':
-    resolution: {integrity: sha512-iRhg6zURr/M5s2g5lmeRZmSUzb8y5l63lbNHYV0liQdwBwWpmnZzbrzxoIpEXI1rcpf32Q8FmSo/juKpCtSptQ==}
+  '@ferrlabs/telemetry@0.5.1':
+    resolution: {integrity: sha512-Z99klD571mE10HafKUCZoqTJtx8C+Nnb+T3gyjWyXiXhfY5QaUaf1WIWw/FQMxjVrhvq1ezF/tw4lLCeauks/w==}
     peerDependencies:
       '@angular/core': ^22.0.0
     peerDependenciesMeta:
       '@angular/core':
         optional: true
 
-  '@ferrlabs/ui-foundation@5.5.0':
-    resolution: {integrity: sha512-A+toHoXZqZZkUHnTLdhvlHXVvvw30U1m2Tbr8fsCjdCXuyRxPM4L1OY9+GQtcUeqC7Oxlz1OEVsW/yGtSnFyxg==}
+  '@ferrlabs/ui-foundation@5.8.0':
+    resolution: {integrity: sha512-P7bUTgOCV4JLWrSfxLvDqipBuJvdgdEiD1LzqWfLf8/b621uIWB+qbJqDIopFhTOJj8VChpHLoVTt4O20dItBw==}
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@ferrlabs/ui-ng@1.46.1':
-    resolution: {integrity: sha512-eacgfdY2UruJLtCjxh7oJOoqRHlaxUVEWnmtqrAFBXdcPwWMVD1bstexZUfvBylCbjyibM56fLOakX+fu4GOWg==}
+  '@ferrlabs/ui-ng@1.52.1':
+    resolution: {integrity: sha512-RuR+howeWn1DuBEuCxX7sX0Fem0zDWlsTLlrjVb15I3gzIWfSDsgyK6UasgcKm1beODDjlXt9XzLZGwUVXsRJg==}
     peerDependencies:
       '@angular/cdk': ^22.0.0
       '@angular/common': ^22.0.0
       '@angular/core': ^22.0.0
       '@angular/forms': ^22.0.0
       '@angular/platform-browser': ^22.0.0
-      '@ferrlabs/ui-foundation': ^5.5.0
+      '@ferrlabs/ui-foundation': ^5.8.0
+      marked: ^18.0.0
+      marked-highlight: ^2.2.0
+      prismjs: ^1.29.0
     peerDependenciesMeta:
       '@ferrlabs/ui-foundation':
+        optional: true
+      marked:
+        optional: true
+      marked-highlight:
+        optional: true
+      prismjs:
         optional: true
 
   '@fontsource/archivo@5.3.0':
@@ -4823,19 +4832,19 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@ferrlabs/telemetry@0.3.0(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))':
+  '@ferrlabs/telemetry@0.5.1(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))':
     dependencies:
       '@grafana/faro-web-sdk': 2.14.0
     optionalDependencies:
       '@angular/core': 22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2)
 
-  '@ferrlabs/ui-foundation@5.5.0(tailwindcss@4.3.5)':
+  '@ferrlabs/ui-foundation@5.8.0(tailwindcss@4.3.5)':
     dependencies:
       '@fontsource/dm-mono': 5.3.0
       '@fontsource/fraunces': 5.3.0
       tailwindcss: 4.3.5
 
-  '@ferrlabs/ui-ng@1.46.1(9f4f81e8b36dfed9c20d91c47fcb9ef4)':
+  '@ferrlabs/ui-ng@1.52.1(9d4e8a124ad53d4e63a9cd2f379be272)':
     dependencies:
       '@angular/cdk': 22.1.7(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(@angular/forms@22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(@angular/platform-browser@22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/platform-browser@22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@angular/common': 22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -4844,7 +4853,10 @@ snapshots:
       '@angular/platform-browser': 22.2.6(@angular/common@22.2.6(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.6(@angular/compiler@22.2.6)(rxjs@7.8.2))
       tslib: 2.9.1
     optionalDependencies:
-      '@ferrlabs/ui-foundation': 5.5.0(tailwindcss@4.3.5)
+      '@ferrlabs/ui-foundation': 5.8.0(tailwindcss@4.3.5)
+      marked: 18.2.0
+      marked-highlight: 2.2.4(marked@18.2.0)
+      prismjs: 1.30.0
 
   '@fontsource/archivo@5.3.0': {}
 
