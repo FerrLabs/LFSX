@@ -6,7 +6,7 @@ import {
   input,
   LOCALE_ID,
 } from '@angular/core';
-import { DocsLayoutComponent } from '@ferrlabs/ui-ng/docs';
+import { DocsLayoutComponent, type DocsLang } from '@ferrlabs/ui-ng/docs';
 import { resolveLocale } from '@ferrlabs/ui-ng';
 import { SiteFrameComponent } from '../chrome/site-frame.component';
 import { DOCS_NAV } from './docs-nav';
@@ -22,7 +22,7 @@ import { DOCS_NAV } from './docs-nav';
       docFooter
       localizedContent="false"
     >
-      <flr-docs-layout [nav]="DOCS_NAV" [lang]="locale" [slug]="slug()">
+      <flr-docs-layout [nav]="DOCS_NAV" [lang]="docsLang" [slug]="slug()">
         <ng-content />
       </flr-docs-layout>
     </flr-site-frame>
@@ -34,7 +34,8 @@ export class DocsPageComponent {
   readonly description = input('');
 
   protected readonly DOCS_NAV = DOCS_NAV;
-  protected readonly locale = resolveLocale(inject(LOCALE_ID));
+  protected readonly docsLang: DocsLang =
+    resolveLocale(inject(LOCALE_ID)) === 'fr' ? 'fr' : 'en';
 
   protected readonly metaTitle = computed(() => {
     const title = this.title();
