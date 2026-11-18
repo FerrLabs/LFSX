@@ -377,17 +377,25 @@ impl S3Keys {
                 )))
             })?;
 
-            out.extend(listing.contents.into_iter().map(|object| {
-                Entry {
+            for object in listing.contents {
+                let size = object.size.ok_or_else(|| {
+                    Error::Storage(std::io::Error::other(format!(
+                        "the object store listed {} without a size",
+                        object.key
+                    )))
+                })?;
+                out.push(Entry {
+                    modified: object.last_modified.as_deref().and_then(|stamp| {
+                        time::OffsetDateTime::parse(
+                            stamp,
+                            &time::format_description::well_known::Rfc3339,
+                        )
+                        .ok()
+                    }),
                     key: object.key,
-                    modified: time::OffsetDateTime::parse(
-                        &object.last_modified,
-                        &time::format_description::well_known::Rfc3339,
-                    )
-                    .ok(),
-                    size: object.size,
-                }
-            }));
+                    size,
+                });
+            }
 
             match listing.next_continuation_token {
                 Some(next) => token = Some(next),
