@@ -3,7 +3,7 @@ FROM --platform=$BUILDPLATFORM docker.io/library/node:26-alpine@sha256:6bd9ab43c
 WORKDIR /src
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN npm install -g corepack && corepack enable
+RUN npm install -g corepack@0.36.0 && corepack enable
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY app/package.json ./app/
