@@ -295,7 +295,7 @@ async fn metadata(State(issued): State<Arc<AtomicUsize>>, headers: HeaderMap) ->
 fn throwaway_account(token_uri: &str) -> ServiceAccount {
     use rsa::pkcs1::EncodeRsaPrivateKey;
 
-    let key = rsa::RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("a throwaway test key");
+    let key = rsa::PrivateKey::new(&mut getrandom::SysRng, 2048).expect("a throwaway test key");
     let private = key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF).unwrap();
 
     ServiceAccount::from_json(

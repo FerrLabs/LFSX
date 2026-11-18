@@ -17,8 +17,7 @@ fn key_pem() -> &'static str {
     static PEM: OnceLock<String> = OnceLock::new();
     PEM.get_or_init(|| {
         use rsa::pkcs1::EncodeRsaPrivateKey;
-        let key =
-            rsa::RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("a throwaway test key");
+        let key = rsa::PrivateKey::new(&mut getrandom::SysRng, 2048).expect("a throwaway test key");
         key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)
             .expect("the test key renders as PEM")
             .to_string()
