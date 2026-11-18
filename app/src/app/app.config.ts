@@ -1,13 +1,13 @@
-import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import { routes } from './app.routes';
-import { TelemetryErrorHandler } from './telemetry';
+import { provideTelemetryErrorHandler } from '@ferrlabs/telemetry/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: ErrorHandler, useClass: TelemetryErrorHandler },
+    provideTelemetryErrorHandler(),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(),
