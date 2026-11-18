@@ -4,6 +4,72 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.12] - 2026-11-14
+
+### Bug Fixes
+
+- fix(telemetry): stop quoted values before a query key and reach keys behind long prefixes (#763)
+
+## [2026.11.11] - 2026-11-12
+
+### Bug Fixes
+
+- fix(telemetry): mask code and state keys in colon form and spaced benign field names (#759)
+
+## [2026.11.10] - 2026-11-12
+
+### Bug Fixes
+
+- fix(deps): update dependency @grafana/faro-web-sdk to ~2.14.0 (#762)
+
+## [2026.11.8] - 2026-11-11
+
+### Bug Fixes
+
+- fix(telemetry): bring redaction to v6.27 (#756)
+
+## [2026.11.7] - 2026-11-11
+
+### Bug Fixes
+
+- fix(telemetry): skip host:port only when the value is a port (#754)
+
+## [2026.11.6] - 2026-11-10
+
+### Bug Fixes
+
+- fix(telemetry): mask both values when two keys share a line (#753)
+
+## [2026.11.5] - 2026-11-10
+
+### Features
+
+- feat(site): report frontend errors and performance to Grafana Faro (#752)
+
+## [2026.11.4] - 2026-11-09
+
+### Refactoring
+
+- refactor(site): use top-level await in main (#747)
+
+## [2026.11.3] - 2026-11-09
+
+### Bug Fixes
+
+- perf(locks): read bucket lock bodies concurrently and count locks for stats (#728)
+
+## [2026.11.1] - 2026-11-01
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#719)
+
+## [2026.10.40] - 2026-10-29
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#709)
+
 ## [2026.10.38] - 2026-10-27
 
 ### Bug Fixes

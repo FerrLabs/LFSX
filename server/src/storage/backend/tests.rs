@@ -123,6 +123,116 @@ async fn the_staging_file_does_not_outlive_the_upload() {
     );
 }
 
+struct Gate {
+    objects: std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>,
+    arrived: tokio::sync::Notify,
+    released: tokio::sync::Notify,
+}
+
+async fn bucket_holding_content_puts() -> (String, std::sync::Arc<Gate>) {
+    use axum::http::{Method, StatusCode};
+    use axum::response::IntoResponse;
+
+    let gate = std::sync::Arc::new(Gate {
+        objects: Default::default(),
+        arrived: tokio::sync::Notify::new(),
+        released: tokio::sync::Notify::new(),
+    });
+
+    let app = axum::Router::new()
+        .route(
+            "/{*key}",
+            axum::routing::any(
+                |axum::extract::State(gate): axum::extract::State<std::sync::Arc<Gate>>,
+                 axum::extract::Path(key): axum::extract::Path<String>,
+                 method: Method,
+                 body: axum::body::Body| async move {
+                    let key = key.strip_prefix("assets/").unwrap_or(&key).to_owned();
+
+                    if method != Method::PUT {
+                        return match gate.objects.lock().unwrap().get(&key) {
+                            Some(bytes) => (
+                                [(axum::http::header::CONTENT_LENGTH, bytes.len())],
+                                bytes.clone(),
+                            )
+                                .into_response(),
+                            None => StatusCode::NOT_FOUND.into_response(),
+                        };
+                    }
+
+                    if key.starts_with(".content/") {
+                        gate.arrived.notify_one();
+                        gate.released.notified().await;
+                    }
+
+                    let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap();
+                    gate.objects.lock().unwrap().insert(key, bytes.to_vec());
+
+                    StatusCode::OK.into_response()
+                },
+            ),
+        )
+        .with_state(gate.clone());
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    (format!("http://{address}"), gate)
+}
+
+#[tokio::test]
+async fn a_dropped_request_does_not_cancel_the_push_to_the_bucket() {
+    let root = tempfile::tempdir().unwrap();
+    let (endpoint, gate) = bucket_holding_content_puts().await;
+    let store = bucket_store(&root, &endpoint);
+    let payload = b"an asset whose client gave up waiting".repeat(64);
+    let oid = crate::oid::Oid::parse(&hex::encode(sha2::Sha256::digest(&payload))).unwrap();
+
+    let ns = namespace();
+    let write = store.write(
+        &ns,
+        &oid,
+        Some(payload.len() as u64),
+        None,
+        futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from(
+            payload.clone(),
+        ))]),
+    );
+
+    tokio::select! {
+        written = write => panic!("the write finished while its content PUT was held: {written:?}"),
+        () = gate.arrived.notified() => {}
+    }
+
+    gate.released.notify_one();
+
+    let (first, second) = oid.fanout();
+    let marker = format!(
+        "{}/{}/{first}/{second}/{oid}",
+        ns.stored_org(),
+        ns.stored_repo()
+    );
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !gate.objects.lock().unwrap().contains_key(&marker)
+            || !crate::storage::tests::staging_files(root.path()).is_empty()
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the push was cancelled with the request, leaving its staging file behind");
+
+    assert_eq!(
+        gate.objects
+            .lock()
+            .unwrap()
+            .get(&format!(".content/{first}/{second}/{oid}")),
+        Some(&payload)
+    );
+}
+
 #[tokio::test]
 async fn a_bucket_reports_no_capacity_rather_than_an_empty_one() {
     let root = tempfile::tempdir().unwrap();

@@ -18,6 +18,14 @@ forge can start with `-`, so the prefix never shadows a repository.
 | `LFSX_DASHBOARD_FORGE` | the main forge | the [named forge](forges.md) `LFSX_DASHBOARD_REPO` lives on, when it is not the one `LFSX_AUTH` names |
 | `LFSX_DASHBOARD_DIR` | `/usr/share/lfsx/dashboard` | where the built pages are; the image ships them there |
 
+## Telemetry
+
+The dashboard can report JavaScript errors and page timings to a Grafana Faro collector. It is off:
+the image sets no collector, so nothing is sent. To turn it on in your own build, set the
+`LFSX_TELEMETRY_URL` build argument (`docker build --build-arg LFSX_TELEMETRY_URL=https://rum.example.com/collect .`).
+URLs, query strings and anything that looks like a credential are redacted before sending, and
+browsers that send Global Privacy Control or Do Not Track never report.
+
 ## Who can open it
 
 Anyone holding a dashboard token, and the admins of `LFSX_DASHBOARD_REPO` on the forge.

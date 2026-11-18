@@ -11,11 +11,13 @@ import {
 import { provideI18n } from '@analogjs/router/i18n';
 import { injectLocale } from '@analogjs/router/tokens';
 import { LOCALES } from './i18n/locales';
+import { provideTelemetryErrorHandler } from '@ferrlabs/telemetry/angular';
 
 const localizedRoutes = LOCALES.map((locale) => ({ path: locale, children: routes }));
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideTelemetryErrorHandler(),
     provideZonelessChangeDetection(),
     provideFileRouter(withExtraRoutes(localizedRoutes)),
     provideClientHydration(),

@@ -142,7 +142,7 @@ async fn stats(
     Ok(Json(StatsResponse {
         objects,
         bytes,
-        locks: state.locks.list(&ns).await?.len(),
+        locks: state.locks.count(&ns).await?,
     }))
 }
 

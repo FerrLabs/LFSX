@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS dashboard
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS dashboard
 
 WORKDIR /src
 
@@ -11,9 +11,10 @@ COPY app/package.json ./app/
 RUN pnpm install --frozen-lockfile --filter @lfsx/app...
 
 COPY app ./app
-RUN pnpm --filter @lfsx/app build
+ARG LFSX_TELEMETRY_URL=""
+RUN pnpm --filter @lfsx/app build --define LFSX_TELEMETRY_URL="'${LFSX_TELEMETRY_URL}'"
 
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.99-bookworm@sha256:e9da6f6c3ed5095fd5d33bf7cdf309830a178a8147888f1b2f76d5769bd9306c AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea AS builder
 
 ARG TARGETARCH
 

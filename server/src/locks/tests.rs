@@ -529,6 +529,55 @@ async fn creating_a_lock_counts_the_others_and_reads_none_of_them() {
     );
 }
 
+#[tokio::test]
+async fn a_bucket_lists_every_lock_in_path_order_past_one_batch_of_reads() {
+    crate::tls::install_crypto_provider();
+    let (endpoint, _objects) = crate::storage::s3::tests::bucket().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+    let held = READ_AT_ONCE * 2 + 3;
+    for scene in (0..held).rev() {
+        locks
+            .create(&ns, &format!("Assets/{scene:03}.unity"), &actor("jane"))
+            .await
+            .unwrap();
+    }
+
+    let paths: Vec<String> = locks
+        .list(&ns)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|lock| lock.path)
+        .collect();
+
+    let expected: Vec<String> = (0..held)
+        .map(|scene| format!("Assets/{scene:03}.unity"))
+        .collect();
+    assert_eq!(paths, expected);
+}
+
+#[tokio::test]
+async fn counting_bucket_locks_reads_no_bodies() {
+    crate::tls::install_crypto_provider();
+    let (endpoint, _objects, reads) = crate::storage::s3::tests::bucket_counting_key_reads().await;
+    let locks = LockStore::bucket(crate::storage::s3::tests::keyspace(&endpoint));
+    let ns = namespace();
+    for scene in 0..20 {
+        locks
+            .create(&ns, &format!("Assets/{scene:02}.unity"), &actor("jane"))
+            .await
+            .unwrap();
+    }
+
+    let before = reads.load(std::sync::atomic::Ordering::SeqCst);
+    let counted = locks.count(&ns).await.unwrap();
+    let cost = reads.load(std::sync::atomic::Ordering::SeqCst) - before;
+
+    assert_eq!(counted, 20);
+    assert_eq!(cost, 0, "counting 20 locks read {cost} bodies");
+}
+
 #[derive(Clone, Default)]
 struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 

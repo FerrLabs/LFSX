@@ -43,7 +43,7 @@ thiserror = "2"
 # rust_crypto rather than the aws-lc default for the same reason rustls pins
 # ring: the release cross-compiles musl and aarch64 targets where aws-lc wants
 # a C toolchain at build time.
-jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto", "use_pem"] }
+jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto", "use_pem"] }
 tracing = "0.1"
 tracing-opentelemetry = "0.34"
 opentelemetry = "0.33"

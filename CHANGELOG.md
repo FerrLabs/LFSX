@@ -4,6 +4,78 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.54] - 2026-11-10
+
+### Bug Fixes
+
+- fix(telemetry): mask both values when two keys share a line (#753)
+
+## [1.26.53] - 2026-11-09
+
+### Bug Fixes
+
+- fix(storage): keep the bucket upload running when the request is dropped (#746)
+
+## [1.26.52] - 2026-11-09
+
+### Bug Fixes
+
+- perf(locks): read bucket lock bodies concurrently and count locks for stats (#728)
+
+## [1.26.51] - 2026-11-07
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.50 (#740)
+
+## [1.26.50] - 2026-11-06
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.49 (#739)
+
+## [1.26.49] - 2026-11-05
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.48 (#732)
+
+## [1.26.48] - 2026-11-04
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.47 (#730)
+
+## [1.26.47] - 2026-11-02
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.46 (#723)
+
+## [1.26.46] - 2026-11-01
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#719)
+
+## [1.26.45] - 2026-10-31
+
+### Bug Fixes
+
+- fix(deps): update rustls-webpki, webpki-roots, ctutils and yoke-derive (#717)
+
+## [1.26.44] - 2026-10-30
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages to v1.26.43 (#712)
+
+## [1.26.43] - 2026-10-29
+
+### Bug Fixes
+
+- fix(deps): update ferrlabs npm packages (#709)
+
 ## [1.26.42] - 2026-10-27
 
 ### Bug Fixes

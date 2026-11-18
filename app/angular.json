@@ -26,7 +26,8 @@
             "tsConfig": "tsconfig.app.json",
             "baseHref": "/-/dashboard/",
             "assets": [{ "glob": "**/*", "input": "public" }],
-            "styles": ["src/styles.css"]
+            "styles": ["src/styles.css"],
+            "define": { "LFSX_TELEMETRY_URL": "''" }
           },
           "configurations": {
             "production": {
