@@ -78,7 +78,7 @@ fn slashes_in_an_object_name_are_kept_and_everything_else_is_escaped() {
 fn the_url_carries_a_hex_rsa_signature_over_the_string_to_sign() {
     use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey};
 
-    let key = rsa::RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("a throwaway test key");
+    let key = rsa::PrivateKey::new(&mut getrandom::SysRng, 2048).expect("a throwaway test key");
     let private = key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF).unwrap();
     let public = key
         .to_public_key()
