@@ -22,15 +22,12 @@ export class SiteHeaderComponent {
   private readonly prefix = this.isFrench ? '/fr' : '';
 
   protected readonly sections: readonly SectionLink[] = [
-    { key: 'why', label: $localize`:@@nav.why:Why`, href: `${this.prefix}/#why` },
+    { key: 'how', label: $localize`:@@nav.how:How it works`, href: `${this.prefix}/#how` },
     {
       key: 'quickstart',
       label: $localize`:@@nav.quickstart:Quick start`,
       href: `${this.prefix}/#quickstart`,
     },
-    { key: 'auth', label: $localize`:@@nav.auth:Auth`, href: `${this.prefix}/#auth` },
-    { key: 'config', label: $localize`:@@nav.config:Config`, href: `${this.prefix}/#config` },
-    { key: 'deploy', label: $localize`:@@nav.deploy:Deploy`, href: `${this.prefix}/#deploy` },
     { key: 'storage', label: $localize`:@@nav.storage:Storage`, href: `${this.prefix}/#storage` },
     { key: 'faq', label: 'FAQ', href: `${this.prefix}/#faq` },
   ];

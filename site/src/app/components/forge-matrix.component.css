@@ -1,0 +1,66 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  --segmented-ink: var(--color-neutral-100, #f8f4f4);
+  --segmented-paper: var(--color-neutral-900, #2d2b2b);
+  --segmented-focus: var(--color-neutral-100, #f8f4f4);
+}
+
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 2px solid var(--color-neutral-700, #605d5d);
+}
+
+.matrix__head {
+  padding: 0.75rem 1rem 0.75rem 0;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400, #bab6b6);
+  border-bottom: 1px solid var(--color-neutral-700, #605d5d);
+}
+
+.matrix__head--role {
+  width: 38%;
+}
+
+.matrix__role,
+.matrix__grant {
+  padding: 1.125rem 1rem 1.125rem 0;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--color-neutral-700, #605d5d);
+}
+
+.matrix__role {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.matrix__grant {
+  font-size: 0.9375rem;
+}
+
+.matrix__row--rejected .matrix__role,
+.matrix__row--rejected .matrix__grant {
+  color: var(--color-neutral-400, #bab6b6);
+}
+
+.matrix__row--rejected .matrix__grant {
+  font-weight: 600;
+}
+
+@media (max-width: 32rem) {
+  .matrix__head--role {
+    width: 42%;
+  }
+
+  .matrix__role {
+    font-size: 0.8125rem;
+  }
+}
