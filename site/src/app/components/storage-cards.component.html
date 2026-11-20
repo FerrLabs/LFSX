@@ -1,0 +1,67 @@
+<article class="card">
+  <p class="card__flag" translate="no">LFSX_STORAGE=s3</p>
+  <h3 class="card__title" i18n="@@landing.storage.bucket.title">Objects in a bucket</h3>
+  <p class="card__lead" i18n="@@landing.storage.bucket.lead">
+    An S3-compatible bucket, MinIO, Garage, Backblaze or AWS, instead of the volume, which is what
+    unties capacity from one machine.
+  </p>
+  <p class="card__body" i18n="@@landing.storage.bucket.body">
+    The locks move with the objects, taken with a conditional write so the store itself decides who
+    arrived first, and that is what makes a second replica possible. The server checks at startup
+    that the store really performs it. Transfers stream through the server by default;
+    LFSX_S3_PRESIGN=true redirects them to the bucket instead.
+  </p>
+  <a class="card__link" href="/docs/buckets" i18n="@@landing.storage.link"
+    >How a bucket deployment works</a
+  >
+</article>
+
+<article class="card">
+  <p class="card__flag" translate="no">LFSX_COMPRESSION=zstd</p>
+  <h3 class="card__title" i18n="@@landing.storage.compression.title">Compression</h3>
+  <p class="card__lead" i18n="@@landing.storage.compression.lead">
+    The received wisdom is that an LFS store is already compressed, and for PNG, MP3 and OGG that
+    is true. It is badly wrong for meshes.
+  </p>
+  <ul class="bars">
+    @for (bar of bars; track bar.key) {
+      <li class="bar">
+        <p class="bar__head">
+          <span class="bar__format" translate="no">{{ bar.format }}</span>
+          <strong class="bar__figure">{{ bar.figure }}</strong>
+        </p>
+        <div class="bar__track" role="img" [attr.aria-label]="bar.label">
+          <div class="bar__fill" class="bar__fill" [class]="'bar__fill--' + bar.key"></div>
+        </div>
+      </li>
+    }
+  </ul>
+  <p class="card__measured" i18n="@@landing.storage.measured">
+    Measured on two real Unity projects: 71% smaller overall.
+  </p>
+  <p class="card__body" i18n="@@landing.storage.compression.body">
+    Objects are compressed in four-megabyte frames with an index, so ranges still work and memory
+    stays flat. Anything that will not compress is stored as it arrived.
+  </p>
+  <p class="card__caption" i18n="@@landing.storage.bars">Bars show the size left on disk.</p>
+</article>
+
+<article class="card">
+  <p class="card__flag" translate="no">LFSX_ENCRYPTION_KEY_FILE, ChaCha20-Poly1305</p>
+  <h3 class="card__title" i18n="@@landing.storage.encryption.title">Encryption at rest</h3>
+  <p class="card__lead" i18n="@@landing.storage.encryption.lead">
+    For most self-hosted deployments the better answer is the volume: LUKS, an encrypted EBS
+    volume, a storage class that does it transparently. Reach for this when the storage itself is
+    what you do not trust: a shared NAS, a bucket somebody else operates, a disk you will one day
+    return under warranty.
+  </p>
+  <p class="card__body" i18n="@@landing.storage.encryption.body">
+    The key is a file path, never the key itself: a key in an environment variable is in the pod
+    spec, in docker inspect, and in every log that dumps the environment. Rotation is a new line at
+    the top of the file. Compression runs first when both are on.
+  </p>
+  <p class="card__threat" i18n="@@landing.storage.threat">
+    It does not protect against anyone who has the running server, because that process holds the
+    key by construction.
+  </p>
+</article>

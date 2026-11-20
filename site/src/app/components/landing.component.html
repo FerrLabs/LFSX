@@ -1,260 +1,275 @@
 <section class="hero" id="top">
-  <div class="hero__inner">
-    <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0 / FerrLabs</p>
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <p class="hero__meta" translate="no">Git LFS server / Rust / MPL-2.0</p>
+      <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
+      <p class="hero__sub" i18n="@@landing.sub">
+        LFSX stores the large binaries of a Git repository, game assets, textures, models and video,
+        so they never touch your host's LFS quota.
+      </p>
+      <flr-code-block class="hero__command" [code]="heroCommand" copyable compact />
+      <div class="hero__actions">
+        <a class="button button--paper" href="#quickstart" i18n="@@landing.cta">Quick start</a>
+        <a class="button button--outline-paper" href="/docs/quickstart" i18n="@@landing.docs"
+          >Read the docs</a
+        >
+      </div>
+    </div>
 
-    <h1 class="hero__title" i18n="@@landing.h1">Your assets. Your disk.</h1>
+    <div class="flow" id="how">
+      <h2 class="flow__title" i18n="@@landing.flow.title">Where the bytes go</h2>
 
-    <p class="hero__sub" i18n="@@landing.sub">
-      LFSX stores the large binaries of a Git repository, game assets, textures, models and video,
-      so they never touch your host's LFS quota.
-    </p>
+      <div class="flow__row">
+        <p class="flow__node flow__node--command" translate="no">git push</p>
+        <p class="flow__link">
+          <span class="flow__caption" i18n="@@landing.flow.commits">commits, branches, tags</span>
+          <span class="flow__line" aria-hidden="true"></span>
+        </p>
+        <p class="flow__node">
+          <strong class="flow__name" i18n="@@landing.flow.forge">Your forge</strong>
+          <span class="flow__sub" i18n="@@landing.flow.unchanged">unchanged</span>
+        </p>
+      </div>
 
-    <div class="hero__actions">
-      <a class="hero__cta" href="#quickstart" i18n="@@landing.cta">Quick start</a>
-      <a class="hero__repo" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
-        >github.com/FerrLabs/LFSX</a
-      >
+      <div class="flow__row flow__row--lfs">
+        <p class="flow__node flow__node--command" translate="no">git lfs</p>
+        <p class="flow__link">
+          <span class="flow__caption" i18n="@@landing.flow.objects">large objects, streamed</span>
+          <span class="flow__line" aria-hidden="true"></span>
+        </p>
+        <p class="flow__node flow__node--lfsx">
+          <strong class="flow__name" translate="no">LFSX</strong>
+          <span class="flow__sub" i18n="@@landing.flow.binary">one binary, no database</span>
+        </p>
+      </div>
+
+      <div class="flow__facts">
+        <p class="flow__fact">
+          <span class="flow__caption" i18n="@@landing.flow.asks">asks the forge</span>
+          <span class="flow__question" i18n="@@landing.flow.question">What may this token do?</span>
+        </p>
+        <p class="flow__fact">
+          <span class="flow__caption" i18n="@@landing.flow.writes">writes each object once to</span>
+          <span class="flow__question" i18n="@@landing.flow.disk">Your disk or an S3 bucket</span>
+        </p>
+      </div>
+
+      <p class="flow__foot" i18n="@@landing.flow.foot">
+        The repository stays where it is. One committed
+        <code translate="no">.lfsconfig</code> redirects the transfer, and clients need no plugin.
+      </p>
     </div>
   </div>
 </section>
 
-<section class="band" id="why">
-  <div class="band__rule">
-    <h2 class="band__title band__title--measured" i18n="@@landing.why.title">
-      A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
-    </h2>
-    <p class="band__lead" i18n="@@landing.why.body">
-      GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal
-      project burns through the free tier in a single push. Self-hosting removes the meter entirely:
-      the cost becomes a disk you already own.
-    </p>
-  </div>
-</section>
-
-<section class="band" id="compare">
-  <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.compare.title">What actually changes</h2>
-
-    <div class="compare__columns">
-      <div class="compare__column">
-        <p class="compare__label" translate="no">GitHub / GitLab LFS</p>
-        @for (row of comparisons; track row.key) {
-          <p class="compare__row">{{ row.metered }}</p>
-        }
-      </div>
-
-      <div class="compare__column">
-        <p class="compare__label compare__label--ours" translate="no">LFSX</p>
-        @for (row of comparisons; track row.key) {
-          <p class="compare__row compare__row--owned">{{ row.owned }}</p>
-        }
-      </div>
+<section class="strip">
+  <dl class="wrap strip__inner">
+    <div class="strip__fact">
+      <dt class="strip__figure">71%</dt>
+      <dd class="strip__caption" i18n="@@landing.strip.size">
+        smaller on disk with zstd, measured on two real Unity projects
+      </dd>
     </div>
+    <div class="strip__fact">
+      <dt class="strip__figure" i18n="@@landing.strip.call.figure">1 call</dt>
+      <dd class="strip__caption" i18n="@@landing.strip.call">
+        to the forge API for a push of two hundred objects
+      </dd>
+    </div>
+    <div class="strip__fact">
+      <dt class="strip__figure" i18n="@@landing.strip.accounts.figure">0 accounts</dt>
+      <dd class="strip__caption" i18n="@@landing.strip.accounts">
+        to manage, permissions come live from GitHub, GitLab or Gitea
+      </dd>
+    </div>
+    <div class="strip__fact">
+      <dt class="strip__figure" i18n="@@landing.strip.binary.figure">1 binary</dt>
+      <dd class="strip__caption" i18n="@@landing.strip.binary">
+        in Rust, configured by environment variables, no database
+      </dd>
+    </div>
+  </dl>
+</section>
+
+<section class="section" id="why">
+  <div class="wrap why">
+    <div class="why__statement">
+      <p class="eyebrow" i18n="@@landing.why.eyebrow">Why self-host</p>
+      <h2 class="section__title" i18n="@@landing.why.title">
+        A 3 GB asset pack cloned by a CI job ten times a month is 30 GB of metered traffic.
+      </h2>
+      <p class="section__lead" i18n="@@landing.why.body">
+        GitHub bills LFS storage and bandwidth separately from your plan, and a Unity or Unreal
+        project burns through the free tier in a single push. Self-hosting removes the meter
+        entirely: the cost becomes a disk you already own.
+      </p>
+    </div>
+
+    <table class="compare">
+      <caption class="compare__caption" i18n="@@landing.compare.title">
+        What actually changes
+      </caption>
+      <thead>
+        <tr>
+          <th class="compare__head" scope="col" translate="no">GitHub / GitLab LFS</th>
+          <th class="compare__head compare__head--ours" scope="col" translate="no">LFSX</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of comparisons; track row.key) {
+          <tr>
+            <td class="compare__cell">{{ row.metered }}</td>
+            <td class="compare__cell compare__cell--ours">{{ row.owned }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
   </div>
 </section>
 
-<section class="band" id="quickstart">
-  <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.quickstart.title">Quick start</h2>
+<section class="section section--tint" id="quickstart">
+  <div class="wrap">
+    <header class="section__head">
+      <p class="eyebrow" i18n="@@landing.quickstart.title">Quick start</p>
+      <h2 class="section__title" i18n="@@landing.quickstart.heading">Running in four steps.</h2>
+    </header>
 
     <div class="steps">
-      @for (step of steps; track step.key) {
+      <article class="step step--wide" id="deploy">
+        <header class="step__head">
+          <span class="step__number" aria-hidden="true">01</span>
+          <h3 class="step__title" i18n="@@landing.quickstart.run.title">Run it</h3>
+          <p class="step__summary" i18n="@@landing.quickstart.run.body">
+            A container, a Helm chart, a statically linked binary, or a cargo install.
+          </p>
+        </header>
+        <flr-install-tabs />
+      </article>
+
+      <div class="steps__row">
         <article class="step">
-          <h3 class="step__title">{{ step.title }}</h3>
-          @if (step.body) {
-            <p class="step__body">{{ step.body }}</p>
-          }
-          <pre
-            class="code"
-            [class.code--dark]="step.dark"
-            translate="no"
-          ><code>{{ step.code }}</code></pre>
-          @if (step.note) {
-            <div class="callout">
-              <p class="callout__body">{{ step.note }}</p>
-            </div>
-          }
+          <header class="step__head">
+            <span class="step__number" aria-hidden="true">02</span>
+            <h3 class="step__title" i18n="@@landing.quickstart.point.title">
+              Point a repository at it
+            </h3>
+          </header>
+          <flr-code-block [code]="lfsconfig" />
+          <p class="step__body" i18n="@@landing.quickstart.point.body">
+            The last two path segments are the organisation and the project, and together they
+            scope the storage. Two repositories sharing a URL share their objects.
+          </p>
         </article>
-      }
+
+        <article class="step">
+          <header class="step__head">
+            <span class="step__number" aria-hidden="true">03</span>
+            <h3 class="step__title" i18n="@@landing.quickstart.use.title">
+              Then use Git LFS as usual
+            </h3>
+          </header>
+          <flr-code-block [code]="gitUsage" />
+          <p class="step__body step__body--strong" i18n="@@landing.quickstart.use.note">
+            Run git lfs install before cloning. Without it, files arrive as 130-byte pointer stubs,
+            and the tools that read them, Unity, Unreal and image editors, fail in confusing ways.
+          </p>
+        </article>
+
+        <article class="step">
+          <header class="step__head">
+            <span class="step__number" aria-hidden="true">04</span>
+            <h3 class="step__title" i18n="@@landing.quickstart.verify.title">Verify it works</h3>
+          </header>
+          <flr-code-block [code]="doctor" />
+          <p class="step__body" i18n="@@landing.quickstart.verify.body">
+            The doctor checks the server is up, its storage is writable, your token is accepted, and
+            that the URL it advertises for transfers is the one you reached it on, which is the
+            mismatch that lets negotiation succeed while every transfer fails.
+          </p>
+        </article>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="auth" id="auth">
-  <div class="auth__inner">
-    <h2 class="band__title" i18n="@@landing.auth.title">There are no accounts to manage.</h2>
-    <p class="auth__lead" i18n="@@landing.auth.lead">
-      A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what
-      that token is allowed to do. Each answer is cached, so a push of two hundred objects costs one
-      API call rather than two hundred.
-    </p>
+  <div class="wrap auth__inner">
+    <div class="auth__text">
+      <p class="eyebrow eyebrow--light" translate="no">Auth</p>
+      <h2 class="section__title" i18n="@@landing.auth.title">There are no accounts to manage.</h2>
+      <p class="auth__lead" i18n="@@landing.auth.lead">
+        A client presents the token it would use to clone over HTTPS, and LFSX asks the forge what
+        that token is allowed to do. Each answer is cached, so a push of two hundred objects costs
+        one API call rather than two hundred.
+      </p>
+      <p class="auth__note" i18n="@@landing.auth.ci">
+        In CI, the token the workflow already holds is enough, with no secret to provision.
+      </p>
+      <flr-code-block class="auth__snippet" [code]="ciSnippet" />
+    </div>
 
-    <table class="auth__table">
-      <thead>
-        <tr>
-          <th class="auth__head" translate="no">GitHub</th>
-          <th class="auth__head" translate="no">GitLab</th>
-          <th class="auth__head" translate="no">Gitea, Forgejo</th>
-          <th class="auth__head" i18n="@@landing.auth.objects">Objects</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of authRows; track row.key) {
-          <tr>
-            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
-              {{ row.github }}
-            </td>
-            <td class="auth__cell" [class.auth__cell--muted]="row.rejected">
-              {{ row.gitlab }}
-            </td>
-            <td class="auth__cell auth__cell--mono" [class.auth__cell--muted]="row.rejected">
-              {{ row.gitea }}
-            </td>
-            <td class="auth__cell" [class.auth__cell--rejected]="row.rejected">
-              {{ row.objects }}
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
-
-    <p class="auth__note" i18n="@@landing.auth.ci">
-      In CI, the token the workflow already holds is enough, with no secret to provision.
-    </p>
-    <pre class="code code--outline-dark" translate="no"><code>{{ ciSnippet }}</code></pre>
+    <flr-forge-matrix class="auth__matrix" />
   </div>
 </section>
 
-<section class="band" id="config">
-  <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.config.title">Configuration</h2>
-    <p class="band__lead" i18n="@@landing.config.body">
-      All configuration is by environment variable. There is no config file to template and no
-      database to migrate.
-    </p>
+<section class="section" id="storage">
+  <div class="wrap">
+    <header class="section__head">
+      <p class="eyebrow" i18n="@@landing.storage.title">Storage</p>
+      <h2 class="section__title section__title--measured" i18n="@@landing.storage.heading">
+        A bucket, compression and encryption are each one variable.
+      </h2>
+      <p class="section__lead" i18n="@@landing.storage.body">
+        Objects live on the filesystem by default, addressed by digest. The three options compose.
+      </p>
+    </header>
 
-    <dl class="settings">
-      @for (setting of settings; track setting.key) {
-        <div class="setting">
-          <dt class="setting__name" translate="no">{{ setting.name }}</dt>
-          <dd class="setting__purpose">{{ setting.purpose }}</dd>
-        </div>
-      }
-    </dl>
+    <flr-storage-cards />
 
-    <p class="band__note" i18n="@@landing.config.note">
-      <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the client
-      reconnects to it for every object. If it is wrong, negotiation succeeds and every transfer
-      then fails.
-    </p>
-
-    <a class="band__link" href="/docs/configuration" i18n="@@landing.config.link">Every variable</a>
-  </div>
-</section>
-
-<section class="band" id="deploy">
-  <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.deploy.title">Self-hosting</h2>
-
-    <div class="rows">
-      @for (install of installs; track install.key) {
-        <div class="row">
-          <h3 class="row__label" translate="no">{{ install.title }}</h3>
-          <div class="row__body">
-            <pre class="code code--bare" translate="no"><code>{{ install.code }}</code></pre>
-            @if (install.note) {
-              <p class="row__note">{{ install.note }}</p>
-            }
-          </div>
-        </div>
-      }
+    <div class="config" id="config">
+      <div class="config__text">
+        <h3 class="config__title" i18n="@@landing.config.title">
+          All configuration is by environment variable.
+        </h3>
+        <p class="config__body" i18n="@@landing.config.body">
+          No config file to template, no database to migrate.
+        </p>
+        <p class="config__note" i18n="@@landing.config.note">
+          <code translate="no">LFSX_PUBLIC_URL</code> is echoed in the batch response and the
+          client reconnects to it for every object. If it is wrong, negotiation succeeds and every
+          transfer then fails.
+        </p>
+      </div>
+      <a class="button button--accent" href="/docs/configuration" i18n="@@landing.config.link"
+        >Every variable</a
+      >
     </div>
   </div>
 </section>
 
-<section class="band" id="storage">
-  <div class="band__rule">
-    <h2 class="band__title" i18n="@@landing.storage.title">Storage</h2>
-    <p class="band__lead" i18n="@@landing.storage.body">
-      Objects live on the filesystem by default, addressed by digest. A bucket, compression and
-      encryption are each one environment variable, and they compose.
-    </p>
-
-    <div class="rows rows--top">
-      @for (store of stores; track store.key) {
-        <div class="row">
-          <div class="row__label-group">
-            <h3 class="row__label">{{ store.title }}</h3>
-            <p class="row__flag" translate="no">{{ store.flag }}</p>
-          </div>
-          <div class="row__body">
-            <p class="store__lead">{{ store.lead }}</p>
-            <p class="store__detail">{{ store.body }}</p>
-            @if (store.key === 'compression') {
-              <div class="ratios">
-                @for (ratio of ratios; track ratio.key) {
-                  <div class="ratio">
-                    <p class="ratio__format" translate="no">
-                      {{ ratio.format }}
-                    </p>
-                    <p class="ratio__figure" [class.ratio__figure--muted]="ratio.muted">
-                      {{ ratio.figure }}
-                    </p>
-                  </div>
-                }
-              </div>
-              <p class="ratios__measured" i18n="@@landing.storage.measured">
-                Measured on two real Unity projects: 71% smaller overall.
-              </p>
-            }
-            @if (store.key === 'encryption') {
-              <div class="callout">
-                <p class="callout__body callout__body--strong" i18n="@@landing.storage.threat">
-                  It does not protect against anyone who has the running server, because that
-                  process holds the key by construction.
-                </p>
-              </div>
-            }
-          </div>
-        </div>
-      }
-    </div>
-
-    <div class="storage__snippets">
-      <pre class="code code--dark" translate="no"><code>{{ s3Snippet }}</code></pre>
-      <pre class="code" translate="no"><code>{{ codecSnippet }}</code></pre>
-    </div>
-
-    <a class="band__link" href="/docs/buckets" i18n="@@landing.storage.link"
-      >How a bucket deployment works</a
-    >
-  </div>
-</section>
-
-<section class="band" id="faq">
-  <div class="band__rule band__rule--last">
-    <h2 class="band__title" translate="no">FAQ</h2>
-
+<section class="faq" id="faq">
+  <div class="wrap faq__inner">
+    <h2 class="section__title" translate="no">FAQ</h2>
     <div class="faq__list">
-      @for (question of questions; track question.key) {
-        <div class="faq__entry">
-          <h3 class="faq__asked">{{ question.asked }}</h3>
+      @for (question of questions; track question.key; let first = $first) {
+        <details class="faq__entry" [open]="first">
+          <summary class="faq__asked">{{ question.asked }}</summary>
           <p class="faq__answered">{{ question.answered }}</p>
-        </div>
+        </details>
       }
     </div>
   </div>
 </section>
 
 <section class="cta">
-  <div class="cta__inner">
+  <div class="wrap cta__inner">
     <h2 class="cta__title" i18n="@@landing.cta.title">Self-hosting removes the meter entirely.</h2>
     <div class="cta__actions">
-      <a class="cta__primary" href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener"
-        >github.com/FerrLabs/LFSX</a
+      <a class="button button--paper button--block" href="#quickstart" i18n="@@landing.cta"
+        >Quick start</a
       >
       <a
-        class="cta__secondary"
+        class="button button--outline-paper button--block"
         href="https://github.com/FerrLabs/LFSX/releases"
         rel="noreferrer noopener"
         i18n="@@landing.cta.releases"
@@ -264,10 +279,13 @@
   </div>
 
   <div class="cta__strip">
-    <div class="cta__strip-inner">
+    <div class="wrap cta__strip-inner">
       <span class="cta__mark" translate="no">LFS<span class="cta__x">X</span></span>
       <span translate="no">MPL-2.0</span>
       <a href="https://ferrlabs.com" rel="noreferrer noopener" translate="no">FerrLabs</a>
+      <a href="https://github.com/FerrLabs/LFSX" rel="noreferrer noopener" translate="no"
+        >github.com/FerrLabs/LFSX</a
+      >
       <a class="cta__home" href="https://lfsx.dev" translate="no">lfsx.dev</a>
     </div>
   </div>

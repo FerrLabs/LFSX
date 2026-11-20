@@ -1,0 +1,12 @@
+<div class="block" [class.block--compact]="compact()">
+  <pre class="block__code" translate="no" tabindex="0"><code>{{ code() }}</code></pre>
+  @if (copyable()) {
+    <button class="block__copy" type="button" aria-live="polite" (click)="copy()">
+      @if (copied()) {
+        <span i18n="@@landing.copy.done">Copied</span>
+      } @else {
+        <span i18n="@@landing.copy.idle">Copy</span>
+      }
+    </button>
+  }
+</div>

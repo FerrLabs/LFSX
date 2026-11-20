@@ -1,0 +1,60 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.block {
+  display: flex;
+  align-items: stretch;
+  background: var(--code-bg, var(--color-neutral-900, #2d2b2b));
+  border: 1px solid var(--code-border, transparent);
+  color: var(--color-neutral-100, #f8f4f4);
+}
+
+.block__code {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 1.25rem 1.375rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.84375rem;
+  line-height: 1.8;
+  white-space: pre;
+}
+
+.block--compact .block__code {
+  padding: 0.9375rem 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.block__copy {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  min-width: 5rem;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--color-neutral-100, #f8f4f4) 22%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.block--compact .block__copy {
+  align-self: stretch;
+}
+
+.block__copy:hover {
+  background: color-mix(in srgb, var(--color-neutral-100, #f8f4f4) 12%, transparent);
+}
+
+.block__copy:focus-visible,
+.block__code:focus-visible {
+  outline: 2px solid var(--color-neutral-100, #f8f4f4);
+  outline-offset: -4px;
+}

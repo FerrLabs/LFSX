@@ -1,0 +1,13 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+}
+
+.note {
+  margin: 0;
+  max-width: 90ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-ink-2, #605d5d);
+}

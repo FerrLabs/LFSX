@@ -1,0 +1,22 @@
+<flr-segmented [label]="tabsLabel" [options]="forges" [(value)]="selected" />
+
+<table class="matrix">
+  <thead>
+    <tr>
+      <th class="matrix__head matrix__head--role" scope="col" i18n="@@landing.auth.role">
+        Role on the forge
+      </th>
+      <th class="matrix__head" scope="col" i18n="@@landing.auth.grant">
+        What it may do with objects
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (row of rows(); track row.key) {
+      <tr [class.matrix__row--rejected]="row.rejected">
+        <th class="matrix__role" scope="row" translate="no">{{ row.role }}</th>
+        <td class="matrix__grant">{{ row.objects }}</td>
+      </tr>
+    }
+  </tbody>
+</table>
