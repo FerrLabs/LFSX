@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.15] - 2026-11-20
+
+### Features
+
+- feat(site): restructure the landing page (#781)
+
 ## [2026.11.13] - 2026-11-18
 
 ### Bug Fixes
