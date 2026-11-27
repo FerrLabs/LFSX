@@ -4,6 +4,10 @@
   gap: 1.125rem;
 }
 
+.methods {
+  overflow-x: auto;
+}
+
 .note {
   margin: 0;
   max-width: 90ch;

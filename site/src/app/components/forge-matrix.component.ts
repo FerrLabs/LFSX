@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { SegmentedComponent } from './segmented.component';
+import { SegmentedComponent } from '@ferrlabs/ui-ng';
 
 type ForgeKey = 'github' | 'gitlab' | 'gitea';
 
@@ -18,10 +18,10 @@ interface Grant {
   styleUrl: './forge-matrix.component.css',
 })
 export class ForgeMatrixComponent {
-  protected readonly forges: readonly { readonly key: ForgeKey; readonly label: string }[] = [
-    { key: 'github', label: 'GitHub' },
-    { key: 'gitlab', label: 'GitLab' },
-    { key: 'gitea', label: 'Gitea, Forgejo' },
+  protected readonly forges: readonly { readonly value: ForgeKey; readonly label: string }[] = [
+    { value: 'github', label: 'GitHub' },
+    { value: 'gitlab', label: 'GitLab' },
+    { value: 'gitea', label: 'Gitea, Forgejo' },
   ];
 
   protected readonly grants: readonly Grant[] = [
@@ -56,4 +56,9 @@ export class ForgeMatrixComponent {
     this.grants.map((grant) => ({ ...grant, role: grant.roles[this.selected()] })),
   );
   protected readonly tabsLabel = $localize`:@@landing.auth.forge:Forge`;
+
+  protected select(value: string): void {
+    const match = this.forges.find((forge) => forge.value === value);
+    if (match) this.selected.set(match.value);
+  }
 }

@@ -44,7 +44,7 @@ test('French messages carry no empty value and no em or en dash', () => {
 
 test('landing and header sources carry no em or en dash', () => {
   const offenders = files
-    .filter((file) => /(landing|site-header|code-block|segmented|install-tabs|forge-matrix|storage-cards)/.test(file))
+    .filter((file) => /(landing|site-header|code-block|install-tabs|forge-matrix|storage-cards)/.test(file))
     .filter((file) => /[–—]/.test(text(file)));
   assert.deepEqual(offenders, []);
 });

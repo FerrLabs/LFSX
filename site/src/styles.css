@@ -90,6 +90,15 @@ body {
   font-family: var(--font-sans);
 }
 
+flr-segmented {
+  --radius-card: 0px;
+  --radius-control: 0px;
+  --color-app-bg-2: var(--color-paper-2, #eae9e9);
+  --color-card: var(--color-paper, #f3f2f2);
+  --color-ink-3: var(--color-ink-2, #605d5d);
+  --color-accent: var(--accent, #1d6b52);
+}
+
 /* Photography prints in pure black and white. */
 .grayscale img,
 img.grayscale {
