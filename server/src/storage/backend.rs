@@ -74,6 +74,55 @@ fn fill_behind(cache: std::sync::Arc<super::cache::Cache>, bucket: S3Store, oid:
     });
 }
 
+async fn reader_for<'a>(
+    bucket: &S3Store,
+    cache: Option<&'a std::sync::Arc<super::cache::Cache>>,
+    oid: &Oid,
+    size: u64,
+) -> (super::codec::Reader, Option<&'a super::cache::Cache>) {
+    let cached = match cache {
+        Some(cache) => cache.open(oid).await.map(|file| (file, cache)),
+        None => None,
+    };
+
+    if let Some((file, cache)) = cached {
+        return (super::codec::Reader::File(file), Some(cache.as_ref()));
+    }
+
+    if let Some(cache) = cache {
+        fill_behind(cache.clone(), bucket.clone(), oid.to_owned(), size);
+    }
+
+    (
+        super::codec::Reader::Bucket {
+            bucket: bucket.clone(),
+            oid: oid.to_owned(),
+        },
+        None,
+    )
+}
+
+async fn unframed(
+    bucket: &S3Store,
+    hit: Option<&super::cache::Cache>,
+    oid: &Oid,
+    size: u64,
+) -> Object {
+    let reopened = match hit {
+        Some(cache) => cache.reopen(oid).await,
+        None => None,
+    };
+
+    match reopened {
+        Some(file) => Object::Raw { file, size },
+        None => Object::Remote {
+            bucket: bucket.clone(),
+            oid: oid.to_owned(),
+            size,
+        },
+    }
+}
+
 impl Store {
     pub fn local(store: LocalStore) -> Self {
         Self::over(Backend::Local(store))
@@ -280,27 +329,7 @@ impl Store {
                 // cached is served from the bucket as before and filled in
                 // behind the request, so a cold client waits for the bucket and
                 // not for the copy.
-                let cached = match cache {
-                    Some(cache) => cache.open(oid).await,
-                    None => None,
-                };
-
-                let (reader, hit) = match cached {
-                    Some(file) => (super::codec::Reader::File(file), cache.as_ref()),
-                    None => {
-                        if let Some(cache) = cache {
-                            fill_behind(cache.clone(), (**bucket).clone(), oid.to_owned(), size);
-                        }
-
-                        (
-                            super::codec::Reader::Bucket {
-                                bucket: (**bucket).clone(),
-                                oid: oid.to_owned(),
-                            },
-                            None,
-                        )
-                    }
-                };
+                let (reader, hit) = reader_for(bucket, cache.as_ref(), oid, size).await;
 
                 match super::codec::Framed::open(
                     reader,
@@ -311,26 +340,7 @@ impl Store {
                 .await?
                 {
                     Some(framed) => Ok(Object::Framed(framed)),
-                    // Not one of ours: the object is the bytes, and streaming
-                    // them straight through costs no extra round trip.
-                    // A raw object that is cached is a plain local file, so
-                    // it streams like one. `Framed::open` consumed the handle
-                    // deciding it was not framed, hence the reopen.
-                    None => {
-                        let reopened = match hit {
-                            Some(cache) => cache.reopen(oid).await,
-                            None => None,
-                        };
-
-                        match reopened {
-                            Some(file) => Ok(Object::Raw { file, size }),
-                            None => Ok(Object::Remote {
-                                bucket: (**bucket).clone(),
-                                oid: oid.to_owned(),
-                                size,
-                            }),
-                        }
-                    }
+                    None => Ok(unframed(bucket, hit, oid, size).await),
                 }
             }
         }
