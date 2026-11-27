@@ -91,3 +91,7 @@ useful on a laptop with nothing installed.
 ## Licence
 
 Contributions are licensed under the [MPL-2.0](LICENSE), the licence this project ships under.
+
+## Contributor License Agreement
+
+Contributions are covered by the [CLA](https://github.com/FerrLabs/.github/blob/main/CLA.md). Sign it once on https://cla.ferrlabs.com, using the link in the `cla` check of your first pull request.
