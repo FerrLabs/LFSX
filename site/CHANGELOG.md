@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.18] - 2026-11-27
+
+### Refactoring
+
+- refactor(site): use the shared segmented control (#804)
+
 ## [2026.11.17] - 2026-11-25
 
 ### Bug Fixes
