@@ -1,3 +1,11 @@
-<flr-segmented [label]="tabsLabel" [options]="tabs" [(value)]="selected" />
+<div class="methods">
+  <flr-segmented
+    translate="no"
+    [aria-label]="tabsLabel"
+    [options]="installs"
+    [value]="selected()"
+    (valueChange)="select($event)"
+  />
+</div>
 <flr-code-block [code]="current().code" copyable />
 <p class="note">{{ current().note }}</p>

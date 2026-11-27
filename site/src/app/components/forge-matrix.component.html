@@ -1,4 +1,10 @@
-<flr-segmented [label]="tabsLabel" [options]="forges" [(value)]="selected" />
+<flr-segmented
+  translate="no"
+  [aria-label]="tabsLabel"
+  [options]="forges"
+  [value]="selected()"
+  (valueChange)="select($event)"
+/>
 
 <table class="matrix">
   <thead>

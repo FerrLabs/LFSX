@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { SegmentedComponent } from '@ferrlabs/ui-ng';
 import { CodeBlockComponent } from './code-block.component';
-import { SegmentedComponent } from './segmented.component';
 
 type InstallKey = 'docker' | 'kubernetes' | 'binary' | 'cargo';
 
 interface Install {
-  readonly key: InstallKey;
+  readonly value: InstallKey;
   readonly label: string;
   readonly code: string;
   readonly note: string;
@@ -21,7 +21,7 @@ interface Install {
 export class InstallTabsComponent {
   protected readonly installs: readonly Install[] = [
     {
-      key: 'docker',
+      value: 'docker',
       label: 'Docker',
       code: [
         'docker run -d --name lfsx \\',
@@ -33,7 +33,7 @@ export class InstallTabsComponent {
       note: $localize`:@@landing.install.docker.note:The volume holds every object. LFSX_PUBLIC_URL is the address clients reconnect to for each transfer.`,
     },
     {
-      key: 'kubernetes',
+      value: 'kubernetes',
       label: 'Kubernetes',
       code: [
         'helm install lfsx oci://ghcr.io/ferrlabs/charts/lfsx \\',
@@ -42,7 +42,7 @@ export class InstallTabsComponent {
       note: $localize`:@@landing.deploy.kubernetes.note:The chart encodes what is easy to get wrong: the public URL derived from the ingress host, the nginx annotations that keep large uploads from being rejected, probes on /health and /ready, and a refusal to render more than one replica unless the objects are in a bucket.`,
     },
     {
-      key: 'binary',
+      value: 'binary',
       label: 'Binary',
       code: [
         'curl -fsSL .../lfsx-server-x86_64-unknown-linux-musl.tar.gz | tar xz',
@@ -51,17 +51,21 @@ export class InstallTabsComponent {
       note: $localize`:@@landing.deploy.binary.note:x86_64 or aarch64, musl or gnu. Every archive ships a .sha256 next to it.`,
     },
     {
-      key: 'cargo',
+      value: 'cargo',
       label: 'Cargo',
       code: 'cargo install lfsx-server',
       note: $localize`:@@landing.install.cargo.note:If you would rather compile it yourself.`,
     },
   ];
 
-  protected readonly tabs = this.installs.map(({ key, label }) => ({ key, label }));
   protected readonly selected = signal<InstallKey>('docker');
   protected readonly current = computed(
-    () => this.installs.find((install) => install.key === this.selected()) ?? this.installs[0],
+    () => this.installs.find((install) => install.value === this.selected()) ?? this.installs[0],
   );
   protected readonly tabsLabel = $localize`:@@landing.install.label:Install method`;
+
+  protected select(value: string): void {
+    const match = this.installs.find((install) => install.value === value);
+    if (match) this.selected.set(match.value);
+  }
 }

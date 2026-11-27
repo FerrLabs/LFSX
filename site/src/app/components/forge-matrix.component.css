@@ -2,9 +2,16 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  --segmented-ink: var(--color-neutral-100, #f8f4f4);
-  --segmented-paper: var(--color-neutral-900, #2d2b2b);
-  --segmented-focus: var(--color-neutral-100, #f8f4f4);
+}
+
+flr-segmented {
+  align-self: flex-start;
+  --color-rule: var(--color-neutral-700, #605d5d);
+  --color-app-bg-2: transparent;
+  --color-card: var(--color-neutral-700, #605d5d);
+  --color-ink: var(--color-neutral-100, #f8f4f4);
+  --color-ink-3: var(--color-neutral-400, #bab6b6);
+  --color-accent: var(--color-neutral-100, #f8f4f4);
 }
 
 .matrix {
