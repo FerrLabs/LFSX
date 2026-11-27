@@ -4,6 +4,12 @@ All notable changes to `lfsx-server` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.60] - 2026-11-27
+
+### Refactoring
+
+- refactor(storage): split bucket open into reader selection and unframed fallback (#805)
+
 ## [1.26.59] - 2026-11-26
 
 ### Bug Fixes
