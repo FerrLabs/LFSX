@@ -30,9 +30,10 @@
           <span class="bar__format" translate="no">{{ bar.format }}</span>
           <strong class="bar__figure">{{ bar.figure }}</strong>
         </p>
-        <div class="bar__track" role="img" [attr.aria-label]="bar.label">
-          <div class="bar__fill" class="bar__fill" [class]="'bar__fill--' + bar.key"></div>
+        <div class="bar__track" aria-hidden="true">
+          <div class="bar__fill" [class]="'bar__fill--' + bar.key"></div>
         </div>
+        <span class="bar__label">{{ bar.label }}</span>
       </li>
     }
   </ul>

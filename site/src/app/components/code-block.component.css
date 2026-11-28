@@ -53,8 +53,7 @@
   background: color-mix(in srgb, var(--color-neutral-100, #f8f4f4) 12%, transparent);
 }
 
-.block__copy:focus-visible,
-.block__code:focus-visible {
+.block__copy:focus-visible {
   outline: 2px solid var(--color-neutral-100, #f8f4f4);
   outline-offset: -4px;
 }
