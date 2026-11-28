@@ -4,6 +4,12 @@ All notable changes to `site` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026.11.19] - 2026-11-28
+
+### Bug Fixes
+
+- fix(site): resolve Sonar a11y violations on code block and storage bars (#808)
+
 ## [2026.11.18] - 2026-11-27
 
 ### Refactoring
