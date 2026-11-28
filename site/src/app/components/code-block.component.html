@@ -1,5 +1,5 @@
 <div class="block" [class.block--compact]="compact()">
-  <pre class="block__code" translate="no" tabindex="0"><code>{{ code() }}</code></pre>
+  <pre class="block__code" translate="no"><code>{{ code() }}</code></pre>
   @if (copyable()) {
     <button class="block__copy" type="button" aria-live="polite" (click)="copy()">
       @if (copied()) {

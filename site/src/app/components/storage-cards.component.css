@@ -95,6 +95,10 @@
   list-style: none;
 }
 
+.bar {
+  position: relative;
+}
+
 .bar__head {
   display: flex;
   justify-content: space-between;
@@ -115,6 +119,15 @@
 .bar__track {
   height: 0.625rem;
   background: var(--color-neutral-300, #d7d3d3);
+}
+
+.bar__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .bar__fill {
